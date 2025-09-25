@@ -1,0 +1,28 @@
+# Text replacement example - customize templates with placeholders
+repository: "myorg/app-templates"
+tag: "main"
+
+pulls:
+  - source: "microservice/nodejs"
+    target: "./service"
+    replacements:
+      # Static replacements
+      - source: "{{SERVICE_NAME}}"
+        target: "user-service"
+      - source: "{{SERVICE_PORT}}"
+        target: "3000"
+      - source: "{{API_VERSION}}"
+        target: "v1"
+        
+      # Environment variable replacements
+      - source: "{{DATABASE_URL}}"
+        valueFromEnv: "DB_CONNECTION_STRING"
+      - source: "{{REDIS_URL}}"
+        valueFromEnv: "REDIS_CONNECTION"
+      - source: "{{LOG_LEVEL}}"
+        valueFromEnv: "LOG_LEVEL"
+        
+    commands:
+      - "npm install"
+      - "npm run lint"
+      - "echo 'Service template configured and dependencies installed'"

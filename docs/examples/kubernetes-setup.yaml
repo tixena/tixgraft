@@ -1,0 +1,59 @@
+# Kubernetes deployment example - complete application setup
+repository: "devops/k8s-scaffolds"
+tag: "production"
+
+pulls:
+  # Create namespace and RBAC
+  - source: "base/namespace"
+    target: "./k8s/00-namespace"
+    replacements:
+      - source: "{{NAMESPACE}}"
+        valueFromEnv: "K8S_NAMESPACE"
+      - source: "{{ENVIRONMENT}}"
+        valueFromEnv: "ENVIRONMENT"
+
+  # Deploy database
+  - source: "databases/postgresql"
+    target: "./k8s/01-database"
+    reset: true
+    replacements:
+      - source: "{{DB_NAME}}"
+        valueFromEnv: "DATABASE_NAME"
+      - source: "{{STORAGE_CLASS}}"
+        valueFromEnv: "STORAGE_CLASS"
+      - source: "{{STORAGE_SIZE}}"
+        target: "20Gi"
+    commands:
+      - "kubectl apply -f ."
+      - "kubectl wait --for=condition=ready pod -l app=postgresql --timeout=300s"
+
+  # Deploy application
+  - source: "apps/web-application"
+    target: "./k8s/02-application"
+    replacements:
+      - source: "{{APP_NAME}}"
+        valueFromEnv: "APP_NAME"
+      - source: "{{IMAGE_TAG}}"
+        valueFromEnv: "BUILD_TAG"
+      - source: "{{REPLICA_COUNT}}"
+        target: "3"
+      - source: "{{DOMAIN_NAME}}"
+        valueFromEnv: "DOMAIN"
+      - source: "{{TLS_SECRET_NAME}}"
+        valueFromEnv: "TLS_SECRET"
+    commands:
+      - "kubectl apply -f ."
+      - "kubectl rollout status deployment/${APP_NAME}"
+      - "echo 'Application deployed successfully'"
+
+  # Deploy monitoring
+  - source: "monitoring/prometheus"
+    target: "./k8s/03-monitoring" 
+    replacements:
+      - source: "{{RETENTION_DAYS}}"
+        target: "30"
+      - source: "{{ALERT_WEBHOOK}}"
+        valueFromEnv: "ALERT_WEBHOOK_URL"
+    commands:
+      - "kubectl apply -f ."
+      - "echo 'Monitoring stack deployed'"

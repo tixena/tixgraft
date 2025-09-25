@@ -1,0 +1,24 @@
+# Multi-repository example - pull from different sources
+pulls:
+  # Pull Dockerfile from configs repository
+  - source: "docker/node/Dockerfile"
+    target: "./Dockerfile"
+    type: "file"
+    repository: "myorg/configs"
+    tag: "v2.1.0"
+
+  # Pull CI scripts from devops repository  
+  - source: "ci/github-actions"
+    target: "./.github/workflows"
+    repository: "myorg/devops"
+    tag: "latest"
+    
+  # Pull Kubernetes manifests from k8s repository
+  - source: "apps/web-service"
+    target: "./k8s"
+    repository: "myorg/k8s-templates"
+    tag: "production"
+    reset: true
+    commands:
+      - "kubectl apply --dry-run=client -f ."
+      - "echo 'Kubernetes manifests validated'"

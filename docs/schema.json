@@ -1,0 +1,106 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TixGraft Configuration",
+  "type": "object",
+  "properties": {
+    "repository": {
+      "type": "string",
+      "description": "Optional global repository URL or account/repo format",
+      "pattern": "^(https?://.*\\.git|git@.*\\.git|[\\w-]+/[\\w-]+)$"
+    },
+    "tag": {
+      "type": "string",
+      "description": "Optional global Git reference (branch, tag, or commit)",
+      "default": "main"
+    },
+    "pulls": {
+      "type": "array",
+      "description": "List of pull operations",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["source", "target"],
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Source path in the repository"
+          },
+          "target": {
+            "type": "string",
+            "description": "Target path in the local workspace"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["file", "directory"],
+            "default": "directory",
+            "description": "Whether source is a file or directory"
+          },
+          "repository": {
+            "type": "string",
+            "description": "Override global repository for this pull",
+            "pattern": "^(https?://.*\\.git|git@.*\\.git|[\\w-]+/[\\w-]+)$"
+          },
+          "tag": {
+            "type": "string",
+            "description": "Override global tag for this pull"
+          },
+          "reset": {
+            "type": "boolean",
+            "default": false,
+            "description": "For directories, rm -rf target before copying"
+          },
+          "commands": {
+            "type": "array",
+            "description": "Commands to run after copying",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "replacements": {
+            "type": "array",
+            "description": "Text replacements to apply after copying",
+            "items": {
+              "type": "object",
+              "required": ["source"],
+              "oneOf": [
+                {
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "description": "String pattern to search for"
+                    },
+                    "target": {
+                      "type": "string",
+                      "description": "String literal replacement value"
+                    }
+                  },
+                  "required": ["source", "target"],
+                  "additionalProperties": false
+                },
+                {
+                  "properties": {
+                    "source": {
+                      "type": "string",
+                      "description": "String pattern to search for"
+                    },
+                    "valueFromEnv": {
+                      "type": "string",
+                      "description": "Environment variable name for replacement value"
+                    }
+                  },
+                  "required": ["source", "valueFromEnv"],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "default": []
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["pulls"],
+  "additionalProperties": false
+}

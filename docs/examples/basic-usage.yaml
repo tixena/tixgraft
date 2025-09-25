@@ -1,0 +1,10 @@
+# Basic usage example - pull a Docker configuration
+repository: "myorg/docker-templates"
+tag: "main"
+
+pulls:
+  - source: "nodejs/production"
+    target: "./docker"
+    type: "directory"
+    commands:
+      - "echo 'Docker configuration copied successfully'"
