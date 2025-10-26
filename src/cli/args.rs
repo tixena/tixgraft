@@ -24,6 +24,10 @@ pub struct Args {
     #[arg(long)]
     pub dry_run: bool,
 
+    /// Enable verbose logging output
+    #[arg(short, long)]
+    pub verbose: bool,
+
     /// Pull operations (can be specified multiple times)
     #[command(flatten)]
     pub pulls: PullArgs,
@@ -91,5 +95,5 @@ pub struct ReplacementConfig {
 }
 
 fn default_pull_type() -> String {
-    "directory".to_string()
+    return "directory".to_owned();
 }

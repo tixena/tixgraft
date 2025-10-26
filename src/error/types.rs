@@ -28,48 +28,49 @@ pub enum GraftError {
 
 impl GraftError {
     /// Get the appropriate exit code for this error type
-    pub fn exit_code(&self) -> i32 {
+    #[must_use]
+    pub const fn exit_code(&self) -> i32 {
         match self {
-            GraftError::Configuration { .. } => 1,
-            GraftError::Source { .. } => 2,
-            GraftError::Command { .. } => 3,
-            GraftError::Git { .. } => 4,
-            GraftError::Filesystem { .. } => 5,
+            Self::Configuration { .. } => 1,
+            Self::Source { .. } => 2,
+            Self::Command { .. } => 3,
+            Self::Git { .. } => 4,
+            Self::Filesystem { .. } => 5,
         }
     }
 
     /// Create a configuration error
     pub fn configuration<S: Into<String>>(message: S) -> Self {
-        GraftError::Configuration {
+        return Self::Configuration {
             message: message.into(),
-        }
+        };
     }
 
     /// Create a source error
     pub fn source<S: Into<String>>(message: S) -> Self {
-        GraftError::Source {
+        return Self::Source {
             message: message.into(),
-        }
+        };
     }
 
     /// Create a command error
     pub fn command<S: Into<String>>(message: S) -> Self {
-        GraftError::Command {
+        return Self::Command {
             message: message.into(),
-        }
+        };
     }
 
     /// Create a git error
     pub fn git<S: Into<String>>(message: S) -> Self {
-        GraftError::Git {
+        return Self::Git {
             message: message.into(),
-        }
+        };
     }
 
     /// Create a filesystem error
     pub fn filesystem<S: Into<String>>(message: S) -> Self {
-        GraftError::Filesystem {
+        return Self::Filesystem {
             message: message.into(),
-        }
+        };
     }
 }

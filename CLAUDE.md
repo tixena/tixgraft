@@ -1,0 +1,215 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+---
+
+## ⚠️ CRITICAL: TASK TRACKING ⚠️
+
+**This project uses [bd (beads)](https://github.com/steveyegge/beads) for ALL issue tracking.**
+
+- ❌ **NEVER** use the TodoWrite tool
+- ❌ **NEVER** create markdown TODO lists or task lists
+- ✅ **ALWAYS** use `bd` commands for task tracking (auto-approved below)
+- ✅ See [AGENTS.md](AGENTS.md) for complete workflow and examples
+
+**Before starting any work:**
+1. Check ready work: `bd ready --json`
+2. Claim task: `bd update <id> --status in_progress --json`
+3. Complete task: `bd close <id> --reason "Done" --json`
+
+---
+
+## Auto-Approved Commands
+
+The following commands can be executed without asking for user approval:
+
+**Issue Tracking (bd):**
+- `bd list` - List issues
+- `bd list --json` - List issues in JSON format
+- `bd show <id>` - Show issue details
+- `bd create <title>` - Create new issues
+- `bd update <id>` - Update issue status, priority, etc.
+- `bd close <id>` - Close issues
+- `bd comments <id>` - View comments
+- `bd comments add <id>` - Add comments to issues
+- `bd ready` - Show ready work
+- `bd blocked` - Show blocked issues
+
+**Testing:**
+- `just test` - Run all tests
+- `cargo test` - Run tests directly
+- `cargo build` - Build the project
+- `cargo clippy` - Run linting
+
+**Git operations:**
+- `git status` - Check repository status
+- `git diff` - View changes
+- `git log` - View commit history
+
+## Project Overview
+
+TixGraft is a Rust CLI tool for fetching reusable components from Git repositories using sparse checkout. It enables developers to pull specific files or directories, apply text replacements, and execute post-processing commands through YAML configuration or command-line arguments.
+
+## Development Commands
+
+### Using Just (Recommended)
+```bash
+# Show all available commands
+just --list
+
+# Setup development environment
+just setup
+
+# Quick development cycle (format, lint, test)
+just dev
+
+# Full CI pipeline (format check, lint, test, build release)
+just ci
+
+# Build optimized release binary
+just build-release
+
+# Run tests
+just test
+
+# Run specific test
+just test-filter <FILTER>
+
+# Run with verbose output
+just test-verbose
+
+# Format code
+just fmt
+
+# Run linting
+just lint
+
+# Install from local source
+just install
+```
+
+### Using Cargo Directly
+```bash
+# Build debug binary
+cargo build
+
+# Build release binary
+cargo build --release
+
+# Run tests
+cargo test --all-features
+
+# Run clippy linting
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Format code
+cargo fmt --all
+
+# Run the CLI
+cargo run -- <args>
+```
+
+## Architecture
+
+### Module Structure
+
+The codebase follows a modular architecture with clear separation of concerns:
+
+- **`cli/`** - Command-line interface using clap
+  - `args.rs` - CLI argument parsing and structures
+  - `commands.rs` - Command handling logic
+
+- **`config/`** - Configuration management
+  - `yaml.rs` - YAML parsing
+  - `schema.rs` - JSON schema definitions
+  - `validation.rs` - Configuration validation logic
+  - Handles merging of YAML config with CLI arguments (CLI takes precedence)
+
+- **`git/`** - Git operations
+  - `repository.rs` - Repository URL handling and normalization
+  - `sparse_checkout.rs` - Git sparse checkout implementation using git2
+
+- **`operations/`** - Core functionality
+  - `pull.rs` - Orchestrates the complete pull operation workflow
+  - `copy.rs` - File copying logic with directory/file type handling
+  - `replace.rs` - Text replacement in files (static values or environment variables)
+  - `commands.rs` - Command execution in target directory context
+
+- **`error/`** - Error handling
+  - `types.rs` - Custom error types with specific exit codes (1-5)
+
+- **`utils/`** - Utility functions
+  - `path.rs` - Path validation and security (prevents directory traversal)
+  - `fs.rs` - File system helpers
+
+### Core Flow
+
+1. **CLI Parsing** (`main.rs` → `cli::Args::parse()`)
+   - Parses command-line arguments using clap
+
+2. **Configuration Loading** (`PullOperation::new()`)
+   - Loads YAML config file if exists (default: `./tixgraft.yaml`)
+   - Merges CLI arguments into config (CLI takes precedence)
+   - Validates configuration against JSON schema
+
+3. **Pull Execution** (`PullOperation::execute()`)
+   For each pull operation:
+   - **Sparse Checkout**: Uses git2 to fetch only required paths from repository
+   - **Source Verification**: Confirms source path exists in checked-out repository
+   - **File Copy**: Copies files/directories to target location (with optional reset)
+   - **Text Replacement**: Applies placeholder replacements (supports env vars)
+   - **Command Execution**: Runs post-processing commands in target directory
+
+### Key Design Patterns
+
+- **Error Handling**: Custom `GraftError` enum with specific exit codes for different error types (configuration=1, source=2, command=3, git=4, filesystem=5)
+
+- **Configuration Hierarchy**: Global settings (repository, tag) can be overridden per-pull operation, and CLI arguments override everything
+
+- **Sparse Checkout Strategy**: Uses Git sparse checkout to efficiently fetch only needed files/directories, avoiding full repository clones
+
+- **Security**: Path validation prevents directory traversal attacks; binary files are skipped during text replacement
+
+## Configuration
+
+### Repository URL Formats
+- Short: `myorg/repo` → expands to `https://github.com/myorg/repo.git`
+- HTTPS: `https://github.com/myorg/repo.git`
+- SSH: `git@github.com:myorg/repo.git`
+
+### YAML Structure
+```yaml
+repository: "myorg/scaffolds"  # Optional global repo
+tag: "main"                    # Optional global ref
+
+pulls:                         # Required, minimum 1
+  - source: "path/in/repo"     # Required
+    target: "./local/path"     # Required
+    type: "directory"          # Optional: "file" or "directory"
+    repository: "override/repo" # Optional: per-pull override
+    tag: "v1.0.0"              # Optional: per-pull override
+    reset: true                # Optional: rm -rf target before copy
+    commands:                  # Optional: post-copy commands
+      - "npm install"
+    replacements:              # Optional: text replacements
+      - source: "{{PLACEHOLDER}}"
+        target: "value"        # Static value
+      - source: "{{VAR}}"
+        valueFromEnv: "ENV_VAR" # From environment
+```
+
+## Testing
+
+Integration tests are in `tests/integration/`:
+- `cli_tests.rs` - CLI argument parsing and execution
+- `config_tests.rs` - Configuration loading and validation
+
+## Exit Codes
+
+- 0: Success
+- 1: Configuration error
+- 2: Source error
+- 3: Command error
+- 4: Git error
+- 5: Filesystem error

@@ -5,8 +5,8 @@
   "properties": {
     "repository": {
       "type": "string",
-      "description": "Optional global repository URL or account/repo format",
-      "pattern": "^(https?://.*\\.git|git@.*\\.git|[\\w-]+/[\\w-]+)$"
+      "description": "Optional global repository URL, account/repo format, or local filesystem path (file: prefix)",
+      "pattern": "^(https?://.*\\.git|git@.*\\.git|[\\w-]+/[\\w-]+|file:.+)$"
     },
     "tag": {
       "type": "string",
@@ -38,7 +38,7 @@
           "repository": {
             "type": "string",
             "description": "Override global repository for this pull",
-            "pattern": "^(https?://.*\\.git|git@.*\\.git|[\\w-]+/[\\w-]+)$"
+            "pattern": "^(https?://.*\\.git|git@.*\\.git|[\\w-]+/[\\w-]+|file:.+)$"
           },
           "tag": {
             "type": "string",

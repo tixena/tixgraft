@@ -1,9 +1,10 @@
 //! Command execution with proper working directory context
 
-use std::process::{Command, Stdio};
-use std::path::Path;
-use anyhow::{Result, Context};
 use crate::error::GraftError;
+use anyhow::{Context as _, Result};
+use std::path::Path;
+use std::process::{Command, Stdio};
+use tracing::info;
 
 /// Execute a list of commands in the specified working directory
 pub fn execute_commands(commands: &[String], working_dir: &str) -> Result<usize> {
@@ -14,9 +15,9 @@ pub fn execute_commands(commands: &[String], working_dir: &str) -> Result<usize>
     let work_path = Path::new(working_dir);
     if !work_path.exists() {
         return Err(GraftError::filesystem(format!(
-            "Working directory does not exist: {}",
-            working_dir
-        )).into());
+            "Working directory does not exist: {working_dir}"
+        ))
+        .into());
     }
 
     let mut executed_count = 0;
@@ -32,16 +33,13 @@ pub fn execute_commands(commands: &[String], working_dir: &str) -> Result<usize>
 /// Execute a single command in the specified working directory
 fn execute_single_command(command: &str, working_dir: &Path, command_number: usize) -> Result<()> {
     if command.trim().is_empty() {
-        return Err(GraftError::command(format!(
-            "Command #{} is empty",
-            command_number
-        )).into());
+        return Err(GraftError::command(format!("Command #{command_number} is empty")).into());
     }
 
     // Parse command into parts (shell, -c, command)
     let (shell, shell_args) = get_shell_command();
     let mut cmd_args = shell_args;
-    cmd_args.push(command.to_string());
+    cmd_args.push(command.to_owned());
 
     // Execute command
     let output = Command::new(&shell)
@@ -50,16 +48,13 @@ fn execute_single_command(command: &str, working_dir: &Path, command_number: usi
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .with_context(|| format!(
-            "Failed to execute command #{}: {}",
-            command_number, command
-        ))?;
+        .with_context(|| format!("Failed to execute command #{command_number}: {command}"))?;
 
     // Check exit status
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
+
         let mut error_msg = format!(
             "Command #{} failed with exit code {}: {}\n",
             command_number,
@@ -83,8 +78,8 @@ fn execute_single_command(command: &str, working_dir: &Path, command_number: usi
     // Print command output for visibility
     let stdout = String::from_utf8_lossy(&output.stdout);
     if !stdout.trim().is_empty() {
-        println!("Command #{} output:", command_number);
-        println!("{}", stdout.trim());
+        info!("Command #{} output:", command_number);
+        info!("{}", stdout.trim());
     }
 
     Ok(())
@@ -93,9 +88,9 @@ fn execute_single_command(command: &str, working_dir: &Path, command_number: usi
 /// Get the appropriate shell command for the current platform
 fn get_shell_command() -> (String, Vec<String>) {
     if cfg!(target_os = "windows") {
-        ("cmd".to_string(), vec!["/C".to_string()])
+        return ("cmd".to_owned(), vec!["/C".to_owned()]);
     } else {
-        ("sh".to_string(), vec!["-c".to_string()])
+        return ("sh".to_owned(), vec!["-c".to_owned()]);
     }
 }
 
@@ -108,9 +103,9 @@ pub fn execute_commands_interactive(commands: &[String], working_dir: &str) -> R
     let work_path = Path::new(working_dir);
     if !work_path.exists() {
         return Err(GraftError::filesystem(format!(
-            "Working directory does not exist: {}",
-            working_dir
-        )).into());
+            "Working directory does not exist: {working_dir}"
+        ))
+        .into());
     }
 
     let mut executed_count = 0;
@@ -124,29 +119,27 @@ pub fn execute_commands_interactive(commands: &[String], working_dir: &str) -> R
 }
 
 /// Execute a single command with real-time output
-fn execute_single_command_interactive(command: &str, working_dir: &Path, command_number: usize) -> Result<()> {
+fn execute_single_command_interactive(
+    command: &str,
+    working_dir: &Path,
+    command_number: usize,
+) -> Result<()> {
     if command.trim().is_empty() {
-        return Err(GraftError::command(format!(
-            "Command #{} is empty",
-            command_number
-        )).into());
+        return Err(GraftError::command(format!("Command #{command_number} is empty")).into());
     }
 
-    println!("Executing command #{}: {}", command_number, command);
+    info!("Executing command #{}: {}", command_number, command);
 
     let (shell, shell_args) = get_shell_command();
     let mut cmd_args = shell_args;
-    cmd_args.push(command.to_string());
+    cmd_args.push(command.to_owned());
 
     // Execute command with inherited stdio for real-time output
     let status = Command::new(&shell)
         .args(&cmd_args)
         .current_dir(working_dir)
         .status()
-        .with_context(|| format!(
-            "Failed to execute command #{}: {}",
-            command_number, command
-        ))?;
+        .with_context(|| format!("Failed to execute command #{command_number}: {command}"))?;
 
     // Check exit status
     if !status.success() {
@@ -156,7 +149,8 @@ fn execute_single_command_interactive(command: &str, working_dir: &Path, command
             status.code().unwrap_or(-1),
             command,
             working_dir.display()
-        )).into());
+        ))
+        .into());
     }
 
     Ok(())
@@ -191,29 +185,31 @@ fn analyze_command_safety(command: &str) -> Vec<String> {
         "format",
         "mkfs",
         "dd if=",
-        ":(){ :|:& };:",  // Fork bomb
+        ":(){ :|:& };:", // Fork bomb
         "sudo rm",
     ];
 
     for pattern in &dangerous_patterns {
         if command.to_lowercase().contains(&pattern.to_lowercase()) {
-            issues.push(format!("Contains potentially destructive command: {}", pattern));
+            issues.push(format!(
+                "Contains potentially destructive command: {pattern}"
+            ));
         }
     }
 
     // Check for network access patterns
     let network_patterns = ["curl", "wget", "nc ", "netcat"];
-    
+
     for pattern in &network_patterns {
         if command.to_lowercase().contains(&pattern.to_lowercase()) {
-            issues.push("Command may access network resources".to_string());
+            issues.push("Command may access network resources".to_owned());
             break;
         }
     }
 
     // Check for script execution
     if command.contains("eval") || command.contains("exec") {
-        issues.push("Command contains script execution which could be risky".to_string());
+        issues.push("Command contains script execution which could be risky".to_owned());
     }
 
     issues
@@ -236,14 +232,14 @@ mod tests {
     #[test]
     fn test_execute_simple_command() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Test a simple echo command
         let commands = vec!["echo 'test' > output.txt".to_string()];
-        
+
         let result = execute_commands(&commands, temp_dir.path().to_str().unwrap());
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 1);
-        
+
         // Verify the output file was created
         let output_file = temp_dir.path().join("output.txt");
         assert!(output_file.exists());
@@ -258,14 +254,14 @@ mod tests {
         ];
 
         let validations = validate_commands(&commands).unwrap();
-        
+
         assert_eq!(validations.len(), 3);
         assert!(validations[0].is_valid);
         assert!(validations[0].potential_issues.is_empty());
-        
+
         assert!(validations[1].is_valid); // Valid syntax but dangerous
         assert!(!validations[1].potential_issues.is_empty());
-        
+
         assert!(validations[2].is_valid);
         assert!(!validations[2].potential_issues.is_empty());
     }

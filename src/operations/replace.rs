@@ -1,34 +1,39 @@
 //! Text replacement engine
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use anyhow::{Result, Context};
-use walkdir::WalkDir;
-use regex::Regex;
 use crate::cli::ReplacementConfig;
 use crate::error::GraftError;
+use crate::system::System;
 use crate::utils::fs::is_binary_file;
+use anyhow::{Context as _, Result};
+use regex::Regex;
+use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
 
 /// Apply text replacements to files in the target directory
-pub fn apply_replacements(target_dir: &str, replacements: &[ReplacementConfig]) -> Result<usize> {
+pub fn apply_replacements(
+    system: &dyn System,
+    target_dir: &str,
+    replacements: &[ReplacementConfig],
+) -> Result<usize> {
     if replacements.is_empty() {
         return Ok(0);
     }
 
     let target_path = Path::new(target_dir);
-    if !target_path.exists() {
+    if !system.exists(target_path) {
         return Err(GraftError::filesystem(format!(
-            "Target directory does not exist: {}",
-            target_dir
-        )).into());
+            "Target directory does not exist: {target_dir}"
+        ))
+        .into());
     }
 
     let mut total_replacements = 0;
 
     // Process each replacement
     for replacement in replacements {
-        let replacement_value = get_replacement_value(replacement)?;
-        let files_processed = apply_single_replacement(target_path, &replacement.source, &replacement_value)?;
+        let replacement_value = get_replacement_value(system, replacement)?;
+        let files_processed =
+            apply_single_replacement(system, target_path, &replacement.source, &replacement_value)?;
         total_replacements += files_processed;
     }
 
@@ -36,40 +41,51 @@ pub fn apply_replacements(target_dir: &str, replacements: &[ReplacementConfig]) 
 }
 
 /// Get the replacement value from either target or environment variable
-fn get_replacement_value(replacement: &ReplacementConfig) -> Result<String> {
+fn get_replacement_value(system: &dyn System, replacement: &ReplacementConfig) -> Result<String> {
     match (&replacement.target, &replacement.value_from_env) {
         (Some(target), None) => Ok(target.clone()),
         (None, Some(env_var)) => {
-            std::env::var(env_var)
-                .with_context(|| format!(
-                    "Environment variable '{}' is not set",
-                    env_var
-                ))
+            return system
+                .env_var(env_var)
+                .map_err(|_| anyhow::anyhow!("Environment variable '{env_var}' is not set"));
         }
-        _ => Err(GraftError::configuration(
-            "Replacement must specify exactly one of 'target' or 'valueFromEnv'".to_string()
-        ).into()),
+        _ => {
+            return Err(GraftError::configuration(
+                "Replacement must specify exactly one of 'target' or 'valueFromEnv'".to_owned(),
+            )
+            .into());
+        }
     }
 }
 
 /// Apply a single replacement to all text files in the target directory
-fn apply_single_replacement(target_path: &Path, search_pattern: &str, replacement_value: &str) -> Result<usize> {
+fn apply_single_replacement(
+    system: &dyn System,
+    target_path: &Path,
+    search_pattern: &str,
+    replacement_value: &str,
+) -> Result<usize> {
     let mut files_processed = 0;
 
-    if target_path.is_file() {
+    if system.is_file(target_path) {
         // Single file case
-        if apply_replacement_to_file(target_path, search_pattern, replacement_value)? {
+        if apply_replacement_to_file(system, target_path, search_pattern, replacement_value)? {
             files_processed += 1;
         }
-    } else if target_path.is_dir() {
+    } else if system.is_dir(target_path) {
         // Directory case - walk all files
         for entry in WalkDir::new(target_path) {
             let entry = entry.context("Failed to read directory entry during replacement")?;
-            
-            if entry.file_type().is_file() {
-                if apply_replacement_to_file(entry.path(), search_pattern, replacement_value)? {
-                    files_processed += 1;
-                }
+
+            if entry.file_type().is_file()
+                && apply_replacement_to_file(
+                    system,
+                    entry.path(),
+                    search_pattern,
+                    replacement_value,
+                )?
+            {
+                files_processed += 1;
             }
         }
     }
@@ -78,18 +94,24 @@ fn apply_single_replacement(target_path: &Path, search_pattern: &str, replacemen
 }
 
 /// Apply replacement to a single file
-fn apply_replacement_to_file(file_path: &Path, search_pattern: &str, replacement_value: &str) -> Result<bool> {
+fn apply_replacement_to_file(
+    system: &dyn System,
+    file_path: &Path,
+    search_pattern: &str,
+    replacement_value: &str,
+) -> Result<bool> {
     // Skip binary files
-    if is_binary_file(file_path)? {
+    if is_binary_file(system, file_path)? {
         return Ok(false);
     }
 
     // Read file content
-    let content = fs::read_to_string(file_path)
-        .with_context(|| format!(
+    let content = system.read_to_string(file_path).with_context(|| {
+        format!(
             "Failed to read file for text replacement: {}",
             file_path.display()
-        ))?;
+        )
+    })?;
 
     // Check if the search pattern exists
     if !content.contains(search_pattern) {
@@ -101,12 +123,15 @@ fn apply_replacement_to_file(file_path: &Path, search_pattern: &str, replacement
 
     // Only write if content actually changed
     if new_content != content {
-        fs::write(file_path, new_content)
-            .with_context(|| format!(
-                "Failed to write file after text replacement: {}",
-                file_path.display()
-            ))?;
-        
+        system
+            .write(file_path, new_content.as_bytes())
+            .with_context(|| {
+                format!(
+                    "Failed to write file after text replacement: {}",
+                    file_path.display()
+                )
+            })?;
+
         return Ok(true);
     }
 
@@ -114,24 +139,28 @@ fn apply_replacement_to_file(file_path: &Path, search_pattern: &str, replacement
 }
 
 /// Apply regex-based replacements (advanced feature)
-pub fn apply_regex_replacement(target_path: &Path, pattern: &str, replacement: &str) -> Result<usize> {
-    let regex = Regex::new(pattern)
-        .with_context(|| format!("Invalid regex pattern: {}", pattern))?;
+pub fn apply_regex_replacement(
+    system: &dyn System,
+    target_path: &Path,
+    pattern: &str,
+    replacement: &str,
+) -> Result<usize> {
+    let regex = Regex::new(pattern).with_context(|| format!("Invalid regex pattern: {pattern}"))?;
 
     let mut files_processed = 0;
 
-    if target_path.is_file() {
-        if apply_regex_to_file(target_path, &regex, replacement)? {
+    if system.is_file(target_path) {
+        if apply_regex_to_file(system, target_path, &regex, replacement)? {
             files_processed += 1;
         }
-    } else if target_path.is_dir() {
+    } else if system.is_dir(target_path) {
         for entry in WalkDir::new(target_path) {
             let entry = entry?;
-            
-            if entry.file_type().is_file() {
-                if apply_regex_to_file(entry.path(), &regex, replacement)? {
-                    files_processed += 1;
-                }
+
+            if entry.file_type().is_file()
+                && apply_regex_to_file(system, entry.path(), &regex, replacement)?
+            {
+                files_processed += 1;
             }
         }
     }
@@ -140,30 +169,39 @@ pub fn apply_regex_replacement(target_path: &Path, pattern: &str, replacement: &
 }
 
 /// Apply regex replacement to a single file
-fn apply_regex_to_file(file_path: &Path, regex: &Regex, replacement: &str) -> Result<bool> {
+fn apply_regex_to_file(
+    system: &dyn System,
+    file_path: &Path,
+    regex: &Regex,
+    replacement: &str,
+) -> Result<bool> {
     // Skip binary files
-    if is_binary_file(file_path)? {
+    if is_binary_file(system, file_path)? {
         return Ok(false);
     }
 
     // Read file content
-    let content = fs::read_to_string(file_path)
-        .with_context(|| format!(
+    let content = system.read_to_string(file_path).with_context(|| {
+        format!(
             "Failed to read file for regex replacement: {}",
             file_path.display()
-        ))?;
+        )
+    })?;
 
     // Apply regex replacement
     let new_content = regex.replace_all(&content, replacement);
 
     // Only write if content actually changed
     if new_content != content {
-        fs::write(file_path, new_content.as_ref())
-            .with_context(|| format!(
-                "Failed to write file after regex replacement: {}",
-                file_path.display()
-            ))?;
-        
+        system
+            .write(file_path, new_content.as_ref().as_bytes())
+            .with_context(|| {
+                format!(
+                    "Failed to write file after regex replacement: {}",
+                    file_path.display()
+                )
+            })?;
+
         return Ok(true);
     }
 
@@ -171,14 +209,18 @@ fn apply_regex_to_file(file_path: &Path, regex: &Regex, replacement: &str) -> Re
 }
 
 /// Preview what replacements would be applied (for dry run)
-pub fn preview_replacements(target_dir: &str, replacements: &[ReplacementConfig]) -> Result<Vec<ReplacementPreview>> {
+pub fn preview_replacements(
+    system: &dyn System,
+    target_dir: &str,
+    replacements: &[ReplacementConfig],
+) -> Result<Vec<ReplacementPreview>> {
     let mut previews = Vec::new();
     let target_path = Path::new(target_dir);
 
     for replacement in replacements {
-        let replacement_value = get_replacement_value(replacement)?;
-        let files = find_files_with_pattern(target_path, &replacement.source)?;
-        
+        let replacement_value = get_replacement_value(system, replacement)?;
+        let files = find_files_with_pattern(system, target_path, &replacement.source)?;
+
         previews.push(ReplacementPreview {
             search_pattern: replacement.source.clone(),
             replacement_value,
@@ -190,18 +232,23 @@ pub fn preview_replacements(target_dir: &str, replacements: &[ReplacementConfig]
 }
 
 /// Find all files that contain a specific pattern
-fn find_files_with_pattern(target_path: &Path, pattern: &str) -> Result<Vec<PathBuf>> {
+fn find_files_with_pattern(
+    system: &dyn System,
+    target_path: &Path,
+    pattern: &str,
+) -> Result<Vec<PathBuf>> {
     let mut matching_files = Vec::new();
 
-    if target_path.is_file() {
-        if file_contains_pattern(target_path, pattern)? {
+    if system.is_file(target_path) {
+        if file_contains_pattern(system, target_path, pattern)? {
             matching_files.push(target_path.to_path_buf());
         }
-    } else if target_path.is_dir() {
+    } else if system.is_dir(target_path) {
         for entry in WalkDir::new(target_path) {
             let entry = entry?;
-            
-            if entry.file_type().is_file() && file_contains_pattern(entry.path(), pattern)? {
+
+            if entry.file_type().is_file() && file_contains_pattern(system, entry.path(), pattern)?
+            {
                 matching_files.push(entry.path().to_path_buf());
             }
         }
@@ -211,17 +258,18 @@ fn find_files_with_pattern(target_path: &Path, pattern: &str) -> Result<Vec<Path
 }
 
 /// Check if a file contains a specific pattern
-fn file_contains_pattern(file_path: &Path, pattern: &str) -> Result<bool> {
+fn file_contains_pattern(system: &dyn System, file_path: &Path, pattern: &str) -> Result<bool> {
     // Skip binary files
-    if is_binary_file(file_path)? {
+    if is_binary_file(system, file_path)? {
         return Ok(false);
     }
 
-    let content = fs::read_to_string(file_path)
-        .with_context(|| format!(
+    let content = system.read_to_string(file_path).with_context(|| {
+        format!(
             "Failed to read file for pattern check: {}",
             file_path.display()
-        ))?;
+        )
+    })?;
 
     Ok(content.contains(pattern))
 }
@@ -237,18 +285,12 @@ pub struct ReplacementPreview {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
-    use std::io::Write;
+    use crate::system::MockSystem;
 
     #[test]
     fn test_apply_simple_replacement() {
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        
-        // Create test file
-        let mut file = fs::File::create(&file_path).unwrap();
-        writeln!(file, "Hello {{{{NAME}}}}, welcome to {{{{PLACE}}}}!").unwrap();
-        drop(file); // Ensure file is flushed and closed
+        let system =
+            MockSystem::new().with_file("/test.txt", b"Hello {{NAME}}, welcome to {{PLACE}}!\n");
 
         // Create replacement config
         let replacement = ReplacementConfig {
@@ -259,22 +301,25 @@ mod tests {
 
         // Apply replacement
         let result = apply_single_replacement(
-            temp_dir.path(),
+            &system,
+            std::path::Path::new("/test.txt"),
             &replacement.source,
-            &replacement.target.as_ref().unwrap()
+            &replacement.target.as_ref().unwrap(),
         );
-        
+
         assert!(result.is_ok());
-        
+
         // Verify replacement was applied
-        let content = fs::read_to_string(&file_path).unwrap();
+        let content = system
+            .read_to_string(std::path::Path::new("/test.txt"))
+            .unwrap();
         assert!(content.contains("Hello Alice"));
         assert!(content.contains("{{PLACE}}"));
     }
 
     #[test]
     fn test_replacement_with_env_var() {
-        unsafe { std::env::set_var("TEST_ENV", "TestValue"); }
+        let system = MockSystem::new().with_env("TEST_ENV", "TestValue");
 
         let replacement = ReplacementConfig {
             source: "{{TEST}}".to_string(),
@@ -282,7 +327,7 @@ mod tests {
             value_from_env: Some("TEST_ENV".to_string()),
         };
 
-        let value = get_replacement_value(&replacement);
+        let value = get_replacement_value(&system, &replacement);
         assert!(value.is_ok());
         assert_eq!(value.unwrap(), "TestValue");
     }

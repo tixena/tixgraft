@@ -1,13 +1,13 @@
 //! Operations module
-//! 
+//!
 //! Coordinates pull operations including file copying, text replacement, and command execution
 
-pub mod pull;
-pub mod copy;
-pub mod replace;
 pub mod commands;
+pub mod copy;
+pub mod pull;
+pub mod replace;
 
-pub use pull::*;
-pub use copy::*;
-pub use replace::*;
 pub use commands::*;
+pub use copy::*;
+pub use pull::*;
+pub use replace::*;
