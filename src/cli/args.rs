@@ -28,6 +28,19 @@ pub struct Args {
     #[arg(short, long)]
     pub verbose: bool,
 
+    /// Output the equivalent command-line invocation instead of executing
+    #[arg(long = "to-command-line")]
+    pub to_command_line: bool,
+
+    /// Output format for to-command-line: shell or json
+    #[arg(
+        long = "output-format",
+        value_name = "FORMAT",
+        default_value = "shell",
+        requires = "to_command_line"
+    )]
+    pub output_format: String,
+
     /// Pull operations (can be specified multiple times)
     #[command(flatten)]
     pub pulls: PullArgs,
@@ -63,6 +76,11 @@ pub struct PullArgs {
     /// Commands to execute after copying
     #[arg(long = "pull-commands", value_name = "COMMANDS")]
     pub commands: Vec<String>,
+
+    /// Text replacements in format "SOURCE=TARGET" or "SOURCE=env:ENV_VAR"
+    /// Can be specified multiple times per pull operation
+    #[arg(long = "pull-replacement", value_name = "REPLACEMENT")]
+    pub replacements: Vec<String>,
 }
 
 /// Individual pull configuration

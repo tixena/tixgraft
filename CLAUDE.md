@@ -135,6 +135,7 @@ The codebase follows a modular architecture with clear separation of concerns:
   - `copy.rs` - File copying logic with directory/file type handling
   - `replace.rs` - Text replacement in files (static values or environment variables)
   - `commands.rs` - Command execution in target directory context
+  - `to_command_line.rs` - Convert config to CLI arguments (shell/JSON output)
 
 - **`error/`** - Error handling
   - `types.rs` - Custom error types with specific exit codes (1-5)
@@ -201,9 +202,36 @@ pulls:                         # Required, minimum 1
 
 ## Testing
 
-Integration tests are in `tests/integration/`:
+Integration tests are in `tests/`:
 - `cli_tests.rs` - CLI argument parsing and execution
 - `config_tests.rs` - Configuration loading and validation
+- `local_tests.rs` - Local filesystem operations
+- `sparse_checkout_tests.rs` - Git sparse checkout functionality
+- `to_command_line_tests.rs` - Configuration to CLI conversion
+
+## CLI Features
+
+### Standard Execution
+Run `tixgraft` with a config file or CLI arguments to execute pull operations.
+
+### To-Command-Line Conversion
+The `--to-command-line` flag converts any configuration to an equivalent CLI command:
+```bash
+# Convert config to shell command
+tixgraft --to-command-line
+
+# Convert to JSON array
+tixgraft --to-command-line --output-format json
+
+# With CLI overrides
+tixgraft --to-command-line --repository override/repo --tag v2.0
+```
+
+This is useful for:
+- Generating shareable commands from complex configs
+- Debugging configuration merging
+- CI/CD integration (YAML → CLI)
+- Documentation and examples
 
 ## Exit Codes
 
