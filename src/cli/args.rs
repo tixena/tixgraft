@@ -29,8 +29,12 @@ pub struct Args {
     pub verbose: bool,
 
     /// Output the equivalent command-line invocation instead of executing
-    #[arg(long = "to-command-line")]
+    #[arg(long = "to-command-line", conflicts_with = "to_config")]
     pub to_command_line: bool,
+
+    /// Output the equivalent YAML configuration instead of executing
+    #[arg(long = "to-config", conflicts_with = "to_command_line")]
+    pub to_config: bool,
 
     /// Output format for to-command-line: shell or json
     #[arg(

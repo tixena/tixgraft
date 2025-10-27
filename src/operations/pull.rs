@@ -490,3 +490,50 @@ fn parse_replacement_string(input: &str) -> Result<crate::cli::ReplacementConfig
         })
     }
 }
+
+/// Build a Config structure from CLI arguments only (no file loading)
+pub fn build_config_from_args(args: &Args) -> Result<Config> {
+    let mut config = Config {
+        repository: args.repository.clone(),
+        tag: args.tag.clone(),
+        pulls: Vec::new(),
+    };
+
+    // Convert CLI pulls to config pulls
+    if !args.pulls.sources.is_empty() {
+        config.pulls = create_pulls_from_cli(&args.pulls)?;
+    }
+
+    if config.pulls.is_empty() {
+        return Err(GraftError::configuration(
+            "No pull operations specified. Use --pull-source and --pull-target to define at least one pull.".to_owned()
+        ).into());
+    }
+
+    Ok(config)
+}
+
+/// Build a Config structure from both config file and CLI overrides
+pub fn build_merged_config(args: &Args, system: &dyn System) -> Result<Config> {
+    // Load base config if exists
+    let mut config = if std::path::Path::new(&args.config).exists() {
+        Config::load_from_file(system, &args.config)?
+    } else {
+        Config {
+            repository: None,
+            tag: None,
+            pulls: Vec::new(),
+        }
+    };
+
+    // Apply CLI overrides
+    merge_cli_args(&mut config, args)?;
+
+    if config.pulls.is_empty() {
+        return Err(GraftError::configuration(
+            "No pull operations defined. Specify pulls in config file or via --pull-source/--pull-target.".to_owned()
+        ).into());
+    }
+
+    Ok(config)
+}

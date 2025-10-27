@@ -94,6 +94,7 @@ fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Conf
     // Reset (only if true)
     if pull.reset {
         args.push("--pull-reset".to_owned());
+        args.push("true".to_owned());
     }
 
     // Replacements
