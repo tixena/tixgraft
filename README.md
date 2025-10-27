@@ -116,8 +116,11 @@ pulls:
 - `--tag <ref>`: Git reference (branch, tag, or commit hash)
 - `--config <path>`: Alternative config file path (default: ./tixgraft.yaml)
 - `--dry-run`: Preview operations without executing
+- `--to-command-line`: Output the equivalent command-line invocation instead of executing
+- `--output-format <format>`: Output format for --to-command-line: shell or json (default: shell)
+- `--verbose`, `-v`: Enable verbose logging output
 - `--help`, `-h`: Show help information
-- `--version`, `-v`: Show version
+- `--version`: Show version
 
 ### Per-Pull Arguments (repeatable)
 
@@ -128,6 +131,7 @@ pulls:
 - `--pull-target <path>`: Target path in local workspace
 - `--pull-reset`: For directories, rm -rf target before copying
 - `--pull-commands <cmd1,cmd2,...>`: Comma-separated commands
+- `--pull-replacement <SOURCE=TARGET>`: Text replacement (format: "SOURCE=TARGET" or "SOURCE=env:VAR")
 
 ### CLI-Only Usage
 
@@ -139,7 +143,78 @@ tixgraft --repository myorg/templates --pull-source kubernetes/app --pull-target
 tixgraft \
   --pull-repository myorg/configs --pull-source docker/Dockerfile --pull-target ./Dockerfile --pull-type file \
   --pull-repository myorg/scripts --pull-source ci/deploy.sh --pull-target ./scripts/deploy.sh --pull-type file
+
+# Text replacements via CLI
+tixgraft \
+  --repository myorg/templates \
+  --pull-source kubernetes/app \
+  --pull-target ./k8s \
+  --pull-replacement "{{APP_NAME}}=my-app" \
+  --pull-replacement "{{NAMESPACE}}=env:K8S_NAMESPACE"
 ```
+
+## Converting Configuration to Command Line
+
+TixGraft can convert any YAML configuration to an equivalent command-line invocation using the `--to-command-line` flag. This is useful for:
+
+- **Sharing workflows**: Generate a single command others can run without needing a config file
+- **Debugging configuration**: Verify how YAML config is interpreted and merged
+- **CI/CD integration**: Convert human-friendly YAML to scriptable CLI commands
+- **Documentation**: Show concrete examples of complex configurations
+
+### Basic Usage
+
+```bash
+# Show the command-line equivalent of your config (default: shell format)
+tixgraft --to-command-line
+
+# Use a specific config file
+tixgraft --config custom.yaml --to-command-line
+
+# Output as JSON array (useful for programmatic consumption)
+tixgraft --to-command-line --output-format json
+
+# Apply CLI overrides before generating output
+tixgraft --to-command-line --repository override/repo --tag v2.0
+```
+
+### Example
+
+Given this `tixgraft.yaml`:
+```yaml
+repository: "myorg/templates"
+tag: "v1.0.0"
+pulls:
+  - source: "kubernetes/base"
+    target: "./k8s"
+    reset: true
+    replacements:
+      - source: "{{APP_NAME}}"
+        target: "my-app"
+```
+
+Running `tixgraft --to-command-line` outputs:
+```bash
+tixgraft \
+  --repository "myorg/templates" \
+  --tag "v1.0.0" \
+  --pull-source "kubernetes/base" \
+  --pull-target "./k8s" \
+  --pull-reset \
+  --pull-replacement "{{APP_NAME}}=my-app"
+```
+
+### Output Formats
+
+- **shell** (default): Ready-to-execute shell command with proper escaping and line continuations
+- **json**: JSON array of arguments, useful for programmatic processing
+
+### Notes
+
+- The generated command excludes the `--config` argument (it's config-free)
+- Execution flags like `--dry-run` and `--verbose` are not included in the output
+- All shell special characters are properly escaped for safe execution
+- CLI argument overrides (--repository, --tag) are applied before generating the output
 
 ## Examples
 
