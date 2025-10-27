@@ -17,7 +17,8 @@ use cli::Args;
 use config::Config;
 use operations::pull::PullOperation;
 use operations::to_command_line::{OutputFormat, config_to_command_line};
-use system::RealSystem;
+use operations::to_config::args_to_config;
+use system::{RealSystem, System};
 
 /// Main entry point for the tixgraft library
 pub fn run(args: Args) -> Result<()> {
@@ -54,6 +55,17 @@ pub fn run_to_command_line(
 
     // Output to stdout (not using logging)
     println!("{}", command_line);
+
+    Ok(())
+}
+
+/// Run the to-config command
+pub fn run_to_config(args: &Args, system: &dyn System) -> Result<()> {
+    // Generate YAML config
+    let yaml = args_to_config(args, system)?;
+
+    // Output to stdout (not using logging)
+    println!("{}", yaml);
 
     Ok(())
 }

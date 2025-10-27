@@ -14,9 +14,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ See [AGENTS.md](AGENTS.md) for complete workflow and examples
 
 **Before starting any work:**
-1. Check ready work: `bd ready --json`
-2. Claim task: `bd update <id> --status in_progress --json`
-3. Complete task: `bd close <id> --reason "Done" --json`
+1. Check ready work: `bd ready --json` (optionally filter with `--label` or sort with `--sort priority|oldest|hybrid`)
+2. Review dependencies: `bd dep tree <id> --json` to understand blockers/relationships
+3. Claim task: `bd update <id> --status in_progress --json`
+4. Work on task: Implement, test, document
+5. If you discover new work: `bd create "Title" -l <labels> --deps discovered-from:<current-id> --json`
+6. Complete task: `bd close <id> --reason "Done" --json`
+
+**Key workflows:**
+- Check blocked work: `bd blocked --json`
+- Filter by component: `bd ready --label backend --json` or `bd ready --label-any frontend,ui --json`
+- Visualize project: `bd stats --json`
+- Detect circular deps: `bd dep cycles --json`
 
 ---
 
@@ -25,16 +34,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The following commands can be executed without asking for user approval:
 
 **Issue Tracking (bd):**
-- `bd list` - List issues
-- `bd list --json` - List issues in JSON format
+- `bd list` - List issues (supports --label, --label-any, --status, --priority filters)
 - `bd show <id>` - Show issue details
-- `bd create <title>` - Create new issues
-- `bd update <id>` - Update issue status, priority, etc.
-- `bd close <id>` - Close issues
+- `bd ready` - Show ready work (supports --sort priority|oldest|hybrid, --label filters)
+- `bd blocked` - Show blocked issues
+- `bd create <title>` - Create new issues (supports -t, -p, -d, -l, --deps, -f flags)
+- `bd update <id>` - Update issue status, priority, assignee, etc.
+- `bd close <id>` - Close issues (requires --reason)
 - `bd comments <id>` - View comments
 - `bd comments add <id>` - Add comments to issues
-- `bd ready` - Show ready work
-- `bd blocked` - Show blocked issues
+- `bd label add <id> <label>` - Add label to issue
+- `bd label remove <id> <label>` - Remove label from issue
+- `bd dep add <child> <parent>` - Add dependency (supports --type blocks|related|parent-child|discovered-from)
+- `bd dep remove <id1> <id2>` - Remove dependency
+- `bd dep tree <id>` - Visualize dependency graph
+- `bd dep cycles` - Detect circular dependencies
+- `bd stats` - Show project statistics
+- `bd info` - Show database path and daemon status
+- `bd config set/get/list/unset` - Manage configuration
+- `bd delete <id>` - Delete issues (supports --force, --cascade)
+- `bd compact` - Compress old closed issues (supports --dry-run, --days, --all)
+- `bd sync` - Manually trigger sync
+- `bd init` - Initialize beads (for setup)
+- `bd onboard` - Agent onboarding guide
 
 **Testing:**
 - `just test` - Run all tests
