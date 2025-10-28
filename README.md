@@ -7,9 +7,10 @@ A CLI tool for fetching reusable components from Git repositories using sparse c
 - 🚀 **Efficient Git Operations**: Uses sparse checkout to fetch only the files you need
 - 📝 **YAML Configuration**: Comprehensive configuration with JSON schema validation
 - 🔧 **CLI Interface**: Full command-line support with argument precedence over config files
-- 🔄 **Text Replacement**: Replace placeholders with static values or environment variables  
+- 🎯 **Context System**: Define required properties in `.graft.yaml` files for parameterized components
+- 🔄 **Text Replacement**: Replace placeholders with static values, environment variables, or context properties
 - ⚡ **Command Execution**: Run commands after copying files with proper working directory context
-- ✅ **Validation**: Comprehensive validation with clear error messages
+- ✅ **Validation**: Comprehensive validation with clear error messages including fail-fast context validation
 - 🛡️ **Security**: Path validation prevents directory traversal attacks
 
 ## Installation
@@ -99,7 +100,111 @@ pulls:
         target: "replacement"     # Static replacement
       - source: "{{ENV_VAR}}"
         valueFromEnv: "MY_VAR"   # From environment variable
+    context:                      # Optional: Context values for .graft.yaml files
+      projectName: "my-service"
+      port: 8080
 ```
+
+### Context System
+
+TixGraft supports a powerful context system that allows components to define required properties via `.graft.yaml` files. This enables parameterized, reusable components with validation.
+
+#### Context in tixgraft.yaml
+
+Context can be defined at the root level (shared by all pulls) or per-pull:
+
+```yaml
+# Global context (available to all pulls)
+context:
+  organization: "myorg"
+  environment: "production"
+
+pulls:
+  - source: "services/api"
+    target: "./api"
+    type: "directory"
+    context:  # Pull-specific context (merged with global)
+      serviceName: "user-api"
+      port: 8080
+```
+
+#### Context via CLI
+
+Context values can also be provided via command-line arguments:
+
+```bash
+# Simple key=value format
+tixgraft --context projectName=MyApp --context port=8080
+
+# JSON format for complex values (arrays, objects)
+tixgraft --context-json services='[{"name":"api","port":8080}]'
+```
+
+Context hierarchy: CLI arguments > Pull config > Root config
+
+#### .graft.yaml Files
+
+Components can include a `.graft.yaml` file that defines:
+- Required and optional context properties with type validation
+- Text replacements using context values
+- Post-processing commands
+
+Example `.graft.yaml`:
+
+```yaml
+# Define required context properties
+context:
+  - name: serviceName
+    description: "The name of the service"
+    dataType: string
+
+  - name: port
+    description: "Service port number"
+    dataType: number
+    defaultValue: 8080
+
+  - name: replicas
+    description: "Number of replicas"
+    dataType: number
+    defaultValue: 3
+
+# Text replacements using context
+replacements:
+  - source: "{{SERVICE_NAME}}"
+    valueFromContext: serviceName
+  - source: "{{PORT}}"
+    valueFromContext: port
+  - source: "{{REPLICAS}}"
+    valueFromContext: replicas
+
+# Post-processing commands
+postCommands:
+  - command: kubectl
+    args: ["apply", "-f", "."]
+```
+
+**Supported Data Types:**
+- `string`: Text values
+- `number`: Integer or floating-point numbers
+- `boolean`: true/false values
+- `array`: Arrays of any type (use `--context-json` for complex arrays)
+
+**Type Coercion:** String values are automatically coerced to the target type when possible:
+- `"true"`, `"yes"`, `"1"` → `true` (boolean)
+- `"8080"` → `8080` (number)
+
+**Validation:** TixGraft validates context properties fail-fast:
+- Missing required properties → Error with exit code 1
+- Invalid types that can't be coerced → Error with exit code 1
+- Properties not defined in context → Warning, but continues
+
+**Processing Flow:**
+1. Files are copied to target directory
+2. `.graft.yaml` files are discovered recursively
+3. Context is validated against requirements
+4. Text replacements are applied using context values
+5. Post-commands are executed
+6. `.graft.yaml` files are cleaned up
 
 ### Repository URL Formats
 
@@ -115,6 +220,8 @@ pulls:
 - `--repository <repo>`: Git repository URL or account/repo format
 - `--tag <ref>`: Git reference (branch, tag, or commit hash)
 - `--config <path>`: Alternative config file path (default: ./tixgraft.yaml)
+- `--context <KEY=VALUE>`: Context values in KEY=VALUE format (repeatable, multiple values with same key create array)
+- `--context-json <KEY=JSON>`: Context values as JSON for complex types like arrays or objects (repeatable)
 - `--dry-run`: Preview operations without executing
 - `--to-command-line`: Output the equivalent command-line invocation instead of executing
 - `--output-format <format>`: Output format for --to-command-line: shell or json (default: shell)
@@ -259,6 +366,61 @@ pulls:
         valueFromEnv: "BUILD_TAG"
     commands:
       - "kubectl apply -f ."
+```
+
+### Using Context for Parameterized Components
+
+When pulling components that include `.graft.yaml` files:
+
+```yaml
+# tixgraft.yaml
+repository: "myorg/service-templates"
+context:
+  organization: "mycompany"
+  environment: "production"
+
+pulls:
+  - source: "microservices/api-service"
+    target: "./services/user-api"
+    context:
+      serviceName: "user-api"
+      port: 8080
+      replicas: 3
+```
+
+The pulled component's `.graft.yaml` might look like:
+
+```yaml
+# services/user-api/.graft.yaml (in the repository)
+context:
+  - name: serviceName
+    description: "Name of the microservice"
+    dataType: string
+  - name: port
+    description: "Service port"
+    dataType: number
+  - name: replicas
+    description: "Number of replicas"
+    dataType: number
+    defaultValue: 2
+
+replacements:
+  - source: "{{SERVICE_NAME}}"
+    valueFromContext: serviceName
+  - source: "{{PORT}}"
+    valueFromContext: port
+  - source: "{{REPLICAS}}"
+    valueFromContext: replicas
+
+postCommands:
+  - command: sed
+    args: ["-i", "", "s/ORG_PLACEHOLDER/{{organization}}/g", "deployment.yaml"]
+```
+
+You can also provide context via CLI:
+
+```bash
+tixgraft --context serviceName=user-api --context port=8080 --context replicas=3
 ```
 
 ### Complex Kubernetes Setup

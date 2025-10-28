@@ -54,7 +54,7 @@ pub fn run_to_command_line(
     let command_line = config_to_command_line(&config, format)?;
 
     // Output to stdout (not using logging)
-    println!("{}", command_line);
+    println!("{command_line}");
 
     Ok(())
 }
@@ -65,7 +65,7 @@ pub fn run_to_config(args: &Args, system: &dyn System) -> Result<()> {
     let yaml = args_to_config(args, system)?;
 
     // Output to stdout (not using logging)
-    println!("{}", yaml);
+    println!("{yaml}");
 
     Ok(())
 }

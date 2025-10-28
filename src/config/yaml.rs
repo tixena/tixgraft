@@ -3,20 +3,23 @@
 use crate::config::Config;
 use crate::system::System;
 use anyhow::{Context as _, Result, anyhow};
-use std::fs;
+use std::path::Path;
 
 /// Load and parse YAML configuration from file
 pub fn load_config(system: &dyn System, path: &str) -> Result<Config> {
-    // Check if file exists
-    if !std::path::Path::new(path).exists() {
+    let path_obj = Path::new(path);
+
+    // Check if file exists using System trait
+    if !system.exists(path_obj) {
         return Err(anyhow!(
             "Configuration file not found: {path}\n\
             Create a tixgraft.yaml file or specify a different path with --config"
         ));
     }
 
-    // Read file contents
-    let content = fs::read_to_string(path)
+    // Read file contents using System trait
+    let content = system
+        .read_to_string(path_obj)
         .with_context(|| format!("Failed to read configuration file: {path}"))?;
 
     // Parse YAML

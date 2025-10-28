@@ -2,12 +2,19 @@
 
 use crate::cli::{Args, PullArgs, PullConfig};
 use crate::config::Config;
+use crate::config::context::{ContextValues, ValidatedContext, merge_context_values};
+use crate::config::graft_yaml::GraftConfig;
 use crate::error::GraftError;
 use crate::git::{Repository, SparseCheckout, check_git_availability};
-use crate::operations::{apply_replacements, copy_files, execute_commands};
+use crate::operations::discovery::{cleanup_graft_files, discover_graft_files};
+use crate::operations::post_commands::execute_post_commands;
+use crate::operations::{
+    apply_graft_replacements, apply_replacements, copy_files, execute_commands,
+};
 use crate::system::System;
 use anyhow::{Context as _, Result};
-use tracing::{debug, info};
+use std::path::Path;
+use tracing::{debug, info, warn};
 
 /// Coordinates the complete pull operation
 pub struct PullOperation<'a> {
@@ -36,6 +43,7 @@ impl<'a> PullOperation<'a> {
             Config {
                 repository: args.repository.clone(),
                 tag: args.tag.clone(),
+                context: std::collections::HashMap::new(),
                 pulls: Vec::new(),
             }
         } else {
@@ -323,15 +331,19 @@ impl<'a> PullOperation<'a> {
         )?;
 
         // Apply text replacements
-        let replacements_applied = if pull.replacements.is_empty() {
+        let mut replacements_applied = if pull.replacements.is_empty() {
             0
         } else {
             apply_replacements(self.system, &pull.target, &pull.replacements)
                 .context("Text replacement failed")?
         };
 
+        // Process .graft.yaml files (context feature)
+        let graft_result = self.process_graft_files(pull)?;
+        replacements_applied += graft_result.replacements_applied;
+
         // Execute commands
-        let commands_executed = if !pull.commands.is_empty() {
+        let mut commands_executed = if !pull.commands.is_empty() {
             // For file operations, commands should run in the parent directory
             let command_working_dir = if pull.pull_type == "file" {
                 std::path::Path::new(&pull.target)
@@ -347,6 +359,7 @@ impl<'a> PullOperation<'a> {
         } else {
             0
         };
+        commands_executed += graft_result.commands_executed;
 
         Ok(PullResult {
             files_copied,
@@ -354,6 +367,155 @@ impl<'a> PullOperation<'a> {
             commands_executed,
         })
     }
+
+    /// Process all .graft.yaml files in the target directory
+    fn process_graft_files(&self, pull: &PullConfig) -> Result<GraftProcessingResult> {
+        let target_path = Path::new(&pull.target);
+
+        // Check if target exists and is a directory
+        if !target_path.exists() || !target_path.is_dir() {
+            // Target doesn't exist or isn't a directory, no graft files to process
+            return Ok(GraftProcessingResult::default());
+        }
+
+        // Discover all .graft.yaml files
+        let discovered_grafts =
+            discover_graft_files(target_path).context("Failed to discover .graft.yaml files")?;
+
+        if discovered_grafts.is_empty() {
+            // No .graft.yaml files found, nothing to do
+            return Ok(GraftProcessingResult::default());
+        }
+
+        info!("  Found {} .graft.yaml file(s)", discovered_grafts.len());
+
+        let mut total_replacements = 0;
+        let mut total_commands = 0;
+
+        // Merge root and pull-level context
+        let base_context = merge_context_values(self.config.context.clone(), pull.context.clone());
+
+        // Process each .graft.yaml in order (root first, then children)
+        for discovered in &discovered_grafts {
+            debug!("Processing .graft.yaml at: {}", discovered.path.display());
+
+            // Load and parse .graft.yaml
+            let graft_config =
+                GraftConfig::load_from_file(&discovered.path).with_context(|| {
+                    format!(
+                        "Failed to load .graft.yaml from: {}",
+                        discovered.path.display()
+                    )
+                })?;
+
+            // Build context for this graft (inherit from parent)
+            let graft_context = self.build_graft_context(discovered, &base_context)?;
+
+            // Validate context requirements
+            if !graft_config.context.is_empty() {
+                let validated =
+                    ValidatedContext::new(graft_config.context.clone(), graft_context.clone())
+                        .context("Context validation failed")?;
+
+                debug!(
+                    "Validated context for .graft.yaml at: {}",
+                    discovered.directory.display()
+                );
+
+                // Apply graft replacements
+                if !graft_config.replacements.is_empty() {
+                    let replacements = apply_graft_replacements(
+                        self.system,
+                        discovered.directory.to_str().ok_or_else(|| {
+                            return GraftError::filesystem("Invalid directory path".to_owned());
+                        })?,
+                        &graft_config.replacements,
+                        &validated.values,
+                    )
+                    .context("Failed to apply graft replacements")?;
+
+                    total_replacements += replacements;
+                    debug!(
+                        "Applied {} replacements in {}",
+                        replacements,
+                        discovered.directory.display()
+                    );
+                }
+            } else {
+                // No context defined, apply replacements without validation
+                if !graft_config.replacements.is_empty() {
+                    let replacements = apply_graft_replacements(
+                        self.system,
+                        discovered.directory.to_str().ok_or_else(|| {
+                            return GraftError::filesystem("Invalid directory path".to_owned());
+                        })?,
+                        &graft_config.replacements,
+                        &graft_context,
+                    )
+                    .context("Failed to apply graft replacements")?;
+
+                    total_replacements += replacements;
+                }
+            }
+
+            // Execute post-commands
+            if !graft_config.post_commands.is_empty() {
+                let results =
+                    execute_post_commands(&graft_config.post_commands, &discovered.directory)
+                        .context("Failed to execute post-commands")?;
+
+                total_commands += results.len();
+                debug!(
+                    "Executed {} post-command(s) in {}",
+                    results.len(),
+                    discovered.directory.display()
+                );
+
+                // Log any command failures (but don't fail the operation)
+                for result in results {
+                    if !result.success {
+                        warn!(
+                            "Post-command failed in {}: {}",
+                            discovered.directory.display(),
+                            result
+                                .error
+                                .unwrap_or_else(|| return "Unknown error".to_owned())
+                        );
+                    }
+                }
+            }
+        }
+
+        // Cleanup: Delete all .graft.yaml files
+        let deleted =
+            cleanup_graft_files(target_path).context("Failed to cleanup .graft.yaml files")?;
+
+        debug!("Deleted {} .graft.yaml file(s)", deleted);
+
+        Ok(GraftProcessingResult {
+            replacements_applied: total_replacements,
+            commands_executed: total_commands,
+        })
+    }
+
+    /// Build context for a specific graft (with parent inheritance)
+    fn build_graft_context(
+        &self,
+        _discovered: &crate::operations::discovery::DiscoveredGraft,
+        base_context: &ContextValues,
+    ) -> Result<ContextValues> {
+        // For now, just use base context
+        // A more sophisticated approach would cache parsed .graft.yaml files
+        // and inherit context from parent grafts
+        Ok(base_context.clone())
+    }
+}
+
+/// Result of processing .graft.yaml files
+#[derive(Debug, Default)]
+struct GraftProcessingResult {
+    replacements_applied: usize,
+    commands_executed: usize,
 }
 
 /// Result of a single pull operation
@@ -373,6 +535,13 @@ fn merge_cli_args(config: &mut Config, args: &Args) -> Result<()> {
 
     if let Some(ref tag) = args.tag {
         config.tag = Some(tag.clone());
+    }
+
+    // Merge context from CLI arguments
+    if !args.context.is_empty() || !args.context_json.is_empty() {
+        let cli_context = args.parse_context()?;
+        // Merge CLI context into config context (CLI takes precedence)
+        config.context.extend(cli_context);
     }
 
     // If CLI pulls are provided, use them instead of config pulls
@@ -421,6 +590,7 @@ fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
                 Vec::new()
             },
             replacements: parse_replacements_for_pull(pull_args, i)?,
+            context: std::collections::HashMap::new(),
         };
 
         pulls.push(pull);
@@ -467,8 +637,7 @@ fn parse_replacement_string(input: &str) -> Result<crate::cli::ReplacementConfig
 
     if parts.len() != 2 {
         return Err(GraftError::configuration(format!(
-            "Invalid replacement format: '{}'. Expected 'SOURCE=TARGET' or 'SOURCE=env:VAR'",
-            input
+            "Invalid replacement format: '{input}'. Expected 'SOURCE=TARGET' or 'SOURCE=env:VAR'"
         ))
         .into());
     }
@@ -496,6 +665,7 @@ pub fn build_config_from_args(args: &Args) -> Result<Config> {
     let mut config = Config {
         repository: args.repository.clone(),
         tag: args.tag.clone(),
+        context: std::collections::HashMap::new(),
         pulls: Vec::new(),
     };
 
@@ -522,6 +692,7 @@ pub fn build_merged_config(args: &Args, system: &dyn System) -> Result<Config> {
         Config {
             repository: None,
             tag: None,
+            context: std::collections::HashMap::new(),
             pulls: Vec::new(),
         }
     };

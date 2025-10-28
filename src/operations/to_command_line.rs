@@ -5,7 +5,7 @@ use crate::config::Config;
 use anyhow::Result;
 
 /// Output format for command-line representation
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
     /// Shell-escaped command ready to execute
     Shell,
@@ -13,14 +13,14 @@ pub enum OutputFormat {
     Json,
 }
 
-impl std::str::FromStr for OutputFormat {
+impl core::str::FromStr for OutputFormat {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "shell" => Ok(OutputFormat::Shell),
-            "json" => Ok(OutputFormat::Json),
-            _ => Err(format!("Invalid format: {}. Use 'shell' or 'json'", s)),
+            "shell" => return Ok(Self::Shell),
+            "json" => return Ok(Self::Json),
+            _ => return Err(format!("Invalid format: {s}. Use 'shell' or 'json'")),
         }
     }
 }
@@ -76,19 +76,19 @@ fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Conf
     }
 
     // Repository (only if different from global)
-    if let Some(ref repo) = pull.repository {
-        if global_config.repository.as_ref() != Some(repo) {
-            args.push("--pull-repository".to_owned());
-            args.push(repo.clone());
-        }
+    if let Some(ref repo) = pull.repository
+        && global_config.repository.as_ref() != Some(repo)
+    {
+        args.push("--pull-repository".to_owned());
+        args.push(repo.clone());
     }
 
     // Tag (only if different from global)
-    if let Some(ref tag) = pull.tag {
-        if global_config.tag.as_ref() != Some(tag) {
-            args.push("--pull-tag".to_owned());
-            args.push(tag.clone());
-        }
+    if let Some(ref tag) = pull.tag
+        && global_config.tag.as_ref() != Some(tag)
+    {
+        args.push("--pull-tag".to_owned());
+        args.push(tag.clone());
     }
 
     // Reset (only if true)
@@ -143,8 +143,8 @@ fn format_as_shell(args: &[String]) -> Result<String> {
 
 /// Format arguments as JSON array
 fn format_as_json(args: &[String]) -> Result<String> {
-    serde_json::to_string_pretty(args)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize to JSON: {}", e))
+    return serde_json::to_string_pretty(args)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize to JSON: {e}"));
 }
 
 /// Escape a string for shell execution
@@ -231,6 +231,7 @@ mod tests {
         let config = Config {
             repository: Some("myorg/repo".to_owned()),
             tag: Some("main".to_owned()),
+            context: std::collections::HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src".to_owned(),
                 target: "dst".to_owned(),
@@ -240,6 +241,7 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -262,6 +264,7 @@ mod tests {
         let config = Config {
             repository: Some("myorg/repo".to_owned()),
             tag: None,
+            context: std::collections::HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src".to_owned(),
                 target: "dst".to_owned(),
@@ -271,6 +274,7 @@ mod tests {
                 reset: true,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -285,6 +289,7 @@ mod tests {
         let config = Config {
             repository: Some("myorg/repo".to_owned()),
             tag: None,
+            context: std::collections::HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src".to_owned(),
                 target: "dst".to_owned(),
@@ -305,6 +310,7 @@ mod tests {
                         value_from_env: Some("MY_ENV".to_owned()),
                     },
                 ],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -321,6 +327,7 @@ mod tests {
         let config = Config {
             repository: Some("repo".to_owned()),
             tag: None,
+            context: std::collections::HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src".to_owned(),
                 target: "dst".to_owned(),
@@ -330,6 +337,7 @@ mod tests {
                 reset: false,
                 commands: vec!["echo 'line1'\necho 'line2'".to_owned()],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -383,6 +391,7 @@ mod tests {
         let config = Config {
             repository: Some("myorg/repo".to_owned()),
             tag: Some("main".to_owned()),
+            context: std::collections::HashMap::new(),
             pulls: vec![],
         };
 
@@ -400,6 +409,7 @@ mod tests {
         let config = Config {
             repository: Some("myorg/repo".to_owned()),
             tag: None,
+            context: std::collections::HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src with spaces".to_owned(),
                 target: "dst with spaces".to_owned(),
@@ -409,6 +419,7 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -427,6 +438,7 @@ mod tests {
         let config = Config {
             repository: Some("myorg/repo".to_owned()),
             tag: None,
+            context: std::collections::HashMap::new(),
             pulls: vec![PullConfig {
                 source: "file.txt".to_owned(),
                 target: "output.txt".to_owned(),
@@ -436,6 +448,7 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -452,6 +465,7 @@ mod tests {
         let config = Config {
             repository: Some("global/repo".to_owned()),
             tag: Some("v1".to_owned()),
+            context: std::collections::HashMap::new(),
             pulls: vec![
                 PullConfig {
                     source: "src1".to_owned(),
@@ -462,6 +476,7 @@ mod tests {
                     reset: false,
                     commands: vec![],
                     replacements: vec![],
+                    context: std::collections::HashMap::new(),
                 },
                 PullConfig {
                     source: "src2".to_owned(),
@@ -472,6 +487,7 @@ mod tests {
                     reset: false,
                     commands: vec![],
                     replacements: vec![],
+                    context: std::collections::HashMap::new(),
                 },
             ],
         };

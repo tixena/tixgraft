@@ -4,6 +4,8 @@
 
 pub mod commands;
 pub mod copy;
+pub mod discovery;
+pub mod post_commands;
 pub mod pull;
 pub mod replace;
 pub mod to_command_line;

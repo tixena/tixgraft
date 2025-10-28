@@ -1,5 +1,7 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 
 /// Command-line arguments for tixgraft
 #[derive(Parser, Debug, Clone)]
@@ -45,9 +47,26 @@ pub struct Args {
     )]
     pub output_format: String,
 
+    /// Context values in KEY=VALUE format (can be specified multiple times)
+    /// Multiple values with the same key create an array
+    #[arg(long = "context", value_name = "KEY=VALUE")]
+    pub context: Vec<String>,
+
+    /// Context values as JSON in KEY=JSON format (can be specified multiple times)
+    /// Use this for complex values like arrays of objects
+    #[arg(long = "context-json", value_name = "KEY=JSON")]
+    pub context_json: Vec<String>,
+
     /// Pull operations (can be specified multiple times)
     #[command(flatten)]
     pub pulls: PullArgs,
+}
+
+impl Args {
+    /// Parse context arguments into a `HashMap`
+    pub fn parse_context(&self) -> anyhow::Result<HashMap<String, Value>> {
+        parse_context_args(&self.context, &self.context_json)
+    }
 }
 
 /// Arguments for individual pull operations
@@ -81,7 +100,7 @@ pub struct PullArgs {
     #[arg(long = "pull-commands", value_name = "COMMANDS")]
     pub commands: Vec<String>,
 
-    /// Text replacements in format "SOURCE=TARGET" or "SOURCE=env:ENV_VAR"
+    /// Text replacements in format "SOURCE=TARGET" or "`SOURCE=env:ENV_VAR`"
     /// Can be specified multiple times per pull operation
     #[arg(long = "pull-replacement", value_name = "REPLACEMENT")]
     pub replacements: Vec<String>,
@@ -104,6 +123,9 @@ pub struct PullConfig {
     pub commands: Vec<String>,
     #[serde(default)]
     pub replacements: Vec<ReplacementConfig>,
+    /// Context values for this pull
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub context: HashMap<String, Value>,
 }
 
 /// Text replacement configuration
@@ -118,4 +140,137 @@ pub struct ReplacementConfig {
 
 fn default_pull_type() -> String {
     return "directory".to_owned();
+}
+
+/// Parse context arguments from CLI into a `HashMap`
+/// Handles both --context and --context-json flags
+/// Multiple values with the same key create an array
+fn parse_context_args(
+    context_args: &[String],
+    context_json_args: &[String],
+) -> anyhow::Result<HashMap<String, Value>> {
+    let mut result: HashMap<String, Vec<Value>> = HashMap::new();
+
+    // Parse --context arguments
+    for arg in context_args {
+        let (key, value) = parse_key_value(arg)?;
+        result.entry(key).or_default().push(Value::String(value));
+    }
+
+    // Parse --context-json arguments
+    for arg in context_json_args {
+        let (key, json_str) = parse_key_value(arg)?;
+        let value: Value = serde_json::from_str(&json_str).map_err(|e| {
+            return anyhow::anyhow!(
+                "Invalid JSON in --context-json for key '{key}': {e}\nValue: {json_str}"
+            );
+        })?;
+        result.entry(key).or_default().push(value);
+    }
+
+    // Convert Vec<Value> to Value (single value or array)
+    let mut final_result = HashMap::new();
+    for (key, values) in result {
+        if values.len() == 1 {
+            final_result.insert(key, values.into_iter().next().unwrap());
+        } else {
+            final_result.insert(key, Value::Array(values));
+        }
+    }
+
+    Ok(final_result)
+}
+
+/// Parse KEY=VALUE string
+fn parse_key_value(arg: &str) -> anyhow::Result<(String, String)> {
+    let parts: Vec<&str> = arg.splitn(2, '=').collect();
+    if parts.len() != 2 {
+        return Err(anyhow::anyhow!(
+            "Invalid context format '{arg}'. Expected KEY=VALUE"
+        ));
+    }
+    return Ok((parts[0].to_owned(), parts[1].to_owned()));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_simple_context() {
+        let context = vec!["name=test".to_string(), "port=8080".to_string()];
+        let json = vec![];
+        let result = parse_context_args(&context, &json).unwrap();
+
+        assert_eq!(result.get("name"), Some(&Value::String("test".to_string())));
+        assert_eq!(result.get("port"), Some(&Value::String("8080".to_string())));
+    }
+
+    #[test]
+    fn test_parse_array_context() {
+        let context = vec![
+            "items=a".to_string(),
+            "items=b".to_string(),
+            "items=c".to_string(),
+        ];
+        let json = vec![];
+        let result = parse_context_args(&context, &json).unwrap();
+
+        assert_eq!(
+            result.get("items"),
+            Some(&Value::Array(vec![
+                Value::String("a".to_string()),
+                Value::String("b".to_string()),
+                Value::String("c".to_string())
+            ]))
+        );
+    }
+
+    #[test]
+    fn test_parse_json_context() {
+        let context = vec![];
+        let json = vec![r#"config={"key":"value"}"#.to_string()];
+        let result = parse_context_args(&context, &json).unwrap();
+
+        let expected = serde_json::json!({"key": "value"});
+        assert_eq!(result.get("config"), Some(&expected));
+    }
+
+    #[test]
+    fn test_parse_mixed_context() {
+        let context = vec!["name=test".to_string()];
+        let json = vec![r#"people=[{"name":"Alice"},{"name":"Bob"}]"#.to_string()];
+        let result = parse_context_args(&context, &json).unwrap();
+
+        assert_eq!(result.get("name"), Some(&Value::String("test".to_string())));
+        assert_eq!(
+            result.get("people"),
+            Some(&serde_json::json!([{"name":"Alice"},{"name":"Bob"}]))
+        );
+    }
+
+    #[test]
+    fn test_invalid_context_format() {
+        let context = vec!["invalid".to_string()];
+        let json = vec![];
+        let result = parse_context_args(&context, &json);
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Expected KEY=VALUE")
+        );
+    }
+
+    #[test]
+    fn test_invalid_json() {
+        let context = vec![];
+        let json = vec![r#"config={invalid json}"#.to_string()];
+        let result = parse_context_args(&context, &json);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Invalid JSON"));
+    }
 }

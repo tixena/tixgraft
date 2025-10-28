@@ -29,6 +29,12 @@ lint:
     @echo "🔍 Running clippy lints..."
     cargo clippy --all-targets --all-features -- -D warnings
 
+clippy-lint:
+    set -e
+    cargo fix --allow-dirty
+    cargo clippy --all --fix --allow-dirty -- -W clippy::all -W clippy::pedantic -W clippy::restriction -W clippy::nursery -D warnings
+    cargo fmt 
+
 # Run all tests
 test:
     @echo "🧪 Running tests..."
@@ -169,7 +175,7 @@ validate-examples:
     @find docs/examples -name "*.yaml" -exec sh -c 'echo "📋 Validating: $$1"; cargo run -- --config "$$1" --dry-run' sh {} \;
     @echo "✅ All examples validated successfully!"
 
-# Check for TODO items and fixmes in code
+# Check for TODO items and fixme in code
 todos:
     @echo "📝 Searching for TODO and FIXME items..."
     @rg -i "todo|fixme|hack|bug" --type rust src/ || echo "No TODOs found!"

@@ -1,17 +1,12 @@
 //! Configuration parsing and validation tests
 
-use std::fs;
-use tempfile::TempDir;
 use tixgraft::config::Config;
-use tixgraft::system::{MockSystem, RealSystem};
+use tixgraft::system::MockSystem;
 
 #[test]
 fn test_valid_basic_config() {
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("valid.yaml");
-
     let config_content = r#"
-repository: "myorg/templates"
+repository: "my_organization/templates"
 tag: "main"
 pulls:
   - source: "docker/nodejs"
@@ -19,14 +14,13 @@ pulls:
     type: "directory"
 "#;
 
-    fs::write(&config_path, config_content).unwrap();
+    let system = MockSystem::new().with_file("/test/valid.yaml", config_content.as_bytes());
 
-    let system = RealSystem;
-    let config = Config::load_from_file(&system, config_path.to_str().unwrap());
+    let config = Config::load_from_file(&system, "/test/valid.yaml");
     assert!(config.is_ok());
 
     let config = config.unwrap();
-    assert_eq!(config.repository.unwrap(), "myorg/templates");
+    assert_eq!(config.repository.unwrap(), "my_organization/templates");
     assert_eq!(config.tag.unwrap(), "main");
     assert_eq!(config.pulls.len(), 1);
     assert_eq!(config.pulls[0].source, "docker/nodejs");
@@ -36,11 +30,8 @@ pulls:
 
 #[test]
 fn test_config_with_replacements() {
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("replacements.yaml");
-
     let config_content = r#"
-repository: "myorg/templates"
+repository: "my_organization/templates"
 pulls:
   - source: "app/service"
     target: "./service"
@@ -51,12 +42,11 @@ pulls:
         valueFromEnv: "TEST_ENV_VAR"
 "#;
 
-    fs::write(&config_path, config_content).unwrap();
+    let system = MockSystem::new()
+        .with_env("TEST_ENV_VAR", "test_value")
+        .with_file("/test/replacements.yaml", config_content.as_bytes());
 
-    // Use MockSystem with the required environment variable
-    let system = MockSystem::new().with_env("TEST_ENV_VAR", "test_value");
-
-    let config = Config::load_from_file(&system, config_path.to_str().unwrap());
+    let config = Config::load_from_file(&system, "/test/replacements.yaml");
     assert!(config.is_ok());
 
     let config = config.unwrap();
@@ -77,21 +67,18 @@ pulls:
 
 #[test]
 fn test_config_validation_invalid_schema() {
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("invalid_schema.yaml");
-
     let config_content = r#"
-repository: "myorg/templates"
+repository: "my_organization/templates"
 pulls:
   - source: "docker/nodejs"
     target: "./docker"
     type: "invalid_type"  # Should be "file" or "directory"
 "#;
 
-    fs::write(&config_path, config_content).unwrap();
+    let system =
+        MockSystem::new().with_file("/test/invalid_schema.yaml", config_content.as_bytes());
 
-    let system = RealSystem;
-    let config = Config::load_from_file(&system, config_path.to_str().unwrap());
+    let config = Config::load_from_file(&system, "/test/invalid_schema.yaml");
     assert!(config.is_err());
 
     let error = config.unwrap_err();
@@ -100,11 +87,8 @@ pulls:
 
 #[test]
 fn test_config_validation_missing_env_var() {
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("missing_env.yaml");
-
     let config_content = r#"
-repository: "myorg/templates"
+repository: "my_organization/templates"
 pulls:
   - source: "app/service"
     target: "./service"
@@ -113,12 +97,9 @@ pulls:
         valueFromEnv: "NONEXISTENT_VAR"
 "#;
 
-    fs::write(&config_path, config_content).unwrap();
+    let system = MockSystem::new().with_file("/test/missing_env.yaml", config_content.as_bytes());
 
-    // Use MockSystem without the environment variable
-    let system = MockSystem::new();
-
-    let config = Config::load_from_file(&system, config_path.to_str().unwrap());
+    let config = Config::load_from_file(&system, "/test/missing_env.yaml");
     assert!(config.is_err());
 
     let error = config.unwrap_err();
@@ -127,19 +108,15 @@ pulls:
 
 #[test]
 fn test_minimal_config() {
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("minimal.yaml");
-
     let config_content = r#"
 pulls:
   - source: "src"
     target: "./dest"
 "#;
 
-    fs::write(&config_path, config_content).unwrap();
+    let system = MockSystem::new().with_file("/test/minimal.yaml", config_content.as_bytes());
 
-    let system = RealSystem;
-    let config = Config::load_from_file(&system, config_path.to_str().unwrap());
+    let config = Config::load_from_file(&system, "/test/minimal.yaml");
     assert!(config.is_ok());
 
     let config = config.unwrap();
@@ -150,20 +127,16 @@ pulls:
 
 #[test]
 fn test_config_directory_traversal_protection() {
-    let temp_dir = TempDir::new().unwrap();
-    let config_path = temp_dir.path().join("unsafe.yaml");
-
     let config_content = r#"
-repository: "myorg/templates"
+repository: "my_organization/templates"
 pulls:
   - source: "app"
     target: "../../etc/passwd"  # Path traversal attempt
 "#;
 
-    fs::write(&config_path, config_content).unwrap();
+    let system = MockSystem::new().with_file("/test/unsafe.yaml", config_content.as_bytes());
 
-    let system = RealSystem;
-    let config = Config::load_from_file(&system, config_path.to_str().unwrap());
+    let config = Config::load_from_file(&system, "/test/unsafe.yaml");
     assert!(config.is_err());
 
     let error = config.unwrap_err();

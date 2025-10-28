@@ -32,7 +32,7 @@ pub fn args_to_config(args: &Args, system: &dyn System) -> Result<String> {
 fn serialize_config(config: &Config) -> Result<String> {
     // Use serde_yaml with custom formatting
     let yaml = serde_yaml::to_string(config)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize config to YAML: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to serialize config to YAML: {e}"))?;
 
     // Post-process for better formatting
     let formatted = format_yaml_output(&yaml);
@@ -65,6 +65,8 @@ mod tests {
     #[test]
     fn test_serialize_basic_config() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: Some("main".to_owned()),
             pulls: vec![PullConfig {
@@ -76,6 +78,7 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -91,6 +94,8 @@ mod tests {
     #[test]
     fn test_serialize_with_header() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: None,
             pulls: vec![PullConfig {
@@ -102,6 +107,7 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -115,6 +121,8 @@ mod tests {
     #[test]
     fn test_roundtrip_basic() {
         let original_config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: None,
             pulls: vec![PullConfig {
@@ -126,6 +134,7 @@ mod tests {
                 reset: true,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -155,6 +164,8 @@ mod tests {
     #[test]
     fn test_config_with_replacements() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: None,
             pulls: vec![PullConfig {
@@ -177,6 +188,7 @@ mod tests {
                         value_from_env: Some("MY_ENV".to_owned()),
                     },
                 ],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -191,6 +203,8 @@ mod tests {
     #[test]
     fn test_config_with_commands() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: None,
             pulls: vec![PullConfig {
@@ -202,6 +216,7 @@ mod tests {
                 reset: false,
                 commands: vec!["npm install".to_owned(), "npm run build".to_owned()],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -215,6 +230,8 @@ mod tests {
     #[test]
     fn test_config_per_pull_overrides() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("global/repo".to_owned()),
             tag: Some("v1".to_owned()),
             pulls: vec![
@@ -227,6 +244,7 @@ mod tests {
                     reset: false,
                     commands: vec![],
                     replacements: vec![],
+                    context: std::collections::HashMap::new(),
                 },
                 PullConfig {
                     source: "src2".to_owned(),
@@ -237,6 +255,7 @@ mod tests {
                     reset: false,
                     commands: vec![],
                     replacements: vec![],
+                    context: std::collections::HashMap::new(),
                 },
             ],
         };
@@ -251,6 +270,8 @@ mod tests {
     #[test]
     fn test_config_with_file_type() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: None,
             pulls: vec![PullConfig {
@@ -262,6 +283,7 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -273,6 +295,8 @@ mod tests {
     #[test]
     fn test_config_with_special_characters_in_paths() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: None,
             pulls: vec![PullConfig {
@@ -284,6 +308,7 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -297,6 +322,8 @@ mod tests {
     #[test]
     fn test_config_with_multiline_command() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: None,
             pulls: vec![PullConfig {
@@ -308,6 +335,7 @@ mod tests {
                 reset: false,
                 commands: vec!["echo 'line1'\necho 'line2'".to_owned()],
                 replacements: vec![],
+                context: std::collections::HashMap::new(),
             }],
         };
 
@@ -320,6 +348,8 @@ mod tests {
     #[test]
     fn test_config_empty_pulls_array_fails() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: Some("main".to_owned()),
             pulls: vec![],
@@ -333,6 +363,8 @@ mod tests {
     #[test]
     fn test_replacement_with_special_chars() {
         let config = Config {
+            context: std::collections::HashMap::new(),
+
             repository: Some("myorg/repo".to_owned()),
             tag: None,
             pulls: vec![PullConfig {
@@ -348,6 +380,7 @@ mod tests {
                     target: Some("value with $special &chars".to_owned()),
                     value_from_env: None,
                 }],
+                context: std::collections::HashMap::new(),
             }],
         };
 
