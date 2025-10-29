@@ -159,6 +159,11 @@ The codebase follows a modular architecture with clear separation of concerns:
   - `commands.rs` - Command execution in target directory context
   - `to_command_line.rs` - Convert config to CLI arguments (shell/JSON output)
 
+- **`system/`** - System abstraction layer (critical for testing)
+  - `mod.rs` - System trait, TempDirHandle trait, and WalkEntry
+  - `real.rs` - Production implementation using std::fs and std::env
+  - `mock.rs` - In-memory implementation for fast, isolated unit tests
+
 - **`error/`** - Error handling
   - `types.rs` - Custom error types with specific exit codes (1-5)
 
@@ -177,14 +182,23 @@ The codebase follows a modular architecture with clear separation of concerns:
    - Validates configuration against JSON schema
 
 3. **Pull Execution** (`PullOperation::execute()`)
-   For each pull operation:
+   For each pull operation (all filesystem operations go through System abstraction):
    - **Sparse Checkout**: Uses git2 to fetch only required paths from repository
    - **Source Verification**: Confirms source path exists in checked-out repository
-   - **File Copy**: Copies files/directories to target location (with optional reset)
-   - **Text Replacement**: Applies placeholder replacements (supports env vars)
+   - **File Copy**: Copies files/directories to target location via `system.copy()` and `system.walk_dir()`
+   - **Text Replacement**: Applies placeholder replacements using `system.read/write()`
    - **Command Execution**: Runs post-processing commands in target directory
 
 ### Key Design Patterns
+
+- **System Abstraction**: All filesystem and environment operations go through the `System` trait
+  - **RealSystem**: Production implementation that delegates to `std::fs` and `std::env` (zero-cost abstraction)
+  - **MockSystem**: In-memory implementation for testing (no disk I/O, perfect isolation)
+  - Key capabilities:
+    - `create_temp_dir()` - System-agnostic temporary directories with automatic cleanup
+    - `walk_dir()` - Recursive directory traversal (respects .gitignore in RealSystem, in-memory in MockSystem)
+    - `read/write/copy/exists/is_dir/is_file` - All filesystem operations abstracted
+  - **Critical**: Unit tests MUST use MockSystem, never RealSystem (see Testing Guidelines below)
 
 - **Error Handling**: Custom `GraftError` enum with specific exit codes for different error types (configuration=1, source=2, command=3, git=4, filesystem=5)
 
@@ -222,14 +236,97 @@ pulls:                         # Required, minimum 1
         valueFromEnv: "ENV_VAR" # From environment
 ```
 
-## Testing
+## Testing Guidelines
 
-Integration tests are in `tests/`:
+### Test Structure
+
+Tests are organized in `tests/`:
+- `*_unit_tests.rs` - Unit tests (MUST use MockSystem)
+- `*_tests.rs` - Integration tests (may use RealSystem when necessary)
+
+### Unit Tests (Critical Rules)
+
+**Unit tests MUST follow these rules:**
+
+✅ **DO:**
+- Use `MockSystem::new()` for all filesystem operations
+- Use `system.create_temp_dir()` for temporary directories
+- Use `.with_file()` and `.with_dir()` to set up test data
+- Use mock paths like `/test/...` for clarity
+- Test business logic in isolation without I/O
+
+❌ **DON'T:**
+- Never instantiate `RealSystem` in unit tests
+- Never use `tempfile::TempDir` directly (use `system.create_temp_dir()`)
+- Never use `std::fs` operations directly
+- Never perform actual disk I/O in unit tests
+
+**Example Unit Test:**
+```rust
+use tixgraft::system::{MockSystem, System};
+
+#[test]
+fn test_my_feature() {
+    let system = MockSystem::new()
+        .with_dir("/test")
+        .with_file("/test/input.txt", b"test data");
+
+    let temp_dir = system.create_temp_dir().unwrap();
+    // temp_dir.path() is now an in-memory directory like /tmp/mock_0
+
+    // Test your feature...
+    assert!(system.exists(temp_dir.path()));
+}
+```
+
+### Integration Tests
+
+**Use RealSystem only when testing:**
+- Actual git operations (`sparse_checkout_tests.rs`)
+- Shell command execution (`commands_unit_tests.rs`, `post_commands_tests.rs`)
+- End-to-end CLI behavior (`cli_tests.rs`, `local_tests.rs`)
+
+**Still prefer System abstraction:**
+```rust
+use tixgraft::system::{RealSystem, System};
+
+#[test]
+fn test_integration() {
+    let system = RealSystem::new();
+    let temp_dir = system.create_temp_dir().unwrap();
+    // temp_dir automatically cleans up on drop
+
+    // Test with real filesystem...
+}
+```
+
+### Test Files
+
+**Unit Tests (MockSystem only):**
+- `copy_unit_tests.rs` - File and directory copying
+- `discovery_unit_tests.rs` - Graft file discovery
+- `fs_unit_tests.rs` - Filesystem utilities
+- `gitignore_tests.rs` - Directory traversal (simplified for MockSystem)
+- `replace_unit_tests.rs` - Text replacement
+- `yaml_unit_tests.rs` - YAML config loading
+- `temp_dir_tests.rs` - TempDir abstraction
+
+**Integration Tests (RealSystem when needed):**
 - `cli_tests.rs` - CLI argument parsing and execution
+- `commands_unit_tests.rs` - Command execution (requires real shell)
 - `config_tests.rs` - Configuration loading and validation
 - `local_tests.rs` - Local filesystem operations
-- `sparse_checkout_tests.rs` - Git sparse checkout functionality
-- `to_command_line_tests.rs` - Configuration to CLI conversion
+- `post_commands_tests.rs` - Post-command execution
+- `sparse_checkout_tests.rs` - Git operations (requires real git)
+- `to_command_line_tests.rs` - Config to CLI conversion
+- `to_config_tests.rs` - CLI to config conversion
+
+### Benefits of System Abstraction
+
+- **Fast**: MockSystem tests run ~100x faster (no disk I/O)
+- **Isolated**: No temp directory cleanup issues or race conditions
+- **Deterministic**: Same in-memory state every time
+- **Parallel**: Tests can run concurrently without conflicts
 
 ## CLI Features
 

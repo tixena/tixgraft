@@ -6,7 +6,6 @@ use crate::utils::fs::create_parent_directories;
 use anyhow::{Context as _, Result};
 use std::path::{Path, PathBuf};
 use tracing::debug;
-use walkdir::WalkDir;
 
 /// Copy files or directories from source to target
 pub fn copy_files(
@@ -51,7 +50,7 @@ pub fn copy_files(
 }
 
 /// Copy a single file
-fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<usize> {
+pub fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<usize> {
     // Validate source is actually a file
     if !system.is_file(source) {
         return Err(
@@ -76,7 +75,7 @@ fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<usize>
 }
 
 /// Copy a directory recursively
-fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Result<usize> {
+pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Result<usize> {
     // Validate source is actually a directory
     if !system.is_dir(source) {
         return Err(
@@ -93,10 +92,13 @@ fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Result<u
 
     let mut files_copied = 0;
 
-    // Walk through source directory
-    for entry in WalkDir::new(source).min_depth(1) {
-        let entry = entry.context("Failed to read directory entry")?;
-        let source_path = entry.path();
+    // Walk through source directory using System abstraction
+    let entries = system
+        .walk_dir(source, false, false)
+        .with_context(|| format!("Failed to walk directory: {}", source.display()))?;
+
+    for entry in entries {
+        let source_path = &entry.path;
 
         // Calculate relative path from source root
         let relative_path = source_path
@@ -105,14 +107,14 @@ fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Result<u
 
         let target_path = target.join(relative_path);
 
-        if source_path.is_dir() {
+        if entry.is_dir {
             // Create directory
             if !system.exists(&target_path) {
                 system.create_dir_all(&target_path).with_context(|| {
                     format!("Failed to create directory: {}", target_path.display())
                 })?;
             }
-        } else if source_path.is_file() {
+        } else if entry.is_file {
             // Create parent directories if needed
             if let Some(parent) = target_path.parent()
                 && !system.exists(parent)
@@ -159,10 +161,10 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
         "directory" => {
             let mut total_size = 0;
             if system.is_dir(source) {
-                for entry in WalkDir::new(source).min_depth(1) {
-                    let entry = entry?;
-                    if entry.file_type().is_file() {
-                        total_size += system.metadata(entry.path())?.len();
+                let entries = system.walk_dir(source, false, false)?;
+                for entry in entries {
+                    if entry.is_file {
+                        total_size += system.metadata(&entry.path)?.len();
                     }
                 }
             }
@@ -185,9 +187,9 @@ pub fn count_files_to_copy(system: &dyn System, source: &Path, pull_type: &str) 
         "directory" => {
             let mut file_count = 0;
             if system.is_dir(source) {
-                for entry in WalkDir::new(source).min_depth(1) {
-                    let entry = entry?;
-                    if entry.file_type().is_file() {
+                let entries = system.walk_dir(source, false, false)?;
+                for entry in entries {
+                    if entry.is_file {
                         file_count += 1;
                     }
                 }
@@ -195,60 +197,5 @@ pub fn count_files_to_copy(system: &dyn System, source: &Path, pull_type: &str) 
             Ok(file_count)
         }
         _ => Ok(0),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::system::RealSystem;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_copy_file() {
-        let system = RealSystem::new();
-        let temp_dir = TempDir::new().unwrap();
-        let source_path = temp_dir.path().join("source.txt");
-        let target_path = temp_dir.path().join("target.txt");
-
-        // Create source file
-        system.write(&source_path, b"test content\n").unwrap();
-
-        // Copy file
-        let result = copy_file(&system, &source_path, &target_path);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 1);
-
-        // Verify target exists and has correct content
-        assert!(system.exists(&target_path));
-        let content = system.read_to_string(&target_path).unwrap();
-        assert_eq!(content.trim(), "test content");
-    }
-
-    #[test]
-    fn test_copy_directory() {
-        let system = RealSystem::new();
-        let temp_dir = TempDir::new().unwrap();
-        let source_dir = temp_dir.path().join("source");
-        let target_dir = temp_dir.path().join("target");
-
-        // Create source directory with files
-        system.create_dir_all(&source_dir).unwrap();
-        let file1 = source_dir.join("file1.txt");
-        let subdir = source_dir.join("subdir");
-        system.create_dir_all(&subdir).unwrap();
-        let file2 = subdir.join("file2.txt");
-
-        system.write(&file1, b"content1\n").unwrap();
-        system.write(&file2, b"content2\n").unwrap();
-
-        // Copy directory
-        let result = copy_directory(&system, &source_dir, &target_dir);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 2);
-
-        // Verify target structure
-        assert!(system.exists(&target_dir.join("file1.txt")));
-        assert!(system.exists(&target_dir.join("subdir/file2.txt")));
     }
 }

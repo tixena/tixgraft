@@ -1,12 +1,18 @@
 //! Mock system implementation for testing
 
-use super::System;
+use super::{System, TempDirHandle, WalkEntry};
 use std::collections::{HashMap, HashSet};
 use std::env::VarError;
 use std::fs::Metadata;
 use std::io::{self, Cursor, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{
+    Arc, RwLock,
+    atomic::{AtomicU64, Ordering},
+};
+
+// Global counter for generating unique temp directory IDs
+static TEMP_DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// In-memory implementation of System trait for testing
 ///
@@ -178,6 +184,20 @@ impl System for MockSystem {
         Ok(())
     }
 
+    fn remove_file(&self, path: &Path) -> io::Result<()> {
+        let mut state = self.state.write().unwrap();
+
+        if !state.files.contains_key(path) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("File not found: {}", path.display()),
+            ));
+        }
+
+        state.files.remove(path);
+        Ok(())
+    }
+
     fn copy(&self, from: &Path, to: &Path) -> io::Result<u64> {
         let contents = {
             let state = self.state.read().unwrap();
@@ -292,6 +312,81 @@ impl System for MockSystem {
             system: self.clone(),
         }))
     }
+
+    fn walk_dir(
+        &self,
+        path: &Path,
+        _follow_links: bool,
+        _hidden: bool,
+    ) -> io::Result<Vec<WalkEntry>> {
+        let state = self.state.read().unwrap();
+
+        if !state.dirs.contains(path) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Directory not found: {path:?}"),
+            ));
+        }
+
+        let mut entries = Vec::new();
+        let mut to_visit: Vec<PathBuf> = vec![path.to_path_buf()];
+        let mut visited: HashSet<PathBuf> = HashSet::new();
+
+        while let Some(current) = to_visit.pop() {
+            if !visited.insert(current.clone()) {
+                continue; // Already visited
+            }
+
+            // Skip the root directory itself
+            if current != path {
+                entries.push(WalkEntry {
+                    path: current.clone(),
+                    is_file: state.files.contains_key(&current),
+                    is_dir: state.dirs.contains(&current),
+                });
+            }
+
+            // Find all direct children of current directory
+            for dir in &state.dirs {
+                if let Some(parent) = dir.parent() {
+                    if parent == current && dir != &current {
+                        to_visit.push(dir.clone());
+                    }
+                }
+            }
+
+            for file_path in state.files.keys() {
+                if let Some(parent) = file_path.parent() {
+                    if parent == current {
+                        entries.push(WalkEntry {
+                            path: file_path.clone(),
+                            is_file: true,
+                            is_dir: false,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Sort entries by path for deterministic output
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
+
+        Ok(entries)
+    }
+
+    fn create_temp_dir(&self) -> io::Result<Box<dyn TempDirHandle>> {
+        // Generate unique temp directory ID
+        let id = TEMP_DIR_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let temp_path = PathBuf::from(format!("/tmp/mock_{}", id));
+
+        // Create the directory in the mock filesystem
+        self.create_dir_all(&temp_path)?;
+
+        Ok(Box::new(MockTempDir {
+            path: temp_path,
+            system: self.clone(),
+        }))
+    }
 }
 
 /// Custom writer for `MockSystem` that writes to in-memory filesystem
@@ -316,5 +411,24 @@ impl Write for MockWriter {
 impl Drop for MockWriter {
     fn drop(&mut self) {
         let _ = self.flush();
+    }
+}
+
+/// Mock temporary directory handle that cleans up on drop
+pub struct MockTempDir {
+    path: PathBuf,
+    system: MockSystem,
+}
+
+impl TempDirHandle for MockTempDir {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for MockTempDir {
+    fn drop(&mut self) {
+        // Remove the temporary directory from the mock filesystem when dropped
+        let _ = self.system.remove_dir_all(&self.path);
     }
 }

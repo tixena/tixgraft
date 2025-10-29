@@ -265,4 +265,63 @@ Then use `mcp__beads__*` functions instead of CLI commands.
 - Check dependency trees before starting complex work
 - Use `bd stats --json` periodically to monitor project health
 
-For more details, see https://github.com/steveyegge/beads
+## Testing Patterns for AI Agents
+
+This project uses the **System abstraction** to enable fast, isolated unit tests. Follow these patterns:
+
+### Unit Tests - MUST Use MockSystem
+
+**Critical Rules:**
+- ✅ **ALWAYS** use `MockSystem::new()` for unit tests
+- ✅ Use `system.create_temp_dir()` for temporary directories
+- ✅ Set up test data with `.with_file()` and `.with_dir()`
+- ❌ **NEVER** instantiate `RealSystem` in unit tests
+- ❌ **NEVER** use `tempfile::TempDir` directly
+- ❌ **NEVER** use `std::fs` operations directly in unit tests
+
+**Example:**
+```rust
+use tixgraft::system::{MockSystem, System};
+
+#[test]
+fn test_feature() {
+    let system = MockSystem::new()
+        .with_dir("/test")
+        .with_file("/test/input.txt", b"data");
+
+    let temp_dir = system.create_temp_dir().unwrap();
+    // temp_dir is an in-memory directory that auto-cleans on drop
+
+    // Test your feature...
+}
+```
+
+### Integration Tests - RealSystem When Needed
+
+**Use RealSystem only for:**
+- Git operations (sparse checkout)
+- Shell command execution
+- End-to-end CLI testing
+
+**Still prefer System abstraction:**
+```rust
+use tixgraft::system::{RealSystem, System};
+
+#[test]
+fn test_git_operation() {
+    let system = RealSystem::new();
+    let temp_dir = system.create_temp_dir().unwrap();
+    // Real filesystem, automatic cleanup
+}
+```
+
+### Why This Matters
+
+- **Speed**: MockSystem tests are ~100x faster (no disk I/O)
+- **Isolation**: No temp directory conflicts or cleanup issues
+- **Determinism**: Consistent in-memory state every run
+- **Parallelism**: Tests run concurrently without conflicts
+
+See **CLAUDE.md Testing Guidelines** for complete documentation.
+
+For more details on bd, see https://github.com/steveyegge/beads

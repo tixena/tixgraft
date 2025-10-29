@@ -91,7 +91,19 @@ pub struct TestCommand {
 impl GraftConfig {
     /// Load .graft.yaml from string content
     pub fn load_from_string(content: &str) -> Result<Self> {
-        let config: Self = serde_yaml::from_str(content).context("Failed to load .graft.yaml")?;
+        let config: Self = serde_yaml::from_str(content).map_err(|e| {
+            // Extract line and column information from serde_yaml error
+            if let Some(location) = e.location() {
+                anyhow::anyhow!(
+                    "Failed to parse .graft.yaml at line {}, column {}: {}",
+                    location.line(),
+                    location.column(),
+                    e
+                )
+            } else {
+                anyhow::anyhow!("Failed to parse .graft.yaml: {}", e)
+            }
+        })?;
 
         // Validate the configuration
         config.validate()?;
@@ -100,8 +112,8 @@ impl GraftConfig {
     }
 
     /// Load .graft.yaml from file
-    pub fn load_from_file(path: &Path) -> Result<Self> {
-        if !path.exists() {
+    pub fn load_from_file(system: &dyn crate::system::System, path: &Path) -> Result<Self> {
+        if !system.exists(path) {
             return Err(GraftError::configuration(format!(
                 ".graft.yaml not found: {}",
                 path.display()
@@ -109,7 +121,8 @@ impl GraftConfig {
             .into());
         }
 
-        let content = std::fs::read_to_string(path)
+        let content = system
+            .read_to_string(path)
             .with_context(|| format!("Failed to read .graft.yaml file: {}", path.display()))?;
 
         Self::load_from_string(&content)
@@ -328,7 +341,8 @@ postCommands:
         )
         .unwrap();
 
-        let result = GraftConfig::load_from_file(temp_file.path());
+        let system = crate::system::RealSystem::new();
+        let result = GraftConfig::load_from_file(&system, temp_file.path());
         assert!(result.is_ok());
         let config = result.unwrap();
         assert_eq!(config.context.len(), 2);
@@ -350,7 +364,8 @@ replacements:
         )
         .unwrap();
 
-        let result = GraftConfig::load_from_file(temp_file.path());
+        let system = crate::system::RealSystem::new();
+        let result = GraftConfig::load_from_file(&system, temp_file.path());
         assert!(result.is_err());
         assert!(
             result
@@ -430,5 +445,43 @@ context:
         assert!(result.is_ok());
         let config = result.unwrap();
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_load_from_file_not_found() {
+        let system = crate::system::MockSystem::new();
+        let result = GraftConfig::load_from_file(&system, Path::new("/nonexistent/.graft.yaml"));
+
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(
+            error_msg.contains(".graft.yaml not found"),
+            "Error should indicate file not found, got: {}",
+            error_msg
+        );
+    }
+
+    #[test]
+    fn test_load_from_file_with_mock() {
+        let yaml_content = r#"
+context:
+  - name: test
+    description: Test variable
+    dataType: string
+replacements:
+  - source: "{{TEST}}"
+    target: "value"
+"#;
+
+        let system = crate::system::MockSystem::new()
+            .with_file("/test/.graft.yaml", yaml_content.as_bytes());
+
+        let result = GraftConfig::load_from_file(&system, Path::new("/test/.graft.yaml"));
+        assert!(result.is_ok());
+
+        let config = result.unwrap();
+        assert_eq!(config.context.len(), 1);
+        assert_eq!(config.context[0].name, "test");
+        assert_eq!(config.replacements.len(), 1);
     }
 }

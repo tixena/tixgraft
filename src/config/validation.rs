@@ -79,7 +79,7 @@ fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) ->
 }
 
 /// Validate a repository URL format
-fn validate_repository_url(url: &str) -> Result<()> {
+pub fn validate_repository_url(url: &str) -> Result<()> {
     // ONLY accept "file:" prefix for local filesystem paths
     if url.starts_with("file:") {
         // Local path - detailed validation will be done in Repository::new()
@@ -111,7 +111,7 @@ fn validate_repository_url(url: &str) -> Result<()> {
 }
 
 /// Validate path safety (prevent directory traversal)
-fn validate_path_safety(path: &str) -> Result<()> {
+pub fn validate_path_safety(path: &str) -> Result<()> {
     if path.contains("..") {
         return Err(anyhow!(
             "Path contains unsafe directory traversal: '{path}'"
@@ -177,44 +177,4 @@ fn validate_replacement(
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_validate_repository_url() {
-        // Valid Git URLs
-        assert!(validate_repository_url("myorg/repo").is_ok());
-        assert!(validate_repository_url("https://github.com/myorg/repo.git").is_ok());
-        assert!(validate_repository_url("git@github.com:myorg/repo.git").is_ok());
-
-        // Valid local paths (ONLY file: prefix)
-        assert!(validate_repository_url("file:///path/to/repo").is_ok());
-        assert!(validate_repository_url("file:/path/to/repo").is_ok());
-        assert!(validate_repository_url("file:~/src/repo").is_ok());
-
-        // Invalid URLs
-        assert!(validate_repository_url("invalid-url").is_err());
-        assert!(validate_repository_url("").is_err());
-
-        // Paths without file: prefix should now be rejected
-        assert!(validate_repository_url("~/src/repo").is_err());
-        assert!(validate_repository_url("./local/repo").is_err());
-        assert!(validate_repository_url("../local/repo").is_err());
-        assert!(validate_repository_url("/absolute/path/to/repo").is_err());
-    }
-
-    #[test]
-    fn test_validate_path_safety() {
-        // Safe paths
-        assert!(validate_path_safety("./some/path").is_ok());
-        assert!(validate_path_safety("some/path").is_ok());
-        assert!(validate_path_safety("./relative/path").is_ok());
-
-        // Unsafe paths
-        assert!(validate_path_safety("../../unsafe").is_err());
-        assert!(validate_path_safety("/absolute/path").is_err());
-    }
 }

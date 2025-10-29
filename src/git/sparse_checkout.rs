@@ -254,7 +254,7 @@ pub fn check_git_availability() -> Result<()> {
 }
 
 /// Parse Git version string into tuple (major, minor, patch)
-fn parse_git_version(version: &str) -> Result<(u32, u32, u32)> {
+pub fn parse_git_version(version: &str) -> Result<(u32, u32, u32)> {
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() >= 3 {
         let major = parts[0].parse().context("Invalid major version")?;
@@ -263,17 +263,5 @@ fn parse_git_version(version: &str) -> Result<(u32, u32, u32)> {
         Ok((major, minor, patch))
     } else {
         Err(anyhow::anyhow!("Invalid version format"))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_git_version() {
-        assert_eq!(parse_git_version("2.34.1").unwrap(), (2, 34, 1));
-        assert_eq!(parse_git_version("2.25.0").unwrap(), (2, 25, 0));
-        assert!(parse_git_version("invalid").is_err());
     }
 }

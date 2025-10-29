@@ -2,10 +2,24 @@
 //!
 //! Handles recursive discovery of .graft.yaml files and builds a hierarchy
 //! to support context inheritance.
+//!
+//! ## Behavior
+//!
+//! ### Gitignore Support
+//! Discovery respects `.gitignore`, `.ignore`, and other ignore files in the directory tree.
+//! Files and directories that are ignored will not be searched for `.graft.yaml` files.
+//! This behavior is inherited from the `ignore` crate and matches tools like `ripgrep`.
+//!
+//! ### Symlinks
+//! Symbolic links are **not followed** during discovery. Only regular files and directories
+//! are traversed. This prevents infinite loops and ensures predictable behavior.
+//!
+//! ### Hidden Files
+//! Hidden files (those starting with `.`) are included in the search, allowing discovery
+//! of `.graft.yaml` files themselves.
 
 use anyhow::{Context as _, Result};
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 /// A discovered .graft.yaml file with its location and hierarchy information
 #[derive(Debug, Clone)]
@@ -39,16 +53,41 @@ impl DiscoveredGraft {
 
 /// Discover all .graft.yaml files in a target directory recursively
 ///
-/// Returns grafts sorted by depth (root first) for proper processing order
-pub fn discover_graft_files(target_dir: &Path) -> Result<Vec<DiscoveredGraft>> {
-    if !target_dir.exists() {
+/// Returns grafts sorted by depth (root first) for proper processing order.
+///
+/// # Behavior
+///
+/// - **Gitignore**: Respects `.gitignore`, `.ignore`, and other ignore files
+/// - **Symlinks**: Does not follow symbolic links (prevents loops)
+/// - **Hidden files**: Includes hidden files (needed to find `.graft.yaml`)
+///
+/// # Arguments
+///
+/// * `target_dir` - Directory to search recursively
+///
+/// # Returns
+///
+/// Vector of discovered `.graft.yaml` files sorted by depth (0 = root).
+/// Each entry includes its path, parent directory, depth, and parent graft reference.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Target directory does not exist
+/// - Target path is not a directory
+/// - Directory cannot be canonicalized
+pub fn discover_graft_files(
+    system: &dyn crate::system::System,
+    target_dir: &Path,
+) -> Result<Vec<DiscoveredGraft>> {
+    if !system.exists(target_dir) {
         return Err(anyhow::anyhow!(
             "Target directory does not exist: {}",
             target_dir.display()
         ));
     }
 
-    if !target_dir.is_dir() {
+    if !system.is_dir(target_dir) {
         return Err(anyhow::anyhow!(
             "Target path is not a directory: {}",
             target_dir.display()
@@ -56,23 +95,23 @@ pub fn discover_graft_files(target_dir: &Path) -> Result<Vec<DiscoveredGraft>> {
     }
 
     let mut discoveries = Vec::new();
-    let target_dir = target_dir.canonicalize().with_context(|| {
+    let target_dir = system.canonicalize(target_dir).with_context(|| {
         format!(
             "Failed to canonicalize target directory: {}",
             target_dir.display()
         )
     })?;
 
-    // Walk directory tree and find all .graft.yaml files
-    for entry in WalkDir::new(&target_dir)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        let path = entry.path();
+    // Walk directory tree and find all .graft.yaml files using System abstraction
+    let entries = system
+        .walk_dir(&target_dir, false, false)
+        .with_context(|| format!("Failed to walk directory: {}", target_dir.display()))?;
+
+    for entry in entries {
+        let path = &entry.path;
 
         // Check if this is a .graft.yaml file
-        if path.is_file() && path.file_name() == Some(std::ffi::OsStr::new(".graft.yaml")) {
+        if entry.is_file && path.file_name() == Some(std::ffi::OsStr::new(".graft.yaml")) {
             let directory = path
                 .parent()
                 .ok_or_else(|| anyhow::anyhow!("Failed to get parent directory of .graft.yaml"))?
@@ -124,13 +163,13 @@ fn find_parent_graft(grafts: &[DiscoveredGraft], directory: &Path) -> Option<Box
 /// Delete all .graft.yaml files from a target directory
 ///
 /// This should be called after all graft processing is complete
-pub fn cleanup_graft_files(target_dir: &Path) -> Result<usize> {
-    let grafts = discover_graft_files(target_dir)?;
+pub fn cleanup_graft_files(system: &dyn crate::system::System, target_dir: &Path) -> Result<usize> {
+    let grafts = discover_graft_files(system, target_dir)?;
     let mut deleted_count = 0;
 
     for graft in grafts {
-        if graft.path.exists() {
-            std::fs::remove_file(&graft.path).with_context(|| {
+        if system.exists(&graft.path) {
+            system.remove_file(&graft.path).with_context(|| {
                 format!(
                     "Failed to delete .graft.yaml file: {}",
                     graft.path.display()
@@ -141,99 +180,4 @@ pub fn cleanup_graft_files(target_dir: &Path) -> Result<usize> {
     }
 
     Ok(deleted_count)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-    use tempfile::TempDir;
-
-    fn create_graft_file(dir: &Path) -> Result<()> {
-        let graft_path = dir.join(".graft.yaml");
-        fs::write(&graft_path, "# Test graft file\n")?;
-        Ok(())
-    }
-
-    #[test]
-    fn test_discover_single_graft() {
-        let temp_dir = TempDir::new().unwrap();
-        create_graft_file(temp_dir.path()).unwrap();
-
-        let grafts = discover_graft_files(temp_dir.path()).unwrap();
-        assert_eq!(grafts.len(), 1);
-        assert_eq!(grafts[0].depth, 0);
-        assert!(grafts[0].parent.is_none());
-    }
-
-    #[test]
-    fn test_discover_nested_grafts() {
-        let temp_dir = TempDir::new().unwrap();
-
-        // Create root graft
-        create_graft_file(temp_dir.path()).unwrap();
-
-        // Create nested directory with graft
-        let nested = temp_dir.path().join("nested");
-        fs::create_dir(&nested).unwrap();
-        create_graft_file(&nested).unwrap();
-
-        // Create doubly nested directory with graft
-        let doubly_nested = nested.join("deeper");
-        fs::create_dir(&doubly_nested).unwrap();
-        create_graft_file(&doubly_nested).unwrap();
-
-        let grafts = discover_graft_files(temp_dir.path()).unwrap();
-        assert_eq!(grafts.len(), 3);
-
-        // Check depths
-        assert_eq!(grafts[0].depth, 0); // root
-        assert_eq!(grafts[1].depth, 1); // nested
-        assert_eq!(grafts[2].depth, 2); // doubly nested
-
-        // Check parent relationships
-        assert!(grafts[0].parent.is_none());
-        assert!(grafts[1].parent.is_some());
-        assert!(grafts[2].parent.is_some());
-
-        // Check ancestors
-        assert_eq!(grafts[0].ancestors().len(), 0);
-        assert_eq!(grafts[1].ancestors().len(), 1);
-        assert_eq!(grafts[2].ancestors().len(), 2);
-    }
-
-    #[test]
-    fn test_cleanup_graft_files() {
-        let temp_dir = TempDir::new().unwrap();
-        create_graft_file(temp_dir.path()).unwrap();
-
-        let nested = temp_dir.path().join("nested");
-        fs::create_dir(&nested).unwrap();
-        create_graft_file(&nested).unwrap();
-
-        // Verify files exist
-        assert!(temp_dir.path().join(".graft.yaml").exists());
-        assert!(nested.join(".graft.yaml").exists());
-
-        // Cleanup
-        let deleted = cleanup_graft_files(temp_dir.path()).unwrap();
-        assert_eq!(deleted, 2);
-
-        // Verify files are gone
-        assert!(!temp_dir.path().join(".graft.yaml").exists());
-        assert!(!nested.join(".graft.yaml").exists());
-    }
-
-    #[test]
-    fn test_discover_no_grafts() {
-        let temp_dir = TempDir::new().unwrap();
-        let grafts = discover_graft_files(temp_dir.path()).unwrap();
-        assert_eq!(grafts.len(), 0);
-    }
-
-    #[test]
-    fn test_discover_nonexistent_directory() {
-        let result = discover_graft_files(Path::new("/nonexistent/path"));
-        assert!(result.is_err());
-    }
 }

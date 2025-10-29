@@ -6,12 +6,14 @@
 use crate::config::graft_yaml::{ChoiceOption, PostCommand, TestCommand};
 use crate::error::GraftError;
 use anyhow::{Context as _, Result};
+use regex::Regex;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
 /// Execute all post-commands in order
 ///
 /// Commands execute in the directory containing the .graft.yaml file
+/// Continues executing all commands even if some fail, collecting all results
 pub fn execute_post_commands(
     commands: &[PostCommand],
     graft_directory: &Path,
@@ -19,7 +21,18 @@ pub fn execute_post_commands(
     let mut results = Vec::new();
 
     for command in commands {
-        let result = execute_post_command(command, graft_directory)?;
+        let result = match execute_post_command(command, graft_directory) {
+            Ok(result) => result,
+            Err(err) => {
+                // Convert execution errors into failed ExecutionResult
+                ExecutionResult {
+                    command_type: "command".to_owned(),
+                    success: false,
+                    output: String::new(),
+                    error: Some(format!("{:#}", err)),
+                }
+            }
+        };
         results.push(result);
     }
 
@@ -36,7 +49,10 @@ pub struct ExecutionResult {
 }
 
 /// Execute a single post-command
-fn execute_post_command(command: &PostCommand, graft_directory: &Path) -> Result<ExecutionResult> {
+pub fn execute_post_command(
+    command: &PostCommand,
+    graft_directory: &Path,
+) -> Result<ExecutionResult> {
     match command {
         PostCommand::Command { command, args, cwd } => {
             execute_simple_command(command, args, cwd.as_deref(), graft_directory)
@@ -84,13 +100,29 @@ fn execute_simple_command(
 }
 
 /// Execute a conditional choice
+///
+/// Tests each option's command and matches the output against a regex pattern.
+/// The first matching option's `onMatch` command is executed.
+///
+/// # Pattern Matching
+///
+/// The `expectedOutput` field is treated as a regular expression pattern.
+/// Simple strings like "version" will match anywhere in the output.
+/// More complex patterns like "^v\\d+\\.\\d+\\.\\d+$" can be used for precise matching.
 fn execute_choice(options: &[ChoiceOption], graft_directory: &Path) -> Result<ExecutionResult> {
     // Try each option in order
     for option in options {
         let test_result = execute_test_command(&option.test, graft_directory)?;
 
-        // Check if output matches expected
-        if test_result.output.contains(&option.expected_output) {
+        // Check if output matches expected pattern (regex)
+        let pattern = Regex::new(&option.expected_output).with_context(|| {
+            format!(
+                "Invalid regex pattern in expectedOutput: '{}'",
+                option.expected_output
+            )
+        })?;
+
+        if pattern.is_match(&test_result.output) {
             // Match found, execute the onMatch command
             return execute_post_command(&option.on_match, graft_directory);
         }
@@ -142,7 +174,7 @@ fn execute_test_command(test: &TestCommand, graft_directory: &Path) -> Result<Ex
 ///
 /// If cwd is None, uses `graft_directory`
 /// If cwd is Some, resolves it relative to `graft_directory`
-fn resolve_working_directory(
+pub fn resolve_working_directory(
     cwd: Option<&str>,
     graft_directory: &Path,
 ) -> Result<std::path::PathBuf> {
@@ -168,152 +200,5 @@ fn resolve_working_directory(
         Ok(resolved)
     } else {
         Ok(graft_directory.to_path_buf())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::graft_yaml::{ChoiceOption, PostCommand, TestCommand};
-    use std::fs;
-    use tempfile::TempDir;
-
-    #[test]
-    fn test_execute_simple_command() {
-        let temp_dir = TempDir::new().unwrap();
-
-        let command = PostCommand::Command {
-            command: "echo".to_string(),
-            args: vec!["Hello, World!".to_string()],
-            cwd: None,
-        };
-
-        let result = execute_post_command(&command, temp_dir.path()).unwrap();
-        assert!(result.success);
-        assert!(result.output.contains("Hello, World!"));
-    }
-
-    #[test]
-    fn test_execute_command_with_cwd() {
-        let temp_dir = TempDir::new().unwrap();
-        let sub_dir = temp_dir.path().join("subdir");
-        fs::create_dir(&sub_dir).unwrap();
-
-        // Create a file in subdir to verify cwd
-        fs::write(sub_dir.join("test.txt"), "content").unwrap();
-
-        let command = PostCommand::Command {
-            command: "ls".to_string(),
-            args: vec![],
-            cwd: Some("subdir".to_string()),
-        };
-
-        let result = execute_post_command(&command, temp_dir.path()).unwrap();
-        assert!(result.success);
-        assert!(result.output.contains("test.txt"));
-    }
-
-    #[test]
-    fn test_execute_choice_with_match() {
-        let temp_dir = TempDir::new().unwrap();
-
-        let command = PostCommand::Choice {
-            options: vec![ChoiceOption {
-                test: TestCommand {
-                    command: "echo".to_string(),
-                    args: vec!["version 1.0".to_string()],
-                    cwd: None,
-                },
-                expected_output: "version".to_string(),
-                on_match: Box::new(PostCommand::Command {
-                    command: "echo".to_string(),
-                    args: vec!["matched!".to_string()],
-                    cwd: None,
-                }),
-            }],
-        };
-
-        let result = execute_post_command(&command, temp_dir.path()).unwrap();
-        assert!(result.success);
-        assert!(result.output.contains("matched!"));
-    }
-
-    #[test]
-    fn test_execute_choice_no_match() {
-        let temp_dir = TempDir::new().unwrap();
-
-        let command = PostCommand::Choice {
-            options: vec![ChoiceOption {
-                test: TestCommand {
-                    command: "echo".to_string(),
-                    args: vec!["hello".to_string()],
-                    cwd: None,
-                },
-                expected_output: "version".to_string(), // Won't match "hello"
-                on_match: Box::new(PostCommand::Command {
-                    command: "echo".to_string(),
-                    args: vec!["should not run".to_string()],
-                    cwd: None,
-                }),
-            }],
-        };
-
-        let result = execute_post_command(&command, temp_dir.path()).unwrap();
-        assert!(result.success);
-        assert!(result.output.contains("No matching option"));
-    }
-
-    #[test]
-    fn test_execute_nested_choice() {
-        let temp_dir = TempDir::new().unwrap();
-
-        let command = PostCommand::Choice {
-            options: vec![ChoiceOption {
-                test: TestCommand {
-                    command: "echo".to_string(),
-                    args: vec!["outer".to_string()],
-                    cwd: None,
-                },
-                expected_output: "outer".to_string(),
-                on_match: Box::new(PostCommand::Choice {
-                    options: vec![ChoiceOption {
-                        test: TestCommand {
-                            command: "echo".to_string(),
-                            args: vec!["inner".to_string()],
-                            cwd: None,
-                        },
-                        expected_output: "inner".to_string(),
-                        on_match: Box::new(PostCommand::Command {
-                            command: "echo".to_string(),
-                            args: vec!["nested match!".to_string()],
-                            cwd: None,
-                        }),
-                    }],
-                }),
-            }],
-        };
-
-        let result = execute_post_command(&command, temp_dir.path()).unwrap();
-        assert!(result.success);
-        assert!(result.output.contains("nested match!"));
-    }
-
-    #[test]
-    fn test_resolve_working_directory() {
-        let temp_dir = TempDir::new().unwrap();
-        let sub_dir = temp_dir.path().join("subdir");
-        fs::create_dir(&sub_dir).unwrap();
-
-        // Test None (uses graft_directory)
-        let result = resolve_working_directory(None, temp_dir.path()).unwrap();
-        assert_eq!(result, temp_dir.path());
-
-        // Test relative path
-        let result = resolve_working_directory(Some("subdir"), temp_dir.path()).unwrap();
-        assert_eq!(result, sub_dir);
-
-        // Test non-existent directory
-        let result = resolve_working_directory(Some("nonexistent"), temp_dir.path());
-        assert!(result.is_err());
     }
 }

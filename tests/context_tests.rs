@@ -265,12 +265,62 @@ context:
 
     let result = GraftConfig::load_from_string(graft_content);
     assert!(result.is_err());
+    let error_msg = result.unwrap_err().to_string();
+
+    // Error should include line number information
     assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("Failed to load .graft.yaml")
+        error_msg.contains("line") && error_msg.contains("column"),
+        "Error message should include line and column numbers, got: {}",
+        error_msg
     );
+    assert!(
+        error_msg.contains("Failed to parse .graft.yaml"),
+        "Error message should indicate YAML parsing failure, got: {}",
+        error_msg
+    );
+}
+
+#[test]
+fn test_yaml_syntax_error_reports_exact_location() {
+    // Test various YAML syntax errors to ensure line numbers are reported
+
+    // Case 1: Missing closing bracket
+    let yaml1 = r#"
+context:
+  - name: test
+    description: "test
+"#;
+    let result1 = GraftConfig::load_from_string(yaml1);
+    assert!(result1.is_err());
+    let error1 = result1.unwrap_err().to_string();
+    assert!(error1.contains("line") && error1.contains("column"));
+
+    // Case 2: Invalid indentation
+    let yaml2 = r#"
+context:
+- name: test
+  description: correct
+ bad_indent: wrong
+"#;
+    let result2 = GraftConfig::load_from_string(yaml2);
+    assert!(result2.is_err());
+    let error2 = result2.unwrap_err().to_string();
+    assert!(error2.contains("line") && error2.contains("column"));
+}
+
+#[test]
+fn test_yaml_type_error_with_location() {
+    // YAML parses but validation fails - still should have helpful error
+    let graft_content = r#"
+context:
+  - name: test
+    description: "Test"
+    dataType: invalid_type
+"#;
+
+    let result = GraftConfig::load_from_string(graft_content);
+    // This should fail validation, not parsing
+    assert!(result.is_err());
 }
 
 #[test]

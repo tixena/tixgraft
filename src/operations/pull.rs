@@ -373,14 +373,14 @@ impl<'a> PullOperation<'a> {
         let target_path = Path::new(&pull.target);
 
         // Check if target exists and is a directory
-        if !target_path.exists() || !target_path.is_dir() {
+        if !self.system.exists(target_path) || !self.system.is_dir(target_path) {
             // Target doesn't exist or isn't a directory, no graft files to process
             return Ok(GraftProcessingResult::default());
         }
 
         // Discover all .graft.yaml files
-        let discovered_grafts =
-            discover_graft_files(target_path).context("Failed to discover .graft.yaml files")?;
+        let discovered_grafts = discover_graft_files(self.system, target_path)
+            .context("Failed to discover .graft.yaml files")?;
 
         if discovered_grafts.is_empty() {
             // No .graft.yaml files found, nothing to do
@@ -400,8 +400,8 @@ impl<'a> PullOperation<'a> {
             debug!("Processing .graft.yaml at: {}", discovered.path.display());
 
             // Load and parse .graft.yaml
-            let graft_config =
-                GraftConfig::load_from_file(&discovered.path).with_context(|| {
+            let graft_config = GraftConfig::load_from_file(self.system, &discovered.path)
+                .with_context(|| {
                     format!(
                         "Failed to load .graft.yaml from: {}",
                         discovered.path.display()
@@ -487,8 +487,8 @@ impl<'a> PullOperation<'a> {
         }
 
         // Cleanup: Delete all .graft.yaml files
-        let deleted =
-            cleanup_graft_files(target_path).context("Failed to cleanup .graft.yaml files")?;
+        let deleted = cleanup_graft_files(self.system, target_path)
+            .context("Failed to cleanup .graft.yaml files")?;
 
         debug!("Deleted {} .graft.yaml file(s)", deleted);
 

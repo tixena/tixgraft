@@ -31,7 +31,7 @@ git2 = "0.20"
 
 # File system and path operations
 tempfile = "3"
-walkdir = "2"
+ignore = "0.4"
 
 # Error handling
 anyhow = "1.0"
@@ -52,7 +52,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 [dev-dependencies]
 # Testing utilities
-assert_cmd = "2.0"
+assert_cmd = "2"
 predicates = "3"
 tempfile = "3"
 
