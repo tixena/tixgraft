@@ -160,8 +160,7 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
             })?;
 
             files_copied += 1;
-        }
-        else {
+        } else {
             debug!("Skipping file: {}", source_path.display());
         }
     }

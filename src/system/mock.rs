@@ -1,8 +1,14 @@
 //! Mock system implementation for testing
 
 #![expect(clippy::module_name_repetitions)]
-#![expect(clippy::std_instead_of_alloc, reason = "I couldn't find that trait in the alloc crate")]
-#![expect(clippy::std_instead_of_core, reason = "I couldn't find that trait in the core crate")]
+#![expect(
+    clippy::std_instead_of_alloc,
+    reason = "I couldn't find that trait in the alloc crate"
+)]
+#![expect(
+    clippy::std_instead_of_core,
+    reason = "I couldn't find that trait in the core crate"
+)]
 
 use tracing::error;
 
@@ -512,7 +518,10 @@ struct MockWriter {
     system: MockSystem,
 }
 
-#[expect(clippy::missing_trait_methods, reason = "Only implementing what I need")]
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "Only implementing what I need"
+)]
 impl Write for MockWriter {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {

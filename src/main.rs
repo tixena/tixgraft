@@ -1,6 +1,6 @@
 //! # `TixGraft`
 //!
-//! `TixGraft` is a command-line tool for selectively extracting and reusing components from remote Git repositories. 
+//! `TixGraft` is a command-line tool for selectively extracting and reusing components from remote Git repositories.
 //! It supports sparse checkout, flexible text replacements, and efficient configuration workflows for mono-repos or codebase sharing.
 //!
 //! ## Features
@@ -31,7 +31,6 @@
 //!
 //! ---
 //! © 2024 `TixGraft` Authors. MIT or Apache-2.0 licensed. See README and LICENSE files for more info.
-
 
 use anyhow::Result;
 use clap::Parser as _;

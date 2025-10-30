@@ -18,9 +18,6 @@
 #![expect(clippy::mod_module_files)]
 #![expect(clippy::ref_patterns)]
 #![allow(clippy::missing_docs_in_private_items)]
-// TODO: Fix this
-// #![expect(clippy::arbitrary_source_item_ordering)]
-
 
 pub mod cli;
 pub mod config;
@@ -36,7 +33,7 @@ use config::Config;
 use operations::pull::PullOperation;
 use operations::to_command_line::{OutputFormat, generate_command_line};
 use operations::to_config::generate_yaml_config;
-use system::{System};
+use system::System;
 
 use crate::system::real::RealSystem;
 

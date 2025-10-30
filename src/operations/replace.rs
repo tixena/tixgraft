@@ -8,8 +8,8 @@ use crate::system::System;
 use crate::utils::fs::is_binary_file;
 use anyhow::{Context as _, Result};
 use regex::Regex;
-use tracing::debug;
 use std::path::{Path, PathBuf};
+use tracing::debug;
 
 /// Apply text replacements to files in the target directory
 ///
@@ -207,8 +207,7 @@ pub fn apply_single_replacement(
     } else if system.is_dir(target_path)? {
         // Directory case - recursively walk all files using System trait
         files_processed += walk_and_apply(system, target_path, search_pattern, replacement_value)?;
-    }
-    else {
+    } else {
         debug!("Skipping file: {}", target_path.display());
     }
     Ok(files_processed)
@@ -236,8 +235,7 @@ fn walk_and_apply(
             // Recursively process subdirectories
             files_processed +=
                 walk_and_apply(system, &entry_path, search_pattern, replacement_value)?;
-        }
-        else {
+        } else {
             debug!("Skipping directory: {}", entry_path.display());
         }
     }
@@ -314,8 +312,7 @@ pub fn apply_regex_replacement(
         }
     } else if system.is_dir(target_path)? {
         files_processed += walk_and_apply_regex(system, target_path, &regex, replacement)?;
-    }
-    else {
+    } else {
         debug!("Skipping file: {}", target_path.display());
     }
 
@@ -342,8 +339,7 @@ fn walk_and_apply_regex(
             }
         } else if system.is_dir(&entry_path)? {
             files_processed += walk_and_apply_regex(system, &entry_path, regex, replacement)?;
-        }
-        else {
+        } else {
             debug!("Skipping directory: {}", entry_path.display());
         }
     }
@@ -434,8 +430,7 @@ fn find_files_with_pattern(
         }
     } else if system.is_dir(target_path)? {
         find_files_recursive(system, target_path, pattern, &mut matching_files)?;
-    }
-    else {
+    } else {
         debug!("Skipping file: {}", target_path.display());
     }
 
@@ -458,8 +453,7 @@ fn find_files_recursive(
             matching_files.push(entry_path);
         } else if system.is_dir(&entry_path)? {
             find_files_recursive(system, &entry_path, pattern, matching_files)?;
-        }
-        else {
+        } else {
             debug!("Skipping directory: {}", entry_path.display());
         }
     }

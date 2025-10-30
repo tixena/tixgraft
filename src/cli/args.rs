@@ -153,8 +153,16 @@ pub struct ReplacementConfig {
 impl ReplacementConfig {
     #[must_use]
     #[inline]
-    pub const fn new(source: String, target: Option<String>, value_from_env: Option<String>) -> Self {
-        Self { source, target, value_from_env }
+    pub const fn new(
+        source: String,
+        target: Option<String>,
+        value_from_env: Option<String>,
+    ) -> Self {
+        Self {
+            source,
+            target,
+            value_from_env,
+        }
     }
 }
 
@@ -192,7 +200,13 @@ fn parse_context_args(
     let mut final_result = HashMap::new();
     for (key, values) in result {
         if values.len() == 1 {
-            final_result.insert(key, values.into_iter().next().ok_or_else(|| anyhow::anyhow!("No value found for key"))?);
+            final_result.insert(
+                key,
+                values
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("No value found for key"))?,
+            );
         } else {
             final_result.insert(key, Value::Array(values));
         }

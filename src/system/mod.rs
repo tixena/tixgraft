@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 pub mod mock;
 pub mod real;
 
-
 /// Entry from directory walking
 #[derive(Debug, Clone)]
 #[non_exhaustive]

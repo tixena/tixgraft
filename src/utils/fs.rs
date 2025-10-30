@@ -2,9 +2,9 @@
 
 use crate::system::System;
 use anyhow::{Context as _, Result};
-use tracing::debug;
 use std::io::{self, Read as _, Write as _};
 use std::path::Path;
+use tracing::debug;
 
 /// Known text file extensions for binary detection
 const TEXT_EXTENSIONS: &[&str] = &[
@@ -336,8 +336,7 @@ pub fn ensure_dir_exists(system: &dyn System, dir_path: &Path) -> Result<()> {
             format!("Path exists but is not a directory: {}", dir_path.display()),
         )
         .into());
-    }
-    else {
+    } else {
         debug!("Directory already exists: {}", dir_path.display());
     }
     Ok(())

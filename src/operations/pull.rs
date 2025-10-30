@@ -104,8 +104,7 @@ impl<'src> PullOperation<'src> {
                 // If pull has no repository and global has no repository, we'll error anyway
                 // But be conservative and assume Git is needed
                 return true;
-            }
-            else {
+            } else {
                 debug!("Skipping pull: {}", pull.source);
             }
         }

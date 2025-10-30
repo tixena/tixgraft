@@ -53,8 +53,18 @@ pub struct GraftReplacement {
 impl GraftReplacement {
     #[must_use]
     #[inline]
-    pub const fn new(source: String, target: Option<String>, value_from_env: Option<String>, value_from_context: Option<String>) -> Self {
-        Self { source, target, value_from_env, value_from_context }
+    pub const fn new(
+        source: String,
+        target: Option<String>,
+        value_from_env: Option<String>,
+        value_from_context: Option<String>,
+    ) -> Self {
+        Self {
+            source,
+            target,
+            value_from_env,
+            value_from_context,
+        }
     }
 }
 
@@ -102,8 +112,16 @@ pub struct ChoiceOption {
 impl ChoiceOption {
     #[must_use]
     #[inline]
-    pub const fn new(test: TestCommand, expected_output: String, on_match: Box<PostCommand>) -> Self {
-        Self { test, expected_output, on_match }
+    pub const fn new(
+        test: TestCommand,
+        expected_output: String,
+        on_match: Box<PostCommand>,
+    ) -> Self {
+        Self {
+            test,
+            expected_output,
+            on_match,
+        }
     }
 }
 
