@@ -1,5 +1,5 @@
 # Text replacement example - customize templates with placeholders
-repository: "myorg/app-templates"
+repository: "my_organization/app-templates"
 tag: "main"
 
 pulls:

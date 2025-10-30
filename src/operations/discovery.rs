@@ -19,10 +19,16 @@
 //! of `.graft.yaml` files themselves.
 
 use anyhow::{Context as _, Result};
-use std::path::{Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    path::{Path, PathBuf},
+};
+
+use crate::system::System;
 
 /// A discovered .graft.yaml file with its location and hierarchy information
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct DiscoveredGraft {
     /// Absolute path to the .graft.yaml file
     pub path: PathBuf,
@@ -40,6 +46,7 @@ pub struct DiscoveredGraft {
 impl DiscoveredGraft {
     /// Get all ancestors in order (closest parent first)
     #[must_use]
+    #[inline]
     pub fn ancestors(&self) -> Vec<&Self> {
         let mut ancestors = Vec::new();
         let mut current = self.parent.as_deref();
@@ -76,18 +83,19 @@ impl DiscoveredGraft {
 /// - Target directory does not exist
 /// - Target path is not a directory
 /// - Directory cannot be canonicalized
+#[inline]
 pub fn discover_graft_files(
-    system: &dyn crate::system::System,
+    system: &dyn System,
     target_dir: &Path,
 ) -> Result<Vec<DiscoveredGraft>> {
-    if !system.exists(target_dir) {
+    if !system.exists(target_dir)? {
         return Err(anyhow::anyhow!(
             "Target directory does not exist: {}",
             target_dir.display()
         ));
     }
 
-    if !system.is_dir(target_dir) {
+    if !system.is_dir(target_dir)? {
         return Err(anyhow::anyhow!(
             "Target path is not a directory: {}",
             target_dir.display()
@@ -95,7 +103,7 @@ pub fn discover_graft_files(
     }
 
     let mut discoveries = Vec::new();
-    let target_dir = system.canonicalize(target_dir).with_context(|| {
+    let relative_target_dir = system.canonicalize(target_dir).with_context(|| {
         format!(
             "Failed to canonicalize target directory: {}",
             target_dir.display()
@@ -104,14 +112,19 @@ pub fn discover_graft_files(
 
     // Walk directory tree and find all .graft.yaml files using System abstraction
     let entries = system
-        .walk_dir(&target_dir, false, false)
-        .with_context(|| format!("Failed to walk directory: {}", target_dir.display()))?;
+        .walk_dir(&relative_target_dir, false, false)
+        .with_context(|| {
+            format!(
+                "Failed to walk directory: {}",
+                relative_target_dir.display()
+            )
+        })?;
 
     for entry in entries {
         let path = &entry.path;
 
         // Check if this is a .graft.yaml file
-        if entry.is_file && path.file_name() == Some(std::ffi::OsStr::new(".graft.yaml")) {
+        if entry.is_file && path.file_name() == Some(OsStr::new(".graft.yaml")) {
             let directory = path
                 .parent()
                 .ok_or_else(|| anyhow::anyhow!("Failed to get parent directory of .graft.yaml"))?
@@ -119,16 +132,16 @@ pub fn discover_graft_files(
 
             // Calculate depth relative to target_dir
             let depth = directory
-                .strip_prefix(&target_dir)
+                .strip_prefix(&relative_target_dir)
                 .ok()
                 .map_or(0, |p| p.components().count());
 
-            discoveries.push((path.to_path_buf(), directory, depth));
+            discoveries.push((path.clone(), directory, depth));
         }
     }
 
     // Sort by depth (root first)
-    discoveries.sort_by_key(|(_, _, depth)| *depth);
+    discoveries.sort_by_key(|&(_, _, depth)| depth);
 
     // Build hierarchy with parent relationships
     let mut grafts = Vec::new();
@@ -163,12 +176,19 @@ fn find_parent_graft(grafts: &[DiscoveredGraft], directory: &Path) -> Option<Box
 /// Delete all .graft.yaml files from a target directory
 ///
 /// This should be called after all graft processing is complete
-pub fn cleanup_graft_files(system: &dyn crate::system::System, target_dir: &Path) -> Result<usize> {
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The target directory does not exist
+/// - The .graft.yaml files cannot be deleted
+#[inline]
+pub fn cleanup_graft_files(system: &dyn System, target_dir: &Path) -> Result<usize> {
     let grafts = discover_graft_files(system, target_dir)?;
     let mut deleted_count = 0;
 
     for graft in grafts {
-        if system.exists(&graft.path) {
+        if system.exists(&graft.path)? {
             system.remove_file(&graft.path).with_context(|| {
                 format!(
                     "Failed to delete .graft.yaml file: {}",

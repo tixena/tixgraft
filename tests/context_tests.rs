@@ -5,16 +5,21 @@
 //! - Context validation (required/optional properties)
 //! - Text replacements from context
 
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
+
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
 use tixgraft::config::context::ValidatedContext;
 use tixgraft::config::graft_yaml::GraftConfig;
 use tixgraft::operations::{apply_graft_replacements, copy_files};
-use tixgraft::system::{MockSystem, System};
+use tixgraft::system::{mock::MockSystem, System as _};
 
 #[test]
-fn test_context_basic_flow() {
+fn context_basic_flow() {
     let graft_content = r#"
 context:
   - name: projectName
@@ -36,15 +41,18 @@ replacements:
 
     let system = MockSystem::new()
         .with_dir("/source")
+        .unwrap()
         .with_file("/source/config.txt", template_content.as_bytes())
-        .with_dir("/target");
+        .unwrap()
+        .with_dir("/target")
+        .unwrap();
 
     // Load graft config from string
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
     // Create context values
     let mut context = HashMap::new();
-    context.insert("projectName".to_string(), json!("MyApp"));
+    context.insert("projectName".to_owned(), json!("MyApp"));
 
     // Validate context
     let validated = ValidatedContext::new(graft.context.clone(), context).unwrap();
@@ -76,7 +84,7 @@ replacements:
 }
 
 #[test]
-fn test_context_required_property_missing() {
+fn context_required_property_missing() {
     let graft_content = r#"
 context:
   - name: required
@@ -92,7 +100,7 @@ replacements:
 
     // Empty context - should fail validation
     let context = HashMap::new();
-    let result = ValidatedContext::new(graft.context.clone(), context);
+    let result = ValidatedContext::new(graft.context, context);
 
     assert!(result.is_err());
     assert!(
@@ -104,7 +112,7 @@ replacements:
 }
 
 #[test]
-fn test_context_type_coercion() {
+fn context_type_coercion() {
     let graft_content = r#"
 context:
   - name: port
@@ -125,15 +133,18 @@ replacements:
 
     let system = MockSystem::new()
         .with_dir("/source")
+        .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
-        .with_dir("/target");
+        .unwrap()
+        .with_dir("/target")
+        .unwrap();
 
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
     // String values should coerce to number/boolean
     let mut context = HashMap::new();
-    context.insert("port".to_string(), json!("8080"));
-    context.insert("enabled".to_string(), json!("true"));
+    context.insert("port".to_owned(), json!("8080"));
+    context.insert("enabled".to_owned(), json!("true"));
 
     let validated = ValidatedContext::new(graft.context.clone(), context).unwrap();
 
@@ -155,7 +166,7 @@ replacements:
 }
 
 #[test]
-fn test_context_array_json() {
+fn context_array_json() {
     let graft_content = r#"
 context:
   - name: services
@@ -171,18 +182,21 @@ replacements:
 
     let system = MockSystem::new()
         .with_dir("/source")
+        .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
-        .with_dir("/target");
+        .unwrap()
+        .with_dir("/target")
+        .unwrap();
 
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
     let services = json!([
-        {"name": "api", "port": 8080},
-        {"name": "web", "port": 3000}
+        {"name": "api", "port": 8_080i32},
+        {"name": "web", "port": 3_000i32}
     ]);
 
     let mut context = HashMap::new();
-    context.insert("services".to_string(), services);
+    context.insert("services".to_owned(), services);
 
     let validated = ValidatedContext::new(graft.context.clone(), context).unwrap();
 
@@ -206,7 +220,7 @@ replacements:
 }
 
 #[test]
-fn test_context_default_values() {
+fn context_default_values() {
     let graft_content = r#"
 context:
   - name: name
@@ -228,14 +242,17 @@ replacements:
 
     let system = MockSystem::new()
         .with_dir("/source")
+        .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
-        .with_dir("/target");
+        .unwrap()
+        .with_dir("/target")
+        .unwrap();
 
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
     // Only provide required property
     let mut context = HashMap::new();
-    context.insert("name".to_string(), json!("MyApp"));
+    context.insert("name".to_owned(), json!("MyApp"));
 
     let validated = ValidatedContext::new(graft.context.clone(), context).unwrap();
 
@@ -256,7 +273,7 @@ replacements:
 }
 
 #[test]
-fn test_invalid_graft_yaml_syntax() {
+fn invalid_graft_yaml_syntax() {
     let graft_content = r#"
 context:
   - name: test
@@ -270,18 +287,16 @@ context:
     // Error should include line number information
     assert!(
         error_msg.contains("line") && error_msg.contains("column"),
-        "Error message should include line and column numbers, got: {}",
-        error_msg
+        "Error message should include line and column numbers, got: {error_msg}"
     );
     assert!(
         error_msg.contains("Failed to parse .graft.yaml"),
-        "Error message should indicate YAML parsing failure, got: {}",
-        error_msg
+        "Error message should indicate YAML parsing failure, got: {error_msg}"
     );
 }
 
 #[test]
-fn test_yaml_syntax_error_reports_exact_location() {
+fn yaml_syntax_error_reports_exact_location() {
     // Test various YAML syntax errors to ensure line numbers are reported
 
     // Case 1: Missing closing bracket
@@ -296,12 +311,12 @@ context:
     assert!(error1.contains("line") && error1.contains("column"));
 
     // Case 2: Invalid indentation
-    let yaml2 = r#"
+    let yaml2 = "
 context:
 - name: test
   description: correct
  bad_indent: wrong
-"#;
+";
     let result2 = GraftConfig::load_from_string(yaml2);
     assert!(result2.is_err());
     let error2 = result2.unwrap_err().to_string();
@@ -309,7 +324,7 @@ context:
 }
 
 #[test]
-fn test_yaml_type_error_with_location() {
+fn yaml_type_error_with_location() {
     // YAML parses but validation fails - still should have helpful error
     let graft_content = r#"
 context:
@@ -320,11 +335,11 @@ context:
 
     let result = GraftConfig::load_from_string(graft_content);
     // This should fail validation, not parsing
-    assert!(result.is_err());
+    result.unwrap_err();
 }
 
 #[test]
-fn test_replacement_value_not_in_context() {
+fn replacement_value_not_in_context() {
     let graft_content = r#"
 replacements:
   - source: "{{VAR}}"
@@ -335,8 +350,11 @@ replacements:
 
     let system = MockSystem::new()
         .with_dir("/source")
+        .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
-        .with_dir("/target");
+        .unwrap()
+        .with_dir("/target")
+        .unwrap();
 
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
@@ -358,13 +376,12 @@ replacements:
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg.contains("Context property") || err_msg.contains("nonexistent"),
-        "Expected error about missing context property, got: {}",
-        err_msg
+        "Expected error about missing context property, got: {err_msg}"
     );
 }
 
 #[test]
-fn test_context_mixed_sources() {
+fn context_mixed_sources() {
     let graft_content = r#"
 context:
   - name: ctx
@@ -382,13 +399,16 @@ replacements:
 
     let system = MockSystem::new()
         .with_dir("/source")
+        .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
-        .with_dir("/target");
+        .unwrap()
+        .with_dir("/target")
+        .unwrap();
 
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
     let mut context = HashMap::new();
-    context.insert("ctx".to_string(), json!("FromContext"));
+    context.insert("ctx".to_owned(), json!("FromContext"));
 
     let validated = ValidatedContext::new(graft.context.clone(), context).unwrap();
 
@@ -406,4 +426,5 @@ replacements:
         .read_to_string(Path::new("/target/file.txt"))
         .unwrap();
     assert_eq!(result, "Context: FromContext\nStatic: StaticValue");
+}
 }

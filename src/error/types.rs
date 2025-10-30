@@ -4,6 +4,7 @@ use thiserror::Error;
 
 /// Main error type for tixgraft operations
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum GraftError {
     /// Configuration Error - missing or invalid configuration
     #[error("Configuration error: {message}")]
@@ -29,8 +30,9 @@ pub enum GraftError {
 impl GraftError {
     /// Get the appropriate exit code for this error type
     #[must_use]
+    #[inline]
     pub const fn exit_code(&self) -> i32 {
-        match self {
+        match *self {
             Self::Configuration { .. } => 1,
             Self::Source { .. } => 2,
             Self::Command { .. } => 3,
@@ -40,37 +42,42 @@ impl GraftError {
     }
 
     /// Create a configuration error
+    #[inline]
     pub fn configuration<S: Into<String>>(message: S) -> Self {
-        return Self::Configuration {
+        Self::Configuration {
             message: message.into(),
-        };
+        }
     }
 
     /// Create a source error
-    pub fn source<S: Into<String>>(message: S) -> Self {
-        return Self::Source {
+    #[inline]
+    pub fn from_source<S: Into<String>>(message: S) -> Self {
+        Self::Source {
             message: message.into(),
-        };
+        }
     }
 
     /// Create a command error
+    #[inline]
     pub fn command<S: Into<String>>(message: S) -> Self {
-        return Self::Command {
+        Self::Command {
             message: message.into(),
-        };
+        }
     }
 
     /// Create a git error
+    #[inline]
     pub fn git<S: Into<String>>(message: S) -> Self {
-        return Self::Git {
+        Self::Git {
             message: message.into(),
-        };
+        }
     }
 
     /// Create a filesystem error
+    #[inline]
     pub fn filesystem<S: Into<String>>(message: S) -> Self {
-        return Self::Filesystem {
+        Self::Filesystem {
             message: message.into(),
-        };
+        }
     }
 }

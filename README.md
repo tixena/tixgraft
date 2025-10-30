@@ -44,7 +44,7 @@ cargo build --release
 
 ```yaml
 # Global settings (optional)
-repository: "myorg/scaffolds"  # Can be full URL or account/repo format
+repository: "my_organization/scaffolds"  # Can be full URL or account/repo format
 tag: "main"                    # Branch, tag, or commit hash
 
 # Pull operations (required, minimum 1)
@@ -81,7 +81,7 @@ tixgraft --config my-config.yaml
 
 ```yaml
 # Global Settings (both optional)
-repository: "myorg/scaffolds"  # Repository URL or account/repo format
+repository: "my_organization/scaffolds"  # Repository URL or account/repo format
 tag: "main"                    # Git reference (branch, tag, or commit)
 
 # Pull Operations (required, minimum 1)
@@ -208,9 +208,9 @@ postCommands:
 
 ### Repository URL Formats
 
-- **Short format**: `myorg/repo` → `https://github.com/myorg/repo.git`
-- **HTTPS**: `https://github.com/myorg/repo.git`
-- **SSH**: `git@github.com:myorg/repo.git`
+- **Short format**: `my_organization/repo` → `https://github.com/my_organization/repo.git`
+- **HTTPS**: `https://github.com/my_organization/repo.git`
+- **SSH**: `git@github.com:my_organization/repo.git`
 - **Enterprise**: `https://git.company.com/team/repo.git`
 
 ## Command-Line Interface
@@ -244,16 +244,16 @@ postCommands:
 
 ```bash
 # Pull a single directory
-tixgraft --repository myorg/templates --pull-source kubernetes/app --pull-target ./k8s
+tixgraft --repository my_organization/templates --pull-source kubernetes/app --pull-target ./k8s
 
 # Pull multiple items with different repositories
 tixgraft \
-  --pull-repository myorg/configs --pull-source docker/Dockerfile --pull-target ./Dockerfile --pull-type file \
-  --pull-repository myorg/scripts --pull-source ci/deploy.sh --pull-target ./scripts/deploy.sh --pull-type file
+  --pull-repository my_organization/configs --pull-source docker/Dockerfile --pull-target ./Dockerfile --pull-type file \
+  --pull-repository my_organization/scripts --pull-source ci/deploy.sh --pull-target ./scripts/deploy.sh --pull-type file
 
 # Text replacements via CLI
 tixgraft \
-  --repository myorg/templates \
+  --repository my_organization/templates \
   --pull-source kubernetes/app \
   --pull-target ./k8s \
   --pull-replacement "{{APP_NAME}}=my-app" \
@@ -289,7 +289,7 @@ tixgraft --to-command-line --repository override/repo --tag v2.0
 
 Given this `tixgraft.yaml`:
 ```yaml
-repository: "myorg/templates"
+repository: "my_organization/templates"
 tag: "v1.0.0"
 pulls:
   - source: "kubernetes/base"
@@ -303,7 +303,7 @@ pulls:
 Running `tixgraft --to-command-line` outputs:
 ```bash
 tixgraft \
-  --repository "myorg/templates" \
+  --repository "my_organization/templates" \
   --tag "v1.0.0" \
   --pull-source "kubernetes/base" \
   --pull-target "./k8s" \
@@ -328,7 +328,7 @@ tixgraft \
 ### Basic Directory Copy
 
 ```yaml
-repository: "myorg/templates"
+repository: "my_organization/templates"
 tag: "main"
 pulls:
   - source: "docker/nodejs"
@@ -341,19 +341,19 @@ pulls:
 pulls:
   - source: "configs/nginx"
     target: "./nginx"
-    repository: "myorg/configs"
+    repository: "my_organization/configs"
     tag: "v1.2.0"
   - source: "scripts/deploy.sh"
     target: "./deploy.sh"
     type: "file"
-    repository: "myorg/scripts"
+    repository: "my_organization/scripts"
     tag: "latest"
 ```
 
 ### With Text Replacements
 
 ```yaml
-repository: "myorg/k8s-templates"
+repository: "my_organization/k8s-templates"
 pulls:
   - source: "apps/web-service"
     target: "./k8s/web"
@@ -374,7 +374,7 @@ When pulling components that include `.graft.yaml` files:
 
 ```yaml
 # tixgraft.yaml
-repository: "myorg/service-templates"
+repository: "my_organization/service-templates"
 context:
   organization: "mycompany"
   environment: "production"

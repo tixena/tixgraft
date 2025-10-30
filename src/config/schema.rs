@@ -5,6 +5,12 @@ use jsonschema::{Draft, Validator};
 use serde_json::Value;
 
 /// Get the embedded JSON schema for tixgraft configuration
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The JSON schema cannot be parsed
+#[inline]
 pub fn get_schema() -> Result<Validator> {
     let schema_str = include_str!("../../docs/schema.json");
     let schema: Value = serde_json::from_str(schema_str)
@@ -17,6 +23,12 @@ pub fn get_schema() -> Result<Validator> {
 }
 
 /// Validate a configuration value against the schema
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The configuration is invalid
+#[inline]
 pub fn validate_against_schema(config: &Value) -> Result<()> {
     let schema = get_schema()?;
 

@@ -6,7 +6,8 @@ use std::path::{Component, Path, PathBuf};
 
 /// Normalize a path by resolving `.` and `..` components
 #[must_use]
-pub fn normalize_path(path: &Path) -> PathBuf {
+#[inline]
+pub fn normalize(path: &Path) -> PathBuf {
     let mut components = Vec::new();
 
     for component in path.components() {
@@ -23,7 +24,7 @@ pub fn normalize_path(path: &Path) -> PathBuf {
                     components.pop();
                 }
             }
-            _ => {
+            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
                 components.push(component);
             }
         }
@@ -33,13 +34,20 @@ pub fn normalize_path(path: &Path) -> PathBuf {
 }
 
 /// Validate that a path is safe (no directory traversal)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The path contains unsafe directory traversal
+/// - The path is an absolute path
+#[inline]
 pub fn validate_path_safety(path: &str) -> Result<()> {
     let path_obj = Path::new(path);
 
     // Check for dangerous patterns
     if path.contains("..") {
         // Allow relative paths that don't escape the current directory
-        let normalized = normalize_path(path_obj);
+        let normalized = normalize(path_obj);
         let normalized_str = normalized.to_string_lossy();
 
         // If the normalized path starts with ".." then it escapes
@@ -63,20 +71,28 @@ pub fn validate_path_safety(path: &str) -> Result<()> {
 }
 
 /// Convert a path to be relative to a base directory
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The path does not exist
+/// - The base path does not exist
+/// - The path is not within the base directory
+#[inline]
 pub fn make_relative_to(path: &Path, base: &Path) -> Result<PathBuf> {
     let canonical_path = path
         .canonicalize()
-        .map_err(|_| anyhow!("Path does not exist: {}", path.display()))?;
+        .map_err(|err| anyhow!("Path does not exist: {}. Error: {err}", path.display()))?;
     let canonical_base = base
         .canonicalize()
-        .map_err(|_| anyhow!("Base path does not exist: {}", base.display()))?;
+        .map_err(|err| anyhow!("Base path does not exist: {}. Error: {err}", base.display()))?;
 
     canonical_path
         .strip_prefix(&canonical_base)
-        .map(|p| p.to_path_buf())
-        .map_err(|_| {
+        .map(Path::to_path_buf)
+        .map_err(|err| {
             anyhow!(
-                "Path '{}' is not within base directory '{}'",
+                "Path '{}' is not within base directory '{}'. Error: {err}",
                 path.display(),
                 base.display()
             )
@@ -85,7 +101,8 @@ pub fn make_relative_to(path: &Path, base: &Path) -> Result<PathBuf> {
 
 /// Check if a path would escape the given base directory
 #[must_use]
-pub fn path_escapes_base(path: &Path, base: &Path) -> bool {
+#[inline]
+pub fn escapes_from_base(path: &Path, base: &Path) -> bool {
     if let Ok(canonical_path) = path.canonicalize()
         && let Ok(canonical_base) = base.canonicalize()
     {
@@ -93,14 +110,15 @@ pub fn path_escapes_base(path: &Path, base: &Path) -> bool {
     }
 
     // If we can't canonicalize, check using normalized paths
-    let normalized_path = normalize_path(path);
-    let normalized_base = normalize_path(base);
+    let normalized_path = normalize(path);
+    let normalized_base = normalize(base);
 
     !normalized_path.starts_with(&normalized_base)
 }
 
 /// Get the common prefix of two paths
 #[must_use]
+#[inline]
 pub fn common_path_prefix(path1: &Path, path2: &Path) -> PathBuf {
     let components1: Vec<_> = path1.components().collect();
     let components2: Vec<_> = path2.components().collect();
@@ -120,11 +138,18 @@ pub fn common_path_prefix(path1: &Path, path2: &Path) -> PathBuf {
 
 /// Convert backslashes to forward slashes (for cross-platform compatibility)
 #[must_use]
+#[inline]
 pub fn normalize_separators(path: &str) -> String {
     path.replace('\\', "/")
 }
 
 /// Join path components safely
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The path is not safe
+#[inline]
 pub fn join_path_safe(base: &str, component: &str) -> Result<String> {
     validate_path_safety(component)?;
 
@@ -136,20 +161,23 @@ pub fn join_path_safe(base: &str, component: &str) -> Result<String> {
 
 /// Extract file extension in lowercase
 #[must_use]
+#[inline]
 pub fn get_file_extension(path: &Path) -> Option<String> {
     path.extension()
         .and_then(|ext| ext.to_str())
-        .map(|s| s.to_lowercase())
+        .map(str::to_lowercase)
 }
 
 /// Check if a path has a specific extension (case-insensitive)
 #[must_use]
+#[inline]
 pub fn has_extension(path: &Path, extension: &str) -> bool {
     get_file_extension(path).is_some_and(|ext| ext == extension.to_lowercase())
 }
 
 /// Get a unique filename by appending a number if the file exists
 #[must_use]
+#[inline]
 pub fn get_unique_filename(path: PathBuf) -> PathBuf {
     if !path.exists() {
         return path;
@@ -157,18 +185,18 @@ pub fn get_unique_filename(path: PathBuf) -> PathBuf {
 
     let stem = path
         .file_stem()
-        .and_then(|s| s.to_str())
+        .and_then(|value| value.to_str())
         .unwrap_or("file")
-        .to_string();
+        .to_owned();
     let extension = path
         .extension()
-        .and_then(|s| s.to_str())
-        .map(|s| return s.to_owned());
-    let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+        .and_then(|value| value.to_str())
+        .map(ToOwned::to_owned);
+    let parent = path.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
 
     let mut counter = 1;
     loop {
-        let filename = if let Some(ref ext) = extension {
+        let filename = if let Some(ext) = extension.as_ref() {
             format!("{stem}-{counter}.{ext}")
         } else {
             format!("{stem}-{counter}")
@@ -189,6 +217,7 @@ pub fn get_unique_filename(path: PathBuf) -> PathBuf {
 
 /// Check if a path is within allowed patterns
 #[must_use]
+#[inline]
 pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
     let path_str = path.to_string_lossy();
 
@@ -212,21 +241,24 @@ pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
 }
 
 /// Convert a Windows path to Unix-style path
+#[inline]
 #[must_use]
-pub fn to_unix_path(path: &str) -> String {
+pub fn to_unix(path: &str) -> String {
     path.replace('\\', "/")
 }
 
 /// Convert a Unix path to Windows-style path (for Windows compatibility)
+#[inline]
 #[must_use]
-pub fn to_windows_path(path: &str) -> String {
+pub fn to_windows(path: &str) -> String {
     path.replace('/', "\\")
 }
 
 /// Get the depth of a path (number of directory levels)
+#[inline]
 #[must_use]
-pub fn path_depth(path: &Path) -> usize {
+pub fn depth(path: &Path) -> usize {
     path.components()
-        .filter(|c| matches!(c, Component::Normal(_)))
+        .filter(|component| matches!(component, Component::Normal(_)))
         .count()
 }

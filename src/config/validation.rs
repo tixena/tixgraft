@@ -7,9 +7,17 @@ use anyhow::{Result, anyhow};
 use regex::Regex;
 
 /// Validate a complete configuration
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The configuration does not contain at least one pull operation
+/// - The repository URL is invalid
+/// - The pull configuration is invalid
+#[inline]
 pub fn validate_config(system: &dyn System, config: &Config) -> Result<()> {
     // Validate global repository if present
-    if let Some(ref repo) = config.repository {
+    if let Some(repo) = config.repository.as_ref() {
         validate_repository_url(repo)?;
     }
 
@@ -33,7 +41,7 @@ fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) ->
     let context = format!("Pull operation #{}", index + 1);
 
     // Validate repository URL if present
-    if let Some(repo) = &pull.repository {
+    if let Some(repo) = pull.repository.as_ref() {
         validate_repository_url(repo).map_err(|e| anyhow!("{context}: {e}"))?;
     }
 
@@ -79,6 +87,12 @@ fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) ->
 }
 
 /// Validate a repository URL format
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The repository URL is invalid
+#[inline]
 pub fn validate_repository_url(url: &str) -> Result<()> {
     // ONLY accept "file:" prefix for local filesystem paths
     if url.starts_with("file:") {
@@ -94,23 +108,30 @@ pub fn validate_repository_url(url: &str) -> Result<()> {
     ];
 
     for pattern in &patterns {
-        let regex = Regex::new(pattern).unwrap();
+        let regex = Regex::new(pattern)?;
         if regex.is_match(url) {
             return Ok(());
         }
     }
 
-    return Err(anyhow!(
+    Err(anyhow!(
         "Invalid repository URL format: '{url}'\n\
         Supported formats:\n\
-        - Short format: myorg/repo\n\
-        - HTTPS: https://github.com/myorg/repo.git\n\
-        - SSH: git@github.com:myorg/repo.git\n\
+        - Short format: my_organization/repo\n\
+        - HTTPS: https://github.com/my_organization/repo.git\n\
+        - SSH: git@github.com:my_organization/repo.git\n\
         - Local: file:/path/to/repo or file:///path/to/repo"
-    ));
+    ))
 }
 
 /// Validate path safety (prevent directory traversal)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The path contains unsafe directory traversal
+/// - The path is an absolute path
+#[inline]
 pub fn validate_path_safety(path: &str) -> Result<()> {
     if path.contains("..") {
         return Err(anyhow!(
@@ -142,7 +163,10 @@ fn validate_replacement(
     }
 
     // Must have exactly one of target or value_from_env
-    match (&replacement.target, &replacement.value_from_env) {
+    match (
+        replacement.target.as_ref(),
+        replacement.value_from_env.as_ref(),
+    ) {
         (Some(target), None) => {
             // String literal replacement - target can be empty
             if target.trim().is_empty() {

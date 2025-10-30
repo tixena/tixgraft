@@ -1,7 +1,8 @@
+use std::collections::HashMap;
+
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
 
 /// Command-line arguments for tixgraft
 #[derive(Parser, Debug, Clone)]
@@ -9,6 +10,8 @@ use std::collections::HashMap;
 #[command(about = "A CLI tool for fetching reusable components from Git repositories")]
 #[command(long_about = None)]
 #[command(version)]
+#[non_exhaustive]
+#[expect(clippy::struct_excessive_bools)]
 pub struct Args {
     /// Git repository URL or account/repo format
     #[arg(long, value_name = "REPO")]
@@ -64,6 +67,12 @@ pub struct Args {
 
 impl Args {
     /// Parse context arguments into a `HashMap`
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The context arguments are invalid
+    #[inline]
     pub fn parse_context(&self) -> anyhow::Result<HashMap<String, Value>> {
         parse_context_args(&self.context, &self.context_json)
     }
@@ -71,6 +80,7 @@ impl Args {
 
 /// Arguments for individual pull operations
 #[derive(Parser, Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct PullArgs {
     /// Repository for specific pull
     #[arg(long = "pull-repository", value_name = "REPO")]
@@ -108,6 +118,7 @@ pub struct PullArgs {
 
 /// Individual pull configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct PullConfig {
     pub source: String,
     pub target: String,
@@ -130,6 +141,7 @@ pub struct PullConfig {
 
 /// Text replacement configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct ReplacementConfig {
     pub source: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -138,8 +150,16 @@ pub struct ReplacementConfig {
     pub value_from_env: Option<String>,
 }
 
+impl ReplacementConfig {
+    #[must_use]
+    #[inline]
+    pub const fn new(source: String, target: Option<String>, value_from_env: Option<String>) -> Self {
+        Self { source, target, value_from_env }
+    }
+}
+
 fn default_pull_type() -> String {
-    return "directory".to_owned();
+    "directory".to_owned()
 }
 
 /// Parse context arguments from CLI into a `HashMap`
@@ -161,9 +181,9 @@ fn parse_context_args(
     for arg in context_json_args {
         let (key, json_str) = parse_key_value(arg)?;
         let value: Value = serde_json::from_str(&json_str).map_err(|e| {
-            return anyhow::anyhow!(
+            anyhow::anyhow!(
                 "Invalid JSON in --context-json for key '{key}': {e}\nValue: {json_str}"
-            );
+            )
         })?;
         result.entry(key).or_default().push(value);
     }
@@ -172,7 +192,7 @@ fn parse_context_args(
     let mut final_result = HashMap::new();
     for (key, values) in result {
         if values.len() == 1 {
-            final_result.insert(key, values.into_iter().next().unwrap());
+            final_result.insert(key, values.into_iter().next().ok_or_else(|| anyhow::anyhow!("No value found for key"))?);
         } else {
             final_result.insert(key, Value::Array(values));
         }
@@ -189,29 +209,30 @@ fn parse_key_value(arg: &str) -> anyhow::Result<(String, String)> {
             "Invalid context format '{arg}'. Expected KEY=VALUE"
         ));
     }
-    return Ok((parts[0].to_owned(), parts[1].to_owned()));
+    Ok((parts[0].to_owned(), parts[1].to_owned()))
 }
 
 #[cfg(test)]
+#[expect(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_simple_context() {
-        let context = vec!["name=test".to_string(), "port=8080".to_string()];
+    fn parse_simple_context() {
+        let context = vec!["name=test".to_owned(), "port=8080".to_owned()];
         let json = vec![];
         let result = parse_context_args(&context, &json).unwrap();
 
-        assert_eq!(result.get("name"), Some(&Value::String("test".to_string())));
-        assert_eq!(result.get("port"), Some(&Value::String("8080".to_string())));
+        assert_eq!(result.get("name"), Some(&Value::String("test".to_owned())));
+        assert_eq!(result.get("port"), Some(&Value::String("8080".to_owned())));
     }
 
     #[test]
-    fn test_parse_array_context() {
+    fn parse_array_context() {
         let context = vec![
-            "items=a".to_string(),
-            "items=b".to_string(),
-            "items=c".to_string(),
+            "items=a".to_owned(),
+            "items=b".to_owned(),
+            "items=c".to_owned(),
         ];
         let json = vec![];
         let result = parse_context_args(&context, &json).unwrap();
@@ -219,17 +240,17 @@ mod tests {
         assert_eq!(
             result.get("items"),
             Some(&Value::Array(vec![
-                Value::String("a".to_string()),
-                Value::String("b".to_string()),
-                Value::String("c".to_string())
+                Value::String("a".to_owned()),
+                Value::String("b".to_owned()),
+                Value::String("c".to_owned())
             ]))
         );
     }
 
     #[test]
-    fn test_parse_json_context() {
+    fn parse_json_context() {
         let context = vec![];
-        let json = vec![r#"config={"key":"value"}"#.to_string()];
+        let json = vec![r#"config={"key":"value"}"#.to_owned()];
         let result = parse_context_args(&context, &json).unwrap();
 
         let expected = serde_json::json!({"key": "value"});
@@ -237,12 +258,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_mixed_context() {
-        let context = vec!["name=test".to_string()];
-        let json = vec![r#"people=[{"name":"Alice"},{"name":"Bob"}]"#.to_string()];
+    fn parse_mixed_context() {
+        let context = vec!["name=test".to_owned()];
+        let json = vec![r#"people=[{"name":"Alice"},{"name":"Bob"}]"#.to_owned()];
         let result = parse_context_args(&context, &json).unwrap();
 
-        assert_eq!(result.get("name"), Some(&Value::String("test".to_string())));
+        assert_eq!(result.get("name"), Some(&Value::String("test".to_owned())));
         assert_eq!(
             result.get("people"),
             Some(&serde_json::json!([{"name":"Alice"},{"name":"Bob"}]))
@@ -250,8 +271,8 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_context_format() {
-        let context = vec!["invalid".to_string()];
+    fn invalid_context_format() {
+        let context = vec!["invalid".to_owned()];
         let json = vec![];
         let result = parse_context_args(&context, &json);
 
@@ -265,9 +286,9 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_json() {
+    fn invalid_json() {
         let context = vec![];
-        let json = vec![r#"config={invalid json}"#.to_string()];
+        let json = vec!["config={invalid json}".to_owned()];
         let result = parse_context_args(&context, &json);
 
         assert!(result.is_err());

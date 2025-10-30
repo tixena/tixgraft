@@ -8,6 +8,15 @@ use std::path::{Path, PathBuf};
 use tracing::debug;
 
 /// Copy files or directories from source to target
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The source path does not exist
+/// - The source directory cannot be reset
+/// - The source directory cannot be removed
+/// - The source file cannot be copied
+#[inline]
 pub fn copy_files(
     system: &dyn System,
     source: &Path,
@@ -20,9 +29,9 @@ pub fn copy_files(
     debug!("Copying files from {source:?} to {target_path:?}");
 
     // Validate source exists
-    if !system.exists(source) {
+    if !system.exists(source)? {
         debug!("Source path does not exist: {source:?}");
-        return Err(GraftError::source(format!(
+        return Err(GraftError::from_source(format!(
             "Source path does not exist: {}",
             source.display()
         ))
@@ -30,7 +39,7 @@ pub fn copy_files(
     }
 
     // Reset target if requested and it's a directory operation
-    if reset && pull_type == "directory" && system.exists(&target_path) {
+    if reset && pull_type == "directory" && system.exists(&target_path)? {
         system
             .remove_dir_all(&target_path)
             .context("Failed to reset target directory")?;
@@ -40,21 +49,27 @@ pub fn copy_files(
     match pull_type {
         "file" => copy_file(system, source, &target_path),
         "directory" => copy_directory(system, source, &target_path),
-        _ => {
-            return Err(GraftError::configuration(format!(
-                "Invalid pull type: '{pull_type}'. Must be 'file' or 'directory'"
-            ))
-            .into());
-        }
+        _ => Err(GraftError::configuration(format!(
+            "Invalid pull type: '{pull_type}'. Must be 'file' or 'directory'"
+        ))
+        .into()),
     }
 }
 
 /// Copy a single file
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The source path is not a file
+/// - The source directory cannot be created
+/// - The source file cannot be copied
+#[inline]
 pub fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<usize> {
     // Validate source is actually a file
-    if !system.is_file(source) {
+    if !system.is_file(source)? {
         return Err(
-            GraftError::source(format!("Source is not a file: {}", source.display())).into(),
+            GraftError::from_source(format!("Source is not a file: {}", source.display())).into(),
         );
     }
 
@@ -75,16 +90,27 @@ pub fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<us
 }
 
 /// Copy a directory recursively
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The source path is not a directory
+/// - The source directory cannot be walked
+/// - The source directory cannot be created
+/// - The source file cannot be copied
+#[inline]
 pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Result<usize> {
     // Validate source is actually a directory
-    if !system.is_dir(source) {
-        return Err(
-            GraftError::source(format!("Source is not a directory: {}", source.display())).into(),
-        );
+    if !system.is_dir(source)? {
+        return Err(GraftError::from_source(format!(
+            "Source is not a directory: {}",
+            source.display()
+        ))
+        .into());
     }
 
     // Create target directory
-    if !system.exists(target) {
+    if !system.exists(target)? {
         system
             .create_dir_all(target)
             .with_context(|| format!("Failed to create target directory: {}", target.display()))?;
@@ -109,7 +135,7 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
 
         if entry.is_dir {
             // Create directory
-            if !system.exists(&target_path) {
+            if !system.exists(&target_path)? {
                 system.create_dir_all(&target_path).with_context(|| {
                     format!("Failed to create directory: {}", target_path.display())
                 })?;
@@ -117,7 +143,7 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
         } else if entry.is_file {
             // Create parent directories if needed
             if let Some(parent) = target_path.parent()
-                && !system.exists(parent)
+                && !system.exists(parent)?
             {
                 system.create_dir_all(parent).with_context(|| {
                     format!("Failed to create parent directory: {}", parent.display())
@@ -135,10 +161,13 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
 
             files_copied += 1;
         }
+        else {
+            debug!("Skipping file: {}", source_path.display());
+        }
     }
 
     if files_copied == 0 {
-        return Err(GraftError::source(format!(
+        return Err(GraftError::from_source(format!(
             "No files found to copy in directory: {}",
             source.display()
         ))
@@ -149,10 +178,19 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
 }
 
 /// Calculate the total size of files to be copied (for progress indication)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The source path is not a file or directory
+/// - The source directory cannot be walked
+/// - The source file cannot be read
+/// - The source directory cannot be read
+#[inline]
 pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) -> Result<u64> {
     match pull_type {
         "file" => {
-            if system.is_file(source) {
+            if system.is_file(source)? {
                 Ok(system.metadata(source)?.len())
             } else {
                 Ok(0)
@@ -160,7 +198,7 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
         }
         "directory" => {
             let mut total_size = 0;
-            if system.is_dir(source) {
+            if system.is_dir(source)? {
                 let entries = system.walk_dir(source, false, false)?;
                 for entry in entries {
                     if entry.is_file {
@@ -175,10 +213,17 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
 }
 
 /// Count files that will be copied
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The source path is not a file or directory
+/// - The source directory cannot be walked
+#[inline]
 pub fn count_files_to_copy(system: &dyn System, source: &Path, pull_type: &str) -> Result<usize> {
     match pull_type {
         "file" => {
-            if system.is_file(source) {
+            if system.is_file(source)? {
                 Ok(1)
             } else {
                 Ok(0)
@@ -186,7 +231,7 @@ pub fn count_files_to_copy(system: &dyn System, source: &Path, pull_type: &str) 
         }
         "directory" => {
             let mut file_count = 0;
-            if system.is_dir(source) {
+            if system.is_dir(source)? {
                 let entries = system.walk_dir(source, false, false)?;
                 for entry in entries {
                     if entry.is_file {

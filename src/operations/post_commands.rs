@@ -7,13 +7,20 @@ use crate::config::graft_yaml::{ChoiceOption, PostCommand, TestCommand};
 use crate::error::GraftError;
 use anyhow::{Context as _, Result};
 use regex::Regex;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 /// Execute all post-commands in order
 ///
 /// Commands execute in the directory containing the .graft.yaml file
 /// Continues executing all commands even if some fail, collecting all results
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The post-commands cannot be executed
+#[inline]
+#[expect(clippy::module_name_repetitions, reason = "PostCommands")]
 pub fn execute_post_commands(
     commands: &[PostCommand],
     graft_directory: &Path,
@@ -29,7 +36,7 @@ pub fn execute_post_commands(
                     command_type: "command".to_owned(),
                     success: false,
                     output: String::new(),
-                    error: Some(format!("{:#}", err)),
+                    error: Some(format!("{err:#}")),
                 }
             }
         };
@@ -41,6 +48,7 @@ pub fn execute_post_commands(
 
 /// Result of executing a post-command
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ExecutionResult {
     pub command_type: String,
     pub success: bool,
@@ -49,15 +57,23 @@ pub struct ExecutionResult {
 }
 
 /// Execute a single post-command
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The post-command cannot be executed
+#[inline]
 pub fn execute_post_command(
-    command: &PostCommand,
+    post_command: &PostCommand,
     graft_directory: &Path,
 ) -> Result<ExecutionResult> {
-    match command {
-        PostCommand::Command { command, args, cwd } => {
-            execute_simple_command(command, args, cwd.as_deref(), graft_directory)
-        }
-        PostCommand::Choice { options } => execute_choice(options, graft_directory),
+    match *post_command {
+        PostCommand::Command {
+            ref command,
+            ref args,
+            ref cwd,
+        } => execute_simple_command(command, args, cwd.as_deref(), graft_directory),
+        PostCommand::Choice { ref options } => execute_choice(options, graft_directory),
     }
 }
 
@@ -87,7 +103,7 @@ fn execute_simple_command(
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-    return Ok(ExecutionResult {
+    Ok(ExecutionResult {
         command_type: "command".to_owned(),
         success: output.status.success(),
         output: stdout,
@@ -96,7 +112,7 @@ fn execute_simple_command(
         } else {
             Some(stderr)
         },
-    });
+    })
 }
 
 /// Execute a conditional choice
@@ -129,12 +145,12 @@ fn execute_choice(options: &[ChoiceOption], graft_directory: &Path) -> Result<Ex
     }
 
     // No matches found, return a no-op result
-    return Ok(ExecutionResult {
+    Ok(ExecutionResult {
         command_type: "choice".to_owned(),
         success: true,
         output: "No matching option found".to_owned(),
         error: None,
-    });
+    })
 }
 
 /// Execute a test command (for choice conditions)
@@ -158,7 +174,7 @@ fn execute_test_command(test: &TestCommand, graft_directory: &Path) -> Result<Ex
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-    return Ok(ExecutionResult {
+    Ok(ExecutionResult {
         command_type: "test".to_owned(),
         success: output.status.success(),
         output: stdout,
@@ -167,17 +183,20 @@ fn execute_test_command(test: &TestCommand, graft_directory: &Path) -> Result<Ex
         } else {
             Some(stderr)
         },
-    });
+    })
 }
 
 /// Resolve the working directory for command execution
 ///
 /// If cwd is None, uses `graft_directory`
 /// If cwd is Some, resolves it relative to `graft_directory`
-pub fn resolve_working_directory(
-    cwd: Option<&str>,
-    graft_directory: &Path,
-) -> Result<std::path::PathBuf> {
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The working directory does not exist
+#[inline]
+pub fn resolve_working_directory(cwd: Option<&str>, graft_directory: &Path) -> Result<PathBuf> {
     if let Some(cwd_str) = cwd {
         let cwd_path = Path::new(cwd_str);
 

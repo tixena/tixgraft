@@ -211,13 +211,13 @@ The codebase follows a modular architecture with clear separation of concerns:
 ## Configuration
 
 ### Repository URL Formats
-- Short: `myorg/repo` → expands to `https://github.com/myorg/repo.git`
-- HTTPS: `https://github.com/myorg/repo.git`
-- SSH: `git@github.com:myorg/repo.git`
+- Short: `my_organization/repo` → expands to `https://github.com/my_organization/repo.git`
+- HTTPS: `https://github.com/my_organization/repo.git`
+- SSH: `git@github.com:my_organization/repo.git`
 
 ### YAML Structure
 ```yaml
-repository: "myorg/scaffolds"  # Optional global repo
+repository: "my_organization/scaffolds"  # Optional global repo
 tag: "main"                    # Optional global ref
 
 pulls:                         # Required, minimum 1
@@ -266,7 +266,7 @@ Tests are organized in `tests/`:
 use tixgraft::system::{MockSystem, System};
 
 #[test]
-fn test_my_feature() {
+fn my_feature() {
     let system = MockSystem::new()
         .with_dir("/test")
         .with_file("/test/input.txt", b"test data");
@@ -291,7 +291,7 @@ fn test_my_feature() {
 use tixgraft::system::{RealSystem, System};
 
 #[test]
-fn test_integration() {
+fn integration() {
     let system = RealSystem::new();
     let temp_dir = system.create_temp_dir().unwrap();
     // temp_dir automatically cleans up on drop

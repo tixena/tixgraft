@@ -3,6 +3,10 @@
 //! These tests verify that sparse checkout works correctly with nested directory
 //! structures and that the temporary directory lifetime is managed properly.
 
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -82,7 +86,7 @@ fn create_test_git_repo() -> TempDir {
 }
 
 #[test]
-fn test_sparse_checkout_nested_path() {
+fn sparse_checkout_nested_path() {
     let repo_dir = create_test_git_repo();
     let work_dir = TempDir::new().unwrap();
 
@@ -112,9 +116,9 @@ pulls:
         .assert();
 
     // Print output for debugging
-    let output = assert_result.get_output();
-    println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
-    println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
+    // let output = assert_result.get_output();
+    // println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
+    // println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
 
     // Check if it succeeded
     assert_result.success();
@@ -125,8 +129,7 @@ pulls:
         .join("output/percona-mongodb/deployment.yaml");
     assert!(
         output_file.exists(),
-        "Expected file at {:?} does not exist",
-        output_file
+        "Expected file at {output_file:?} does not exist"
     );
 
     let content = fs::read_to_string(output_file).unwrap();
@@ -134,7 +137,7 @@ pulls:
 }
 
 #[test]
-fn test_sparse_checkout_multiple_nested_paths() {
+fn sparse_checkout_multiple_nested_paths() {
     let repo_dir = create_test_git_repo();
     let work_dir = TempDir::new().unwrap();
 
@@ -170,9 +173,9 @@ pulls:
         .assert();
 
     // Print output for debugging
-    let output = assert_result.get_output();
-    println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
-    println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
+    // let output = assert_result.get_output();
+    // println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
+    // println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
 
     // Check if it succeeded
     assert_result.success();
@@ -199,7 +202,7 @@ pulls:
 }
 
 #[test]
-fn test_sparse_checkout_nonexistent_path() {
+fn sparse_checkout_nonexistent_path() {
     let repo_dir = create_test_git_repo();
     let work_dir = TempDir::new().unwrap();
 
@@ -229,12 +232,13 @@ pulls:
         .assert();
 
     // Print output for debugging
-    let output = assert_result.get_output();
-    println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
-    println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
+    // let output = assert_result.get_output();
+    // println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
+    // println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
 
     // Should fail with source not found error
     assert_result
         .failure()
         .stdout(predicate::str::contains("not found"));
+}
 }

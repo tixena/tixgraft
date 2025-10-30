@@ -1,12 +1,18 @@
 //! Unit tests for YAML configuration loading
 
+
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
+
 use tixgraft::config::yaml::load_config;
-use tixgraft::system::MockSystem;
+use tixgraft::system::mock::MockSystem;
 
 #[test]
-fn test_load_valid_config() {
+fn load_valid_config() {
     let config_content = r#"
-repository: "myorg/scaffolds"
+repository: "my_organization/scaffolds"
 tag: "main"
 pulls:
   - source: "kubernetes/mongodb"
@@ -14,14 +20,16 @@ pulls:
     type: "directory"
 "#;
 
-    let system = MockSystem::new().with_file("/test/config.yaml", config_content.as_bytes());
+    let system = MockSystem::new()
+        .with_file("/test/config.yaml", config_content.as_bytes())
+        .unwrap();
 
     let result = load_config(&system, "/test/config.yaml");
-    assert!(result.is_ok());
+    result.unwrap();
 }
 
 #[test]
-fn test_load_nonexistent_file() {
+fn load_nonexistent_file() {
     let system = MockSystem::new();
     let result = load_config(&system, "/nonexistent/file.yaml");
     assert!(result.is_err());
@@ -31,4 +39,5 @@ fn test_load_nonexistent_file() {
             .to_string()
             .contains("Configuration file not found")
     );
+}
 }

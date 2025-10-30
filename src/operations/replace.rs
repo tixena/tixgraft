@@ -8,9 +8,17 @@ use crate::system::System;
 use crate::utils::fs::is_binary_file;
 use anyhow::{Context as _, Result};
 use regex::Regex;
+use tracing::debug;
 use std::path::{Path, PathBuf};
 
 /// Apply text replacements to files in the target directory
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The target directory does not exist
+/// - The replacements cannot be applied
+#[inline]
 pub fn apply_replacements(
     system: &dyn System,
     target_dir: &str,
@@ -21,7 +29,7 @@ pub fn apply_replacements(
     }
 
     let target_path = Path::new(target_dir);
-    if !system.exists(target_path) {
+    if !system.exists(target_path)? {
         return Err(GraftError::filesystem(format!(
             "Target directory does not exist: {target_dir}"
         ))
@@ -42,27 +50,42 @@ pub fn apply_replacements(
 }
 
 /// Get the replacement value from either target or environment variable
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The replacement does not specify exactly one of target, valueFromEnv
+#[inline]
 pub fn get_replacement_value(
     system: &dyn System,
     replacement: &ReplacementConfig,
 ) -> Result<String> {
-    match (&replacement.target, &replacement.value_from_env) {
+    match (
+        replacement.target.as_ref(),
+        replacement.value_from_env.as_ref(),
+    ) {
         (Some(target), None) => Ok(target.clone()),
-        (None, Some(env_var)) => {
-            return system
-                .env_var(env_var)
-                .map_err(|_| anyhow::anyhow!("Environment variable '{env_var}' is not set"));
-        }
-        _ => {
-            return Err(GraftError::configuration(
-                "Replacement must specify exactly one of 'target' or 'valueFromEnv'".to_owned(),
-            )
-            .into());
-        }
+        (None, Some(env_var)) => system.env_var(env_var).map_err(|err| {
+            GraftError::configuration(format!(
+                "Environment variable '{env_var}' is not set. Error: {err}"
+            ))
+            .into()
+        }),
+        _ => Err(GraftError::configuration(
+            "Replacement must specify exactly one of 'target' or 'valueFromEnv'".to_owned(),
+        )
+        .into()),
     }
 }
 
 /// Apply graft replacements (supports context) to files in the target directory
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The target directory does not exist
+/// - The replacements cannot be applied
+#[inline]
 pub fn apply_graft_replacements(
     system: &dyn System,
     target_dir: &str,
@@ -74,7 +97,7 @@ pub fn apply_graft_replacements(
     }
 
     let target_path = Path::new(target_dir);
-    if !system.exists(target_path) {
+    if !system.exists(target_path)? {
         return Err(GraftError::filesystem(format!(
             "Target directory does not exist: {target_dir}"
         ))
@@ -95,6 +118,12 @@ pub fn apply_graft_replacements(
 }
 
 /// Get the replacement value from a `GraftReplacement` (supports context, env, or static)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The replacement does not specify exactly one of target, valueFromEnv, or valueFromContext
+#[inline]
 pub fn get_graft_replacement_value(
     system: &dyn System,
     replacement: &GraftReplacement,
@@ -119,17 +148,20 @@ pub fn get_graft_replacement_value(
         .into());
     }
 
-    if let Some(target) = &replacement.target {
+    if let Some(target) = replacement.target.as_ref() {
         return Ok(target.clone());
     }
 
-    if let Some(env_var) = &replacement.value_from_env {
-        return system
-            .env_var(env_var)
-            .map_err(|_| anyhow::anyhow!("Environment variable '{env_var}' is not set"));
+    if let Some(env_var) = replacement.value_from_env.as_ref() {
+        return system.env_var(env_var).map_err(|err| {
+            GraftError::configuration(format!(
+                "Environment variable '{env_var}' is not set. Error: {err}"
+            ))
+            .into()
+        });
     }
 
-    if let Some(context_key) = &replacement.value_from_context {
+    if let Some(context_key) = replacement.value_from_context.as_ref() {
         let value = context.get(context_key).ok_or_else(|| {
             GraftError::configuration(format!(
                 "Context property '{}' not found for replacement of '{}'",
@@ -138,10 +170,10 @@ pub fn get_graft_replacement_value(
         })?;
 
         return value_to_string(value).map_err(|e| {
-            return GraftError::configuration(format!(
+            GraftError::configuration(format!(
                 "Failed to convert context property '{context_key}' to string: {e}"
             ))
-            .into();
+            .into()
         });
     }
 
@@ -153,6 +185,12 @@ pub fn get_graft_replacement_value(
 }
 
 /// Apply a single replacement to all text files in the target directory
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The replacements cannot be applied
+#[inline]
 pub fn apply_single_replacement(
     system: &dyn System,
     target_path: &Path,
@@ -161,16 +199,18 @@ pub fn apply_single_replacement(
 ) -> Result<usize> {
     let mut files_processed = 0;
 
-    if system.is_file(target_path) {
+    if system.is_file(target_path)? {
         // Single file case
         if apply_replacement_to_file(system, target_path, search_pattern, replacement_value)? {
             files_processed += 1;
         }
-    } else if system.is_dir(target_path) {
+    } else if system.is_dir(target_path)? {
         // Directory case - recursively walk all files using System trait
         files_processed += walk_and_apply(system, target_path, search_pattern, replacement_value)?;
     }
-
+    else {
+        debug!("Skipping file: {}", target_path.display());
+    }
     Ok(files_processed)
 }
 
@@ -188,14 +228,17 @@ fn walk_and_apply(
         .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
 
     for entry_path in entries {
-        if system.is_file(&entry_path) {
+        if system.is_file(&entry_path)? {
             if apply_replacement_to_file(system, &entry_path, search_pattern, replacement_value)? {
                 files_processed += 1;
             }
-        } else if system.is_dir(&entry_path) {
+        } else if system.is_dir(&entry_path)? {
             // Recursively process subdirectories
             files_processed +=
                 walk_and_apply(system, &entry_path, search_pattern, replacement_value)?;
+        }
+        else {
+            debug!("Skipping directory: {}", entry_path.display());
         }
     }
 
@@ -248,6 +291,13 @@ fn apply_replacement_to_file(
 }
 
 /// Apply regex-based replacements (advanced feature)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The regex pattern is invalid
+/// - The replacements cannot be applied
+#[inline]
 pub fn apply_regex_replacement(
     system: &dyn System,
     target_path: &Path,
@@ -258,12 +308,15 @@ pub fn apply_regex_replacement(
 
     let mut files_processed = 0;
 
-    if system.is_file(target_path) {
+    if system.is_file(target_path)? {
         if apply_regex_to_file(system, target_path, &regex, replacement)? {
             files_processed += 1;
         }
-    } else if system.is_dir(target_path) {
+    } else if system.is_dir(target_path)? {
         files_processed += walk_and_apply_regex(system, target_path, &regex, replacement)?;
+    }
+    else {
+        debug!("Skipping file: {}", target_path.display());
     }
 
     Ok(files_processed)
@@ -283,12 +336,15 @@ fn walk_and_apply_regex(
         .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
 
     for entry_path in entries {
-        if system.is_file(&entry_path) {
+        if system.is_file(&entry_path)? {
             if apply_regex_to_file(system, &entry_path, regex, replacement)? {
                 files_processed += 1;
             }
-        } else if system.is_dir(&entry_path) {
+        } else if system.is_dir(&entry_path)? {
             files_processed += walk_and_apply_regex(system, &entry_path, regex, replacement)?;
+        }
+        else {
+            debug!("Skipping directory: {}", entry_path.display());
         }
     }
 
@@ -336,6 +392,12 @@ fn apply_regex_to_file(
 }
 
 /// Preview what replacements would be applied (for dry run)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The replacements cannot be previewed
+#[inline]
 pub fn preview_replacements(
     system: &dyn System,
     target_dir: &str,
@@ -366,12 +428,15 @@ fn find_files_with_pattern(
 ) -> Result<Vec<PathBuf>> {
     let mut matching_files = Vec::new();
 
-    if system.is_file(target_path) {
+    if system.is_file(target_path)? {
         if file_contains_pattern(system, target_path, pattern)? {
             matching_files.push(target_path.to_path_buf());
         }
-    } else if system.is_dir(target_path) {
+    } else if system.is_dir(target_path)? {
         find_files_recursive(system, target_path, pattern, &mut matching_files)?;
+    }
+    else {
+        debug!("Skipping file: {}", target_path.display());
     }
 
     Ok(matching_files)
@@ -389,10 +454,13 @@ fn find_files_recursive(
         .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
 
     for entry_path in entries {
-        if system.is_file(&entry_path) && file_contains_pattern(system, &entry_path, pattern)? {
+        if system.is_file(&entry_path)? && file_contains_pattern(system, &entry_path, pattern)? {
             matching_files.push(entry_path);
-        } else if system.is_dir(&entry_path) {
+        } else if system.is_dir(&entry_path)? {
             find_files_recursive(system, &entry_path, pattern, matching_files)?;
+        }
+        else {
+            debug!("Skipping directory: {}", entry_path.display());
         }
     }
 
@@ -417,7 +485,8 @@ fn file_contains_pattern(system: &dyn System, file_path: &Path, pattern: &str) -
 }
 
 /// Preview information for a replacement
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ReplacementPreview {
     pub search_pattern: String,
     pub replacement_value: String,

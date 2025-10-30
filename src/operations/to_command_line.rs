@@ -1,11 +1,14 @@
 //! Convert merged configuration to command-line arguments
 
+use core::str::FromStr;
+
 use crate::cli::{PullConfig, ReplacementConfig};
 use crate::config::Config;
 use anyhow::Result;
 
 /// Output format for command-line representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OutputFormat {
     /// Shell-escaped command ready to execute
     Shell,
@@ -13,54 +16,62 @@ pub enum OutputFormat {
     Json,
 }
 
-impl core::str::FromStr for OutputFormat {
+impl FromStr for OutputFormat {
     type Err = String;
 
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "shell" => return Ok(Self::Shell),
-            "json" => return Ok(Self::Json),
-            _ => return Err(format!("Invalid format: {s}. Use 'shell' or 'json'")),
+            "shell" => Ok(Self::Shell),
+            "json" => Ok(Self::Json),
+            _ => Err(format!("Invalid format: {s}. Use 'shell' or 'json'")),
         }
     }
 }
 
 /// Convert configuration to command-line representation
-pub fn config_to_command_line(config: &Config, format: OutputFormat) -> Result<String> {
-    let args = build_command_args(config)?;
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The configuration cannot be converted to command-line arguments
+/// - The command-line arguments cannot be serialized to the requested format
+#[inline]
+pub fn generate_command_line(config: &Config, format: OutputFormat) -> Result<String> {
+    let args = build_command_args(config);
 
     match format {
-        OutputFormat::Shell => format_as_shell(&args),
+        OutputFormat::Shell => Ok(format_as_shell(&args)),
         OutputFormat::Json => format_as_json(&args),
     }
 }
 
 /// Build argument list from configuration
-fn build_command_args(config: &Config) -> Result<Vec<String>> {
+fn build_command_args(config: &Config) -> Vec<String> {
     let mut args = vec!["tixgraft".to_owned()];
 
     // Add global repository if specified
-    if let Some(ref repo) = config.repository {
+    if let Some(repo) = config.repository.as_ref() {
         args.push("--repository".to_owned());
         args.push(repo.clone());
     }
 
     // Add global tag if specified
-    if let Some(ref tag) = config.tag {
+    if let Some(tag) = config.tag.as_ref() {
         args.push("--tag".to_owned());
         args.push(tag.clone());
     }
 
     // Add each pull operation
     for pull in &config.pulls {
-        add_pull_args(&mut args, pull, config)?;
+        add_pull_args(&mut args, pull, config);
     }
 
-    Ok(args)
+    args
 }
 
 /// Add arguments for a single pull operation
-fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Config) -> Result<()> {
+fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Config) {
     // Source (required)
     args.push("--pull-source".to_owned());
     args.push(pull.source.clone());
@@ -76,7 +87,7 @@ fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Conf
     }
 
     // Repository (only if different from global)
-    if let Some(ref repo) = pull.repository
+    if let Some(repo) = pull.repository.as_ref()
         && global_config.repository.as_ref() != Some(repo)
     {
         args.push("--pull-repository".to_owned());
@@ -84,7 +95,7 @@ fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Conf
     }
 
     // Tag (only if different from global)
-    if let Some(ref tag) = pull.tag
+    if let Some(tag) = pull.tag.as_ref()
         && global_config.tag.as_ref() != Some(tag)
     {
         args.push("--pull-tag".to_owned());
@@ -108,15 +119,13 @@ fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Conf
         args.push("--pull-commands".to_owned());
         args.push(command.clone());
     }
-
-    Ok(())
 }
 
 /// Format a replacement config as "SOURCE=TARGET" or "SOURCE=env:VAR"
 fn format_replacement(repl: &ReplacementConfig) -> String {
-    if let Some(ref env_var) = repl.value_from_env {
+    if let Some(env_var) = repl.value_from_env.as_ref() {
         format!("{}=env:{}", repl.source, env_var)
-    } else if let Some(ref target) = repl.target {
+    } else if let Some(target) = repl.target.as_ref() {
         format!("{}={}", repl.source, target)
     } else {
         // This shouldn't happen with valid config, but handle gracefully
@@ -125,7 +134,7 @@ fn format_replacement(repl: &ReplacementConfig) -> String {
 }
 
 /// Format arguments as a shell command with proper escaping
-fn format_as_shell(args: &[String]) -> Result<String> {
+fn format_as_shell(args: &[String]) -> String {
     let mut output = String::new();
 
     for (i, arg) in args.iter().enumerate() {
@@ -138,13 +147,13 @@ fn format_as_shell(args: &[String]) -> Result<String> {
         output.push_str(&escaped);
     }
 
-    Ok(output)
+    output
 }
 
 /// Format arguments as JSON array
 fn format_as_json(args: &[String]) -> Result<String> {
-    return serde_json::to_string_pretty(args)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize to JSON: {e}"));
+    serde_json::to_string_pretty(args)
+        .map_err(|e| anyhow::anyhow!("Failed to serialize to JSON: {e}"))
 }
 
 /// Escape a string for shell execution
@@ -174,11 +183,14 @@ fn shell_escape(s: &str) -> String {
 }
 
 #[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "These are unit tests")]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
     #[test]
-    fn test_shell_escape_simple() {
+    fn shell_escape_simple() {
         assert_eq!(shell_escape("simple"), "simple");
         assert_eq!(shell_escape("path/to/file"), "path/to/file");
         assert_eq!(shell_escape("file.txt"), "file.txt");
@@ -186,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn test_shell_escape_special_chars() {
+    fn shell_escape_special_chars() {
         assert_eq!(shell_escape("has space"), r#""has space""#);
         assert_eq!(shell_escape("has$dollar"), r#""has\$dollar""#);
         assert_eq!(shell_escape(r#"has"quote"#), r#""has\"quote""#);
@@ -194,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn test_format_replacement() {
+    fn format_replacement_tst() {
         let repl_static = ReplacementConfig {
             source: "{{VAR}}".to_owned(),
             target: Some("value".to_owned()),
@@ -211,7 +223,7 @@ mod tests {
     }
 
     #[test]
-    fn test_output_format_from_str() {
+    fn output_format_from_str() {
         assert_eq!(
             "shell".parse::<OutputFormat>().unwrap(),
             OutputFormat::Shell
@@ -221,17 +233,17 @@ mod tests {
             "SHELL".parse::<OutputFormat>().unwrap(),
             OutputFormat::Shell
         );
-        assert!("invalid".parse::<OutputFormat>().is_err());
+        "invalid".parse::<OutputFormat>().unwrap_err();
     }
 
     #[test]
-    fn test_build_command_args_basic() {
+    fn build_command_args_basic() {
         use crate::cli::PullConfig;
 
         let config = Config {
-            repository: Some("myorg/repo".to_owned()),
+            repository: Some("my_organization/repo".to_owned()),
             tag: Some("main".to_owned()),
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src".to_owned(),
                 target: "dst".to_owned(),
@@ -241,14 +253,14 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
-                context: std::collections::HashMap::new(),
+                context: HashMap::new(),
             }],
         };
 
-        let args = build_command_args(&config).unwrap();
+        let args = build_command_args(&config);
         assert_eq!(args[0], "tixgraft");
         assert!(args.contains(&"--repository".to_owned()));
-        assert!(args.contains(&"myorg/repo".to_owned()));
+        assert!(args.contains(&"my_organization/repo".to_owned()));
         assert!(args.contains(&"--tag".to_owned()));
         assert!(args.contains(&"main".to_owned()));
         assert!(args.contains(&"--pull-source".to_owned()));
@@ -258,13 +270,13 @@ mod tests {
     }
 
     #[test]
-    fn test_build_command_args_with_reset() {
+    fn build_command_args_with_reset() {
         use crate::cli::PullConfig;
 
         let config = Config {
-            repository: Some("myorg/repo".to_owned()),
+            repository: Some("my_organization/repo".to_owned()),
             tag: None,
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src".to_owned(),
                 target: "dst".to_owned(),
@@ -274,22 +286,22 @@ mod tests {
                 reset: true,
                 commands: vec![],
                 replacements: vec![],
-                context: std::collections::HashMap::new(),
+                context: HashMap::new(),
             }],
         };
 
-        let args = build_command_args(&config).unwrap();
+        let args = build_command_args(&config);
         assert!(args.contains(&"--pull-reset".to_owned()));
     }
 
     #[test]
-    fn test_build_command_args_with_replacements() {
+    fn build_command_args_with_replacements() {
         use crate::cli::{PullConfig, ReplacementConfig};
 
         let config = Config {
-            repository: Some("myorg/repo".to_owned()),
+            repository: Some("my_organization/repo".to_owned()),
             tag: None,
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src".to_owned(),
                 target: "dst".to_owned(),
@@ -310,24 +322,24 @@ mod tests {
                         value_from_env: Some("MY_ENV".to_owned()),
                     },
                 ],
-                context: std::collections::HashMap::new(),
+                context: HashMap::new(),
             }],
         };
 
-        let args = build_command_args(&config).unwrap();
+        let args = build_command_args(&config);
         assert!(args.contains(&"--pull-replacement".to_owned()));
         assert!(args.contains(&"{{VAR1}}=value1".to_owned()));
         assert!(args.contains(&"{{VAR2}}=env:MY_ENV".to_owned()));
     }
 
     #[test]
-    fn test_multiline_command() {
+    fn multiline_command() {
         use crate::cli::PullConfig;
 
         let config = Config {
             repository: Some("repo".to_owned()),
             tag: None,
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src".to_owned(),
                 target: "dst".to_owned(),
@@ -337,11 +349,11 @@ mod tests {
                 reset: false,
                 commands: vec!["echo 'line1'\necho 'line2'".to_owned()],
                 replacements: vec![],
-                context: std::collections::HashMap::new(),
+                context: HashMap::new(),
             }],
         };
 
-        let result = config_to_command_line(&config, OutputFormat::Shell);
+        let result = generate_command_line(&config, OutputFormat::Shell);
         assert!(result.is_ok());
         let output = result.unwrap();
         // Should escape the newline properly
@@ -349,7 +361,7 @@ mod tests {
     }
 
     #[test]
-    fn test_replacement_with_special_chars() {
+    fn replacement_with_special_chars() {
         use crate::cli::ReplacementConfig;
 
         let replacement = ReplacementConfig {
@@ -368,7 +380,7 @@ mod tests {
     }
 
     #[test]
-    fn test_replacement_with_newlines() {
+    fn replacement_with_newlines() {
         use crate::cli::ReplacementConfig;
 
         let replacement = ReplacementConfig {
@@ -387,29 +399,29 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_pulls_array() {
+    fn empty_pulls_array() {
         let config = Config {
-            repository: Some("myorg/repo".to_owned()),
+            repository: Some("my_organization/repo".to_owned()),
             tag: Some("main".to_owned()),
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: vec![],
         };
 
-        let args = build_command_args(&config).unwrap();
+        let args = build_command_args(&config);
         // Should still work, just no pull args
         assert_eq!(args[0], "tixgraft");
         assert!(args.contains(&"--repository".to_owned()));
-        assert!(args.contains(&"myorg/repo".to_owned()));
+        assert!(args.contains(&"my_organization/repo".to_owned()));
     }
 
     #[test]
-    fn test_path_with_spaces() {
+    fn path_with_spaces() {
         use crate::cli::PullConfig;
 
         let config = Config {
-            repository: Some("myorg/repo".to_owned()),
+            repository: Some("my_organization/repo".to_owned()),
             tag: None,
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: vec![PullConfig {
                 source: "src with spaces".to_owned(),
                 target: "dst with spaces".to_owned(),
@@ -419,11 +431,11 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
-                context: std::collections::HashMap::new(),
+                context: HashMap::new(),
             }],
         };
 
-        let result = config_to_command_line(&config, OutputFormat::Shell);
+        let result = generate_command_line(&config, OutputFormat::Shell);
         assert!(result.is_ok());
         let output = result.unwrap();
         // Paths with spaces should be quoted
@@ -432,13 +444,13 @@ mod tests {
     }
 
     #[test]
-    fn test_file_type_pull() {
+    fn file_type_pull() {
         use crate::cli::PullConfig;
 
         let config = Config {
-            repository: Some("myorg/repo".to_owned()),
+            repository: Some("my_organization/repo".to_owned()),
             tag: None,
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: vec![PullConfig {
                 source: "file.txt".to_owned(),
                 target: "output.txt".to_owned(),
@@ -448,24 +460,24 @@ mod tests {
                 reset: false,
                 commands: vec![],
                 replacements: vec![],
-                context: std::collections::HashMap::new(),
+                context: HashMap::new(),
             }],
         };
 
-        let args = build_command_args(&config).unwrap();
+        let args = build_command_args(&config);
         // File type should be included since it's not the default
         assert!(args.contains(&"--pull-type".to_owned()));
         assert!(args.contains(&"file".to_owned()));
     }
 
     #[test]
-    fn test_per_pull_overrides() {
+    fn per_pull_overrides() {
         use crate::cli::PullConfig;
 
         let config = Config {
             repository: Some("global/repo".to_owned()),
             tag: Some("v1".to_owned()),
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: vec![
                 PullConfig {
                     source: "src1".to_owned(),
@@ -476,7 +488,7 @@ mod tests {
                     reset: false,
                     commands: vec![],
                     replacements: vec![],
-                    context: std::collections::HashMap::new(),
+                    context: HashMap::new(),
                 },
                 PullConfig {
                     source: "src2".to_owned(),
@@ -487,12 +499,12 @@ mod tests {
                     reset: false,
                     commands: vec![],
                     replacements: vec![],
-                    context: std::collections::HashMap::new(),
+                    context: HashMap::new(),
                 },
             ],
         };
 
-        let args = build_command_args(&config).unwrap();
+        let args = build_command_args(&config);
         // Should have per-pull overrides for the second pull
         assert!(args.contains(&"--pull-repository".to_owned()));
         assert!(args.contains(&"per-pull/repo".to_owned()));

@@ -1,12 +1,16 @@
 //! Integration tests for local filesystem repository sources
 
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
 #[test]
-fn test_local_file_source_with_file_prefix() {
+fn local_file_source_with_file_prefix() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source directory structure
@@ -51,7 +55,7 @@ pulls:
 }
 
 #[test]
-fn test_local_directory_source_with_file_prefix() {
+fn local_directory_source_with_file_prefix() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source directory structure
@@ -110,7 +114,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_with_absolute_path() {
+fn local_source_with_absolute_path() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source directory structure
@@ -146,7 +150,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_with_relative_path() {
+fn local_source_with_relative_path() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source directory structure
@@ -178,7 +182,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_with_replacements() {
+fn local_source_with_replacements() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source file with placeholders
@@ -224,7 +228,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_with_env_var_replacement() {
+fn local_source_with_env_var_replacement() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source file with placeholders
@@ -269,7 +273,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_with_commands() {
+fn local_source_with_commands() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source file
@@ -311,7 +315,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_with_reset() {
+fn local_source_with_reset() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source file
@@ -351,7 +355,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_nonexistent_path() {
+fn local_source_nonexistent_path() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create config file with nonexistent local path
@@ -375,7 +379,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_missing_file() {
+fn local_source_missing_file() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source directory but not the file
@@ -406,7 +410,7 @@ pulls:
 }
 
 #[test]
-fn test_mixed_local_sources() {
+fn mixed_local_sources() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create two local sources
@@ -458,7 +462,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_dry_run() {
+fn local_source_dry_run() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create source file
@@ -494,7 +498,7 @@ pulls:
 }
 
 #[test]
-fn test_local_source_per_pull_override() {
+fn local_source_per_pull_override() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create two different source directories
@@ -541,4 +545,5 @@ pulls:
         fs::read_to_string(temp_dir.path().join("target/output2.txt")).unwrap(),
         "From source 2"
     );
+}
 }

@@ -1,18 +1,23 @@
 //! Unit tests for configuration validation
 
+
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
 use tixgraft::config::validation::{validate_path_safety, validate_repository_url};
 
 #[test]
-fn test_validate_repository_url() {
+fn validate_repository_url_tst() {
     // Valid Git URLs
-    assert!(validate_repository_url("myorg/repo").is_ok());
-    assert!(validate_repository_url("https://github.com/myorg/repo.git").is_ok());
-    assert!(validate_repository_url("git@github.com:myorg/repo.git").is_ok());
+    validate_repository_url("my_organization/repo").unwrap();
+    validate_repository_url("https://github.com/my_organization/repo.git").unwrap();
+    validate_repository_url("git@github.com:my_organization/repo.git").unwrap();
 
     // Valid local paths (ONLY file: prefix)
-    assert!(validate_repository_url("file:///path/to/repo").is_ok());
-    assert!(validate_repository_url("file:/path/to/repo").is_ok());
-    assert!(validate_repository_url("file:~/src/repo").is_ok());
+    validate_repository_url("file:///path/to/repo").unwrap();
+    validate_repository_url("file:/path/to/repo").unwrap();
+    validate_repository_url("file:~/src/repo").unwrap();
 
     // Invalid URLs
     assert!(validate_repository_url("invalid-url").is_err());
@@ -26,13 +31,14 @@ fn test_validate_repository_url() {
 }
 
 #[test]
-fn test_validate_path_safety() {
+fn validate_path_safety_tst() {
     // Safe paths
-    assert!(validate_path_safety("./some/path").is_ok());
-    assert!(validate_path_safety("some/path").is_ok());
-    assert!(validate_path_safety("./relative/path").is_ok());
+    validate_path_safety("./some/path").unwrap();
+    validate_path_safety("some/path").unwrap();
+    validate_path_safety("./relative/path").unwrap();
 
     // Unsafe paths
     assert!(validate_path_safety("../../unsafe").is_err());
     assert!(validate_path_safety("/absolute/path").is_err());
+}
 }

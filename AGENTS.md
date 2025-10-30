@@ -284,7 +284,7 @@ This project uses the **System abstraction** to enable fast, isolated unit tests
 use tixgraft::system::{MockSystem, System};
 
 #[test]
-fn test_feature() {
+fn feature() {
     let system = MockSystem::new()
         .with_dir("/test")
         .with_file("/test/input.txt", b"data");
@@ -308,7 +308,7 @@ fn test_feature() {
 use tixgraft::system::{RealSystem, System};
 
 #[test]
-fn test_git_operation() {
+fn git_operation() {
     let system = RealSystem::new();
     let temp_dir = system.create_temp_dir().unwrap();
     // Real filesystem, automatic cleanup

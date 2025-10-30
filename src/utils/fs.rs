@@ -2,6 +2,7 @@
 
 use crate::system::System;
 use anyhow::{Context as _, Result};
+use tracing::debug;
 use std::io::{self, Read as _, Write as _};
 use std::path::Path;
 
@@ -70,9 +71,15 @@ const TEXT_EXTENSIONS: &[&str] = &[
 ];
 
 /// Create parent directories for a file path if they don't exist
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The parent directories cannot be created
+#[inline]
 pub fn create_parent_directories(system: &dyn System, file_path: &Path) -> Result<()> {
     if let Some(parent) = file_path.parent()
-        && !system.exists(parent)
+        && !system.exists(parent)?
     {
         system.create_dir_all(parent).with_context(|| {
             format!(
@@ -85,9 +92,20 @@ pub fn create_parent_directories(system: &dyn System, file_path: &Path) -> Resul
 }
 
 /// Check if a file is binary by examining its extension and content
+///
+/// # Returns
+///
+/// Returns true if the file is binary, false otherwise
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The file cannot be opened
+/// - The file cannot be read
+#[inline]
 pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
     // If it's a directory, it's not a binary file
-    if !system.is_file(file_path) {
+    if !system.is_file(file_path)? {
         return Ok(false);
     }
 
@@ -121,7 +139,7 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
     }
 
     // Check if it's valid UTF-8
-    if core::str::from_utf8(&buffer[..bytes_read]).is_ok() {
+    if str::from_utf8(&buffer[..bytes_read]).is_ok() {
         return Ok(false); // Valid UTF-8 = text
     }
 
@@ -130,6 +148,12 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
 }
 
 /// Get file size in bytes
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The file size cannot be retrieved
+#[inline]
 pub fn get_file_size(system: &dyn System, file_path: &Path) -> Result<u64> {
     let metadata = system
         .metadata(file_path)
@@ -138,8 +162,18 @@ pub fn get_file_size(system: &dyn System, file_path: &Path) -> Result<u64> {
 }
 
 /// Check if directory is empty
+///
+/// # Returns
+///
+/// Returns true if the directory is empty, false otherwise
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The directory cannot be read
+#[inline]
 pub fn is_directory_empty(system: &dyn System, dir_path: &Path) -> Result<bool> {
-    if !system.is_dir(dir_path) {
+    if !system.is_dir(dir_path)? {
         return Ok(false);
     }
 
@@ -151,8 +185,14 @@ pub fn is_directory_empty(system: &dyn System, dir_path: &Path) -> Result<bool> 
 }
 
 /// Safely remove directory and all its contents
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The directory cannot be removed
+#[inline]
 pub fn remove_dir_safe(system: &dyn System, dir_path: &Path) -> Result<()> {
-    if system.exists(dir_path) && system.is_dir(dir_path) {
+    if system.exists(dir_path)? && system.is_dir(dir_path)? {
         system
             .remove_dir_all(dir_path)
             .with_context(|| format!("Failed to remove directory: {}", dir_path.display()))?;
@@ -161,6 +201,16 @@ pub fn remove_dir_safe(system: &dyn System, dir_path: &Path) -> Result<()> {
 }
 
 /// Copy file with progress callback
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The source file cannot be opened
+/// - The target file cannot be created
+/// - The source file cannot be read
+/// - The target file cannot be written
+#[inline]
+#[expect(clippy::as_conversions, reason = "This is usize to u64 conversion")]
 pub fn copy_file_with_progress<F>(
     system: &dyn System,
     source: &Path,
@@ -181,7 +231,7 @@ where
         .with_context(|| format!("Failed to create target file: {}", target.display()))?;
 
     let mut buffer = vec![0; 64 * 1024]; // 64KB buffer
-    let mut total_copied = 0u64;
+    let mut total_copied: u64 = 0;
 
     loop {
         let bytes_read = source_file
@@ -204,7 +254,14 @@ where
 }
 
 /// Get human-readable file size
+///
+/// # Returns
+///
+/// Returns a human-readable file size string
 #[must_use]
+#[inline]
+#[expect(clippy::as_conversions, reason = "This is for number formatting")]
+#[expect(clippy::cast_precision_loss, reason = "This is for number formatting")]
 pub fn format_file_size(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     const THRESHOLD: f64 = 1024.0;
@@ -229,6 +286,12 @@ pub fn format_file_size(bytes: u64) -> String {
 }
 
 /// Check if two paths point to the same file/directory
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The paths cannot be canonicalized
+#[inline]
 pub fn paths_are_same(system: &dyn System, path1: &Path, path2: &Path) -> Result<bool> {
     let canonical1 = system
         .canonicalize(path1)
@@ -241,6 +304,12 @@ pub fn paths_are_same(system: &dyn System, path1: &Path, path2: &Path) -> Result
 }
 
 /// Create a temporary directory with a specific prefix
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The temporary directory cannot be created
+#[inline]
 pub fn create_temp_dir(prefix: &str) -> Result<tempfile::TempDir> {
     tempfile::Builder::new()
         .prefix(prefix)
@@ -249,17 +318,27 @@ pub fn create_temp_dir(prefix: &str) -> Result<tempfile::TempDir> {
 }
 
 /// Ensure a directory exists, creating it if necessary
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The directory does not exist
+/// - The directory is not a directory
+#[inline]
 pub fn ensure_dir_exists(system: &dyn System, dir_path: &Path) -> Result<()> {
-    if !system.exists(dir_path) {
+    if !system.exists(dir_path)? {
         system
             .create_dir_all(dir_path)
             .with_context(|| format!("Failed to create directory: {}", dir_path.display()))?;
-    } else if !system.is_dir(dir_path) {
+    } else if !system.is_dir(dir_path)? {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("Path exists but is not a directory: {}", dir_path.display()),
         )
         .into());
+    }
+    else {
+        debug!("Directory already exists: {}", dir_path.display());
     }
     Ok(())
 }

@@ -7,221 +7,248 @@ default:
 
 # Install dependencies and check environment
 setup:
-    @echo "🔧 Setting up tixgraft development environment..."
-    @echo "📋 Checking Rust installation..."
+    @echo "Setting up tixgraft development environment..."
+    @echo "Checking Rust installation..."
     cargo --version
-    @echo "📋 Checking Git installation..."
+    @echo "Checking Git installation..."
     git --version
-    @echo "✅ Environment setup complete!"
+    @echo "Environment setup complete!"
 
 # Run code formatting
 fmt:
-    @echo "📝 Formatting code..."
+    @echo "Formatting code..."
     cargo fmt --all
 
 # Check code formatting without making changes
 fmt-check:
-    @echo "📝 Checking code formatting..."
+    @echo "Checking code formatting..."
     cargo fmt --all -- --check
 
 # Run linting with clippy
 lint:
-    @echo "🔍 Running clippy lints..."
-    cargo clippy --all-targets --all-features -- -D warnings
+    @echo "Running clippy lints..."
+    cargo clippy --all-targets -- \
+        -W clippy::all \
+        -W clippy::pedantic \
+        -W clippy::nursery \
+        -W clippy::as_conversions \
+        -W clippy::panic \
+        -W clippy::unwrap_used \
+        -W clippy::print_stdout \
+        -W clippy::missing_docs_in_private_items \
+        -W clippy::missing_inline_in_public_items \
+        -W clippy::allow_attributes_without_reason \
+        -W clippy::arithmetic_side_effects \
+        -W clippy::float_arithmetic \
+        -W clippy::min_ident_chars \
+        -W clippy::mod_module_files \
+        -W clippy::question_mark_used \
+        -W clippy::single_call_fn \
+        -W clippy::std_instead_of_alloc \
+        -W clippy::std_instead_of_core \
+        -W clippy::shadow_unrelated \
+        -D warnings
 
-clippy-lint:
+# Run clippy linting and fix warnings
+clippy-lint-fix:
     set -e
     cargo fix --allow-dirty
-    cargo clippy --all --fix --allow-dirty -- -W clippy::all -W clippy::pedantic -W clippy::restriction -W clippy::nursery -D warnings
+    cargo clippy --all-targets --fix --allow-dirty -- \
+        -W clippy::all \
+        -W clippy::pedantic \
+        -W clippy::nursery \
+        -W clippy::as_conversions \
+        -W clippy::panic \
+        -W clippy::unwrap_used \
+        -W clippy::print_stdout \
+        -W clippy::missing_docs_in_private_items \
+        -W clippy::missing_inline_in_public_items \
+        -W clippy::allow_attributes_without_reason \
+        -W clippy::arithmetic_side_effects \
+        -W clippy::float_arithmetic \
+        -W clippy::min_ident_chars \
+        -W clippy::mod_module_files \
+        -W clippy::question_mark_used \
+        -W clippy::single_call_fn \
+        -W clippy::std_instead_of_alloc \
+        -W clippy::std_instead_of_core \
+        -W clippy::shadow_unrelated \
+        -D warnings
     cargo fmt 
 
 # Run all tests
 test:
-    @echo "🧪 Running tests..."
+    @echo "Running tests..."
     cargo test --all-features
 
 # Run tests with output
 test-verbose:
-    @echo "🧪 Running tests (verbose)..."
+    @echo "Running tests (verbose)..."
     cargo test --all-features -- --nocapture
 
 # Run specific test
 test-filter FILTER:
-    @echo "🧪 Running tests matching: {{FILTER}}"
+    @echo "Running tests matching: {{FILTER}}"
     cargo test --all-features {{FILTER}}
 
 # Check that the code compiles
 check:
-    @echo "🔍 Checking compilation..."
+    @echo "Checking compilation..."
     cargo check --all-targets --all-features
 
 # Build in debug mode
 build:
-    @echo "🏗️ Building debug binary..."
+    @echo "Building debug binary..."
     cargo build
 
 # Build optimized release binary
 build-release:
-    @echo "🚀 Building release binary..."
+    @echo "Building release binary..."
     cargo build --release
-    @echo "📦 Binary available at: target/release/tixgraft"
+    @echo "Binary available at: target/release/tixgraft"
     @just _show-binary-info
 
 # Full build pipeline - format, lint, test, and build
 ci: fmt-check lint test build-release
-    @echo "✅ CI pipeline completed successfully!"
+    @echo "CI pipeline completed successfully!"
 
 # Quick development check - format, lint, and test
 dev: fmt lint test
-    @echo "✅ Development checks completed!"
+    @echo "Development checks completed!"
 
 # Clean build artifacts
 clean:
-    @echo "🧹 Cleaning build artifacts..."
+    @echo "Cleaning build artifacts..."
     cargo clean
 
 # Install from local source to ~/.cargo/bin
 install:
-    @echo "📦 Installing tixgraft from local source..."
+    @echo "Installing tixgraft from local source..."
     cargo install --path . --force
-    @echo "✅ TixGraft installed successfully!"
-    @echo "💡 Run 'tixgraft --version' to verify installation"
+    @echo "TixGraft installed successfully!"
+    @echo "Run 'tixgraft --version' to verify installation"
 
 # Install from crates.io
 install-release:
-    @echo "📦 Installing tixgraft from crates.io..."
+    @echo "Installing tixgraft from crates.io..."
     cargo install tixgraft
-    @echo "✅ TixGraft installed successfully!"
+    @echo "TixGraft installed successfully!"
 
 # Install from GitHub repository
 install-git:
-    @echo "📦 Installing tixgraft from GitHub..."
+    @echo "Installing tixgraft from GitHub..."
     cargo install --git https://github.com/tixena/tixgraft
-    @echo "✅ TixGraft installed successfully!"
+    @echo "TixGraft installed successfully!"
 
 # Run the binary with example arguments
 run *ARGS:
-    @echo "🚀 Running tixgraft with args: {{ARGS}}"
+    @echo "Running tixgraft with args: {{ARGS}}"
     cargo run -- {{ARGS}}
 
 # Run the release binary with example arguments
 run-release *ARGS:
-    @echo "🚀 Running release tixgraft with args: {{ARGS}}"
+    @echo "Running release tixgraft with args: {{ARGS}}"
     ./target/release/tixgraft {{ARGS}}
 
 # Run with dry-run flag for testing
 dry-run:
-    @echo "🔍 Running tixgraft dry-run with example config..."
+    @echo "Running tixgraft dry-run with example config..."
     cargo run -- --dry-run --config docs/examples/basic-usage.yaml
 
 # Generate documentation
 docs:
-    @echo "📚 Generating documentation..."
+    @echo "Generating documentation..."
     cargo doc --all-features --no-deps --open
 
 # Check for security vulnerabilities
 audit:
-    @echo "🛡️ Checking for security vulnerabilities..."
+    @echo "Checking for security vulnerabilities..."
     cargo audit
 
 # Update dependencies
 update:
-    @echo "📦 Updating dependencies..."
+    @echo "Updating dependencies..."
     cargo update
 
 # Show outdated dependencies
 outdated:
-    @echo "📊 Checking for outdated dependencies..."
+    @echo "Checking for outdated dependencies..."
     cargo outdated
 
 # Create a new release (for maintainers)
 release VERSION:
-    @echo "🎉 Preparing release {{VERSION}}..."
-    @echo "📝 Updating Cargo.toml version..."
+    @echo "Preparing release {{VERSION}}..."
+    @echo "Updating Cargo.toml version..."
     sed -i '' 's/version = ".*"/version = "{{VERSION}}"/' Cargo.toml
-    @echo "📝 Please update CHANGELOG.md with version {{VERSION}}"
-    @echo "💡 Run 'just ci' to verify everything works"
-    @echo "💡 Then run 'git tag v{{VERSION}}' to create release tag"
+    @echo "Please update CHANGELOG.md with version {{VERSION}}"
+    @echo "Run 'just ci' to verify everything works"
+    @echo "Then run 'git tag v{{VERSION}}' to create release tag"
 
 # Benchmark performance (if benchmarks exist)
 bench:
-    @echo "⏱️ Running benchmarks..."
+    @echo "Running benchmarks..."
     cargo bench
 
 # Watch for changes and run tests
 watch:
-    @echo "👀 Watching for changes and running tests..."
+    @echo "Watching for changes and running tests..."
     cargo watch -x test
 
 # Watch for changes and run specific command
 watch-run COMMAND:
-    @echo "👀 Watching for changes and running: {{COMMAND}}"
+    @echo "Watching for changes and running: {{COMMAND}}"
     cargo watch -x "{{COMMAND}}"
 
 # Profile the application (requires cargo-profiler)
 profile:
-    @echo "📊 Profiling application..."
+    @echo "Profiling application..."
     cargo build --release
-    @echo "💡 Run profiling tools on: target/release/tixgraft"
+    @echo "Run profiling tools on: target/release/tixgraft"
 
 # Check binary size and dependencies
 bloat:
-    @echo "📏 Analyzing binary size..."
+    @echo "Analyzing binary size..."
     cargo bloat --release
 
 # Verify all examples compile and validate
 validate-examples:
-    @echo "✅ Validating example configurations..."
-    @find docs/examples -name "*.yaml" -exec sh -c 'echo "📋 Validating: $$1"; cargo run -- --config "$$1" --dry-run' sh {} \;
-    @echo "✅ All examples validated successfully!"
+    @echo "Validating example configurations..."
+    @find docs/examples -name "*.yaml" -exec sh -c 'echo "Validating: $$1"; cargo run -- --config "$$1" --dry-run' sh {} \;
+    @echo "All examples validated successfully!"
 
 # Check for TODO items and fixme in code
 todos:
-    @echo "📝 Searching for TODO and FIXME items..."
+    @echo "Searching for TODO and FIXME items..."
     @rg -i "todo|fixme|hack|bug" --type rust src/ || echo "No TODOs found!"
 
 # Generate code coverage report
 coverage:
-    @echo "📊 Generating code coverage report..."
+    @echo "Generating code coverage report..."
     cargo tarpaulin --all-features --out Html --output-dir coverage
-    @echo "📋 Coverage report generated in coverage/"
-
-# Setup git hooks
-setup-hooks:
-    @echo "🪝 Setting up git hooks..."
-    @mkdir -p .git/hooks
-    @echo '#!/bin/sh\njust fmt lint test' > .git/hooks/pre-commit
-    @chmod +x .git/hooks/pre-commit
-    @echo "✅ Pre-commit hook installed!"
-
-# Remove git hooks
-remove-hooks:
-    @echo "🗑️ Removing git hooks..."
-    @rm -f .git/hooks/pre-commit
-    @echo "✅ Git hooks removed!"
+    @echo "Coverage report generated in coverage/"
 
 # Show project statistics
 stats:
-    @echo "📊 Project Statistics"
+    @echo "Project Statistics"
     @echo "===================="
-    @echo "📁 Lines of Rust code:"
+    @echo "Lines of Rust code:"
     @find src -name "*.rs" -exec wc -l {} + | tail -1 | awk '{print $1}'
-    @echo "📁 Total files:"
+    @echo "Total files:"
     @find src -name "*.rs" | wc -l
-    @echo "📦 Dependencies:"
+    @echo "Dependencies:"
     @cargo tree --depth 1 | wc -l
-    @echo "🧪 Test files:"
+    @echo "Test files:"
     @find . -name "*test*.rs" -o -path "*/tests/*" | wc -l
 
 # Show binary information (private recipe)
 _show-binary-info:
     #!/usr/bin/env bash
     if [[ -f "target/release/tixgraft" ]]; then
-        echo "📋 Binary info:"
+        echo "Binary info:"
         if command -v file >/dev/null 2>&1; then
             file target/release/tixgraft
         fi
-        echo "📏 Binary size:"
+        echo "Binary size:"
         if command -v ls >/dev/null 2>&1; then
             ls -lh target/release/tixgraft | awk '{print $5}'
         fi

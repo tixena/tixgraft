@@ -1,15 +1,22 @@
 //! Unit tests for command execution
 
+
+
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
 use tixgraft::operations::commands::{execute_commands, validate_commands};
-use tixgraft::system::{RealSystem, System};
+use tixgraft::system::System;
+use tixgraft::system::real::RealSystem;
 
 #[test]
-fn test_execute_simple_command() {
+fn execute_simple_command() {
     let system = RealSystem::new();
     let temp_dir = system.create_temp_dir().unwrap();
 
     // Test a simple echo command
-    let commands = vec!["echo 'test' > output.txt".to_string()];
+    let commands = vec!["echo 'test' > output.txt".to_owned()];
 
     let result = execute_commands(&commands, temp_dir.path().to_str().unwrap());
     assert!(result.is_ok());
@@ -21,11 +28,11 @@ fn test_execute_simple_command() {
 }
 
 #[test]
-fn test_command_validation() {
+fn command_validation() {
     let commands = vec![
-        "echo hello".to_string(),
-        "rm -rf /".to_string(),
-        "curl http://example.com".to_string(),
+        "echo hello".to_owned(),
+        "rm -rf /".to_owned(),
+        "curl http://example.com".to_owned(),
     ];
 
     let validations = validate_commands(&commands).unwrap();
@@ -39,4 +46,5 @@ fn test_command_validation() {
 
     assert!(validations[2].is_valid);
     assert!(!validations[2].potential_issues.is_empty());
+}
 }

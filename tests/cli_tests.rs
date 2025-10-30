@@ -1,12 +1,16 @@
 //! CLI interface tests
 
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
 #[test]
-fn test_version_flag() {
+fn version_flag() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--version")
         .assert()
@@ -15,7 +19,7 @@ fn test_version_flag() {
 }
 
 #[test]
-fn test_help_flag() {
+fn help_flag() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--help")
         .assert()
@@ -26,7 +30,7 @@ fn test_help_flag() {
 }
 
 #[test]
-fn test_missing_config_error() {
+fn missing_config_error() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--config")
         .arg("nonexistent.yaml")
@@ -37,7 +41,7 @@ fn test_missing_config_error() {
 }
 
 #[test]
-fn test_dry_run_with_example_config() {
+fn dry_run_with_example_config() {
     // Create a temporary config file
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("test.yaml");
@@ -62,7 +66,7 @@ pulls:
 }
 
 #[test]
-fn test_invalid_yaml_config() {
+fn invalid_yaml_config() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("invalid.yaml");
 
@@ -87,7 +91,7 @@ pulls:
 }
 
 #[test]
-fn test_config_validation_missing_pulls() {
+fn config_validation_missing_pulls() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("no_pulls.yaml");
 
@@ -108,7 +112,7 @@ tag: "main"
 }
 
 #[test]
-fn test_cli_args_minimal() {
+fn cli_args_minimal() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
         .arg("test/repo")
@@ -123,7 +127,7 @@ fn test_cli_args_minimal() {
 }
 
 #[test]
-fn test_cli_args_mismatch_sources_targets() {
+fn cli_args_mismatch_sources_targets() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
         .arg("test/repo")
@@ -138,4 +142,5 @@ fn test_cli_args_mismatch_sources_targets() {
         .failure()
         .code(1) // Configuration error
         .stdout(predicate::str::contains("Mismatch"));
+}
 }

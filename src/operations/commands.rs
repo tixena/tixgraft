@@ -2,11 +2,19 @@
 
 use crate::error::GraftError;
 use anyhow::{Context as _, Result};
+use core::fmt::Write as _;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use tracing::info;
 
 /// Execute a list of commands in the specified working directory
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The commands cannot be executed
+/// - The working directory does not exist
+#[inline]
 pub fn execute_commands(commands: &[String], working_dir: &str) -> Result<usize> {
     if commands.is_empty() {
         return Ok(0);
@@ -63,14 +71,14 @@ fn execute_single_command(command: &str, working_dir: &Path, command_number: usi
         );
 
         if !stderr.trim().is_empty() {
-            error_msg.push_str(&format!("Error output:\n{}\n", stderr.trim()));
+            write!(error_msg, "Error output:\n{}\n", stderr.trim())?;
         }
 
         if !stdout.trim().is_empty() {
-            error_msg.push_str(&format!("Standard output:\n{}\n", stdout.trim()));
+            write!(error_msg, "Standard output:\n{}\n", stdout.trim())?;
         }
 
-        error_msg.push_str(&format!("Working directory: {}", working_dir.display()));
+        write!(error_msg, "Working directory: {}", working_dir.display())?;
 
         return Err(GraftError::command(error_msg).into());
     }
@@ -88,13 +96,19 @@ fn execute_single_command(command: &str, working_dir: &Path, command_number: usi
 /// Get the appropriate shell command for the current platform
 fn get_shell_command() -> (String, Vec<String>) {
     if cfg!(target_os = "windows") {
-        return ("cmd".to_owned(), vec!["/C".to_owned()]);
+        ("cmd".to_owned(), vec!["/C".to_owned()])
     } else {
-        return ("sh".to_owned(), vec!["-c".to_owned()]);
+        ("sh".to_owned(), vec!["-c".to_owned()])
     }
 }
 
 /// Execute commands with real-time output (for interactive commands)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The commands cannot be executed
+#[inline]
 pub fn execute_commands_interactive(commands: &[String], working_dir: &str) -> Result<usize> {
     if commands.is_empty() {
         return Ok(0);
@@ -157,6 +171,12 @@ fn execute_single_command_interactive(
 }
 
 /// Validate commands before execution (for dry run)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The commands cannot be validated
+#[inline]
 pub fn validate_commands(commands: &[String]) -> Result<Vec<CommandValidation>> {
     let mut validations = Vec::new();
 
@@ -217,6 +237,7 @@ fn analyze_command_safety(command: &str) -> Vec<String> {
 
 /// Information about command validation
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct CommandValidation {
     pub command: String,
     pub command_number: usize,

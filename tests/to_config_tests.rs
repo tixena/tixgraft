@@ -1,16 +1,23 @@
 //! Integration tests for --to-config feature and roundtrip equivalence
 
+
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
+
+
 use assert_cmd::Command;
 use predicates::prelude::*;
-use std::io::Write;
+use std::io::Write as _;
 use std::process::Command as StdCommand;
 use tempfile::NamedTempFile;
 
 #[test]
-fn test_to_config_basic() {
+fn to_config_basic() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--tag")
         .arg("main")
         .arg("--pull-source")
@@ -20,17 +27,17 @@ fn test_to_config_basic() {
         .arg("--to-config")
         .assert()
         .success()
-        .stdout(predicate::str::contains("repository: myorg/repo"))
+        .stdout(predicate::str::contains("repository: my_organization/repo"))
         .stdout(predicate::str::contains("tag: main"))
         .stdout(predicate::str::contains("source: src"))
         .stdout(predicate::str::contains("target: dst"));
 }
 
 #[test]
-fn test_to_config_with_reset() {
+fn to_config_with_reset() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--pull-source")
         .arg("src")
         .arg("--pull-target")
@@ -44,11 +51,11 @@ fn test_to_config_with_reset() {
 }
 
 #[test]
-fn test_to_config_with_replacements() {
+fn to_config_with_replacements() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.env("MY_ENV", "test_value")
         .arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--pull-source")
         .arg("src")
         .arg("--pull-target")
@@ -65,11 +72,11 @@ fn test_to_config_with_replacements() {
 }
 
 #[test]
-fn test_to_config_with_env_replacement() {
+fn to_config_with_env_replacement() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.env("MY_ENV", "test_value")
         .arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--pull-source")
         .arg("src")
         .arg("--pull-target")
@@ -84,17 +91,17 @@ fn test_to_config_with_env_replacement() {
 }
 
 #[test]
-fn test_to_config_from_existing_config_with_overrides() {
+fn to_config_from_existing_config_with_overrides() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
-        r#"
+        "
 repository: original/repo
 tag: v1
 pulls:
   - source: src
     target: dst
-"#
+"
     )
     .unwrap();
 
@@ -111,10 +118,10 @@ pulls:
 }
 
 #[test]
-fn test_to_config_conflicts_with_to_command_line() {
+fn to_config_conflicts_with_to_command_line() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--pull-source")
         .arg("src")
         .arg("--pull-target")
@@ -126,10 +133,10 @@ fn test_to_config_conflicts_with_to_command_line() {
 }
 
 #[test]
-fn test_to_config_multiple_pulls() {
+fn to_config_multiple_pulls() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--pull-source")
         .arg("src1")
         .arg("--pull-target")
@@ -150,24 +157,24 @@ fn test_to_config_multiple_pulls() {
 }
 
 #[test]
-fn test_to_config_no_pulls_error() {
+fn to_config_no_pulls_error() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--to-config")
         .assert()
         .failure();
 }
 
 #[test]
-fn test_roundtrip_cli_to_config_to_cli() {
+fn roundtrip_cli_to_config_to_cli() {
     // Step 1: Start with CLI arguments, convert to config
     let output1 = StdCommand::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--",
             "--repository",
-            "myorg/repo",
+            "my_organization/repo",
             "--tag",
             "v1.0.0",
             "--pull-source",
@@ -191,7 +198,7 @@ fn test_roundtrip_cli_to_config_to_cli() {
 
     // Step 3: Convert config back to CLI
     let output2 = StdCommand::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--",
             "--config",
@@ -209,7 +216,7 @@ fn test_roundtrip_cli_to_config_to_cli() {
 
     // Step 4: Verify roundtrip preserves key values
     assert!(cli_args.contains(&"--repository".to_owned()));
-    assert!(cli_args.contains(&"myorg/repo".to_owned()));
+    assert!(cli_args.contains(&"my_organization/repo".to_owned()));
     assert!(cli_args.contains(&"--tag".to_owned()));
     assert!(cli_args.contains(&"v1.0.0".to_owned()));
     assert!(cli_args.contains(&"--pull-source".to_owned()));
@@ -221,15 +228,15 @@ fn test_roundtrip_cli_to_config_to_cli() {
 }
 
 #[test]
-fn test_roundtrip_config_to_cli_to_config() {
+fn roundtrip_config_to_cli_to_config() {
     // Step 1: Start with a config file
-    let original_config = r#"repository: myorg/repo
+    let original_config = "repository: my_organization/repo
 tag: v1.0.0
 pulls:
   - source: src
     target: dst
     reset: true
-"#;
+";
 
     let mut temp_config1 = NamedTempFile::new().unwrap();
     temp_config1.write_all(original_config.as_bytes()).unwrap();
@@ -237,7 +244,7 @@ pulls:
 
     // Step 2: Convert to CLI
     let output1 = StdCommand::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--",
             "--config",
@@ -255,7 +262,7 @@ pulls:
 
     // Step 3: Convert CLI back to config
     let mut args = vec!["run", "--"];
-    args.extend(cli_args.iter().skip(1).map(|s| s.as_str())); // Skip "tixgraft"
+    args.extend(cli_args.iter().skip(1).map(String::as_str)); // Skip "tixgraft"
     args.push("--to-config");
 
     let output2 = StdCommand::new("cargo").args(&args).output().unwrap();
@@ -292,9 +299,9 @@ pulls:
 }
 
 #[test]
-fn test_roundtrip_with_replacements() {
+fn roundtrip_with_replacements() {
     // Step 1: Start with config with replacements
-    let original_config = r#"repository: myorg/repo
+    let original_config = r#"repository: my_organization/repo
 pulls:
   - source: src
     target: dst
@@ -312,7 +319,7 @@ pulls:
     // Step 2: Convert to CLI
     let output1 = StdCommand::new("cargo")
         .env("MY_ENV", "test_value")
-        .args(&[
+        .args([
             "run",
             "--",
             "--config",
@@ -333,7 +340,7 @@ pulls:
 
     // Step 3: Convert back to config
     let mut args = vec!["run", "--"];
-    args.extend(cli_args.iter().skip(1).map(|s| s.as_str()));
+    args.extend(cli_args.iter().skip(1).map(String::as_str));
     args.push("--to-config");
 
     let output2 = StdCommand::new("cargo")
@@ -354,10 +361,10 @@ pulls:
 }
 
 #[test]
-fn test_to_config_with_commands() {
+fn to_config_with_commands() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--pull-source")
         .arg("src")
         .arg("--pull-target")
@@ -371,10 +378,10 @@ fn test_to_config_with_commands() {
 }
 
 #[test]
-fn test_to_config_header_comment() {
+fn to_config_header_comment() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--repository")
-        .arg("myorg/repo")
+        .arg("my_organization/repo")
         .arg("--pull-source")
         .arg("src")
         .arg("--pull-target")
@@ -385,4 +392,5 @@ fn test_to_config_header_comment() {
         .stdout(predicate::str::contains(
             "# Generated by tixgraft --to-config",
         ));
+}
 }

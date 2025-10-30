@@ -1,17 +1,23 @@
 //! Integration tests for to-command-line feature
 
+
+
+#[cfg(test)]
+#[expect(clippy::unwrap_used, reason = "This is a test module")]
+mod tests {
+
 use assert_cmd::Command;
 use predicates::prelude::*;
-use std::io::Write;
+use std::io::Write as _;
 use tempfile::NamedTempFile;
 
 #[test]
-fn test_to_command_line_basic() {
+fn to_command_line_basic() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 tag: "main"
 pulls:
   - source: "src/path"
@@ -28,7 +34,7 @@ pulls:
         .assert()
         .success()
         .stdout(predicate::str::contains("--repository"))
-        .stdout(predicate::str::contains("myorg/repo"))
+        .stdout(predicate::str::contains("my_organization/repo"))
         .stdout(predicate::str::contains("--tag"))
         .stdout(predicate::str::contains("main"))
         .stdout(predicate::str::contains("--pull-source"))
@@ -39,12 +45,12 @@ pulls:
 }
 
 #[test]
-fn test_to_command_line_json_format() {
+fn to_command_line_json_format() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 pulls:
   - source: "src"
     target: "dst"
@@ -68,18 +74,18 @@ pulls:
 
     assert!(json.contains(&"tixgraft".to_owned()));
     assert!(json.contains(&"--repository".to_owned()));
-    assert!(json.contains(&"myorg/repo".to_owned()));
+    assert!(json.contains(&"my_organization/repo".to_owned()));
     assert!(json.contains(&"--pull-source".to_owned()));
     assert!(json.contains(&"src".to_owned()));
 }
 
 #[test]
-fn test_to_command_line_with_replacements() {
+fn to_command_line_with_replacements() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 pulls:
   - source: "src"
     target: "dst"
@@ -111,12 +117,12 @@ pulls:
 }
 
 #[test]
-fn test_to_command_line_cli_overrides() {
+fn to_command_line_cli_overrides() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 tag: "v1"
 pulls:
   - source: "src"
@@ -137,16 +143,16 @@ pulls:
         .success()
         .stdout(predicate::str::contains("override/repo"))
         .stdout(predicate::str::contains("v2"))
-        .stdout(predicate::str::contains("myorg/repo").not());
+        .stdout(predicate::str::contains("my_organization/repo").not());
 }
 
 #[test]
-fn test_to_command_line_with_commands() {
+fn to_command_line_with_commands() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 pulls:
   - source: "src"
     target: "dst"
@@ -169,12 +175,12 @@ pulls:
 }
 
 #[test]
-fn test_to_command_line_multiple_pulls() {
+fn to_command_line_multiple_pulls() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 tag: "main"
 pulls:
   - source: "path1"
@@ -209,7 +215,7 @@ pulls:
 }
 
 #[test]
-fn test_to_command_line_per_pull_overrides() {
+fn to_command_line_per_pull_overrides() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
@@ -242,12 +248,12 @@ pulls:
 }
 
 #[test]
-fn test_to_command_line_with_special_characters() {
+fn to_command_line_with_special_characters() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 pulls:
   - source: "src with spaces"
     target: "dst with spaces"
@@ -275,12 +281,12 @@ pulls:
 }
 
 #[test]
-fn test_to_command_line_invalid_format() {
+fn to_command_line_invalid_format() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 pulls:
   - source: "src"
     target: "dst"
@@ -299,7 +305,7 @@ pulls:
 }
 
 #[test]
-fn test_to_command_line_nonexistent_config() {
+fn to_command_line_nonexistent_config() {
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.arg("--config")
         .arg("nonexistent_file.yaml")
@@ -310,12 +316,12 @@ fn test_to_command_line_nonexistent_config() {
 }
 
 #[test]
-fn test_to_command_line_backslash_in_output() {
+fn to_command_line_backslash_in_output() {
     let mut config_file = NamedTempFile::new().unwrap();
     writeln!(
         config_file,
         r#"
-repository: "myorg/repo"
+repository: "my_organization/repo"
 pulls:
   - source: "src1"
     target: "dst1"
@@ -337,4 +343,5 @@ pulls:
 
     // Verify backslash continuations are present for multiline output
     assert!(stdout.contains(" \\\n"));
+}
 }

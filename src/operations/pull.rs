@@ -1,33 +1,45 @@
 //! Pull operation coordination
 
-use crate::cli::{Args, PullArgs, PullConfig};
+use crate::cli::{Args, PullArgs, PullConfig, ReplacementConfig};
 use crate::config::Config;
 use crate::config::context::{ContextValues, ValidatedContext, merge_context_values};
 use crate::config::graft_yaml::GraftConfig;
 use crate::error::GraftError;
 use crate::git::{Repository, SparseCheckout, check_git_availability};
-use crate::operations::discovery::{cleanup_graft_files, discover_graft_files};
+use crate::operations::discovery::{DiscoveredGraft, cleanup_graft_files, discover_graft_files};
 use crate::operations::post_commands::execute_post_commands;
 use crate::operations::{
     apply_graft_replacements, apply_replacements, copy_files, execute_commands,
 };
 use crate::system::System;
 use anyhow::{Context as _, Result};
+use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info, warn};
 
 /// Coordinates the complete pull operation
-pub struct PullOperation<'a> {
+#[non_exhaustive]
+#[expect(clippy::module_name_repetitions, reason = "PullOperation")]
+pub struct PullOperation<'src> {
     config: Config,
     dry_run: bool,
-    system: &'a dyn System,
+    system: &'src dyn System,
 }
 
-impl<'a> PullOperation<'a> {
+impl<'src> PullOperation<'src> {
     /// Create a new pull operation from CLI arguments
-    pub fn new(args: Args, system: &'a dyn System) -> Result<Self> {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The configuration file cannot be loaded or parsed
+    /// - The configuration is invalid
+    /// - The configuration cannot be merged with CLI overrides
+    /// - Git availability check fails
+    #[inline]
+    pub fn new(args: Args, system: &'src dyn System) -> Result<Self> {
         // Load configuration
-        let mut config = if std::path::Path::new(&args.config).exists() {
+        let mut config = if Path::new(&args.config).exists() {
             Config::load_from_file(system, &args.config)?
         } else if !args.config.ends_with("tixgraft.yaml") || !args.pulls.sources.is_empty() {
             // If non-default config file specified but doesn't exist, or CLI args provided, that's an error
@@ -43,7 +55,7 @@ impl<'a> PullOperation<'a> {
             Config {
                 repository: args.repository.clone(),
                 tag: args.tag.clone(),
-                context: std::collections::HashMap::new(),
+                context: HashMap::new(),
                 pulls: Vec::new(),
             }
         } else {
@@ -76,7 +88,7 @@ impl<'a> PullOperation<'a> {
     /// Check if the configuration requires Git (has at least one non-local repository)
     fn requires_git(config: &Config) -> bool {
         // Check global repository
-        if let Some(ref repo_url) = config.repository
+        if let Some(repo_url) = config.repository.as_ref()
             && !Self::is_local_url(repo_url)
         {
             return true;
@@ -84,7 +96,7 @@ impl<'a> PullOperation<'a> {
 
         // Check per-pull repositories
         for pull in &config.pulls {
-            if let Some(ref repo_url) = pull.repository {
+            if let Some(repo_url) = pull.repository.as_ref() {
                 if !Self::is_local_url(repo_url) {
                     return true;
                 }
@@ -92,6 +104,9 @@ impl<'a> PullOperation<'a> {
                 // If pull has no repository and global has no repository, we'll error anyway
                 // But be conservative and assume Git is needed
                 return true;
+            }
+            else {
+                debug!("Skipping pull: {}", pull.source);
             }
         }
 
@@ -108,6 +123,12 @@ impl<'a> PullOperation<'a> {
     }
 
     /// Execute the pull operation
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The pull operation cannot be executed
+    #[inline]
     pub fn execute(&self) -> Result<()> {
         if self.dry_run {
             return self.preview_operations();
@@ -242,7 +263,7 @@ impl<'a> PullOperation<'a> {
 
         // For Git repositories, we need to keep the SparseCheckout alive to prevent
         // the TempDir from being deleted before we finish copying files
-        let _sparse_checkout_guard;
+        let sparse_checkout_guard;
 
         // Get source path based on repository type
         let source_path = if repository.is_git() {
@@ -264,8 +285,8 @@ impl<'a> PullOperation<'a> {
 
             // Verify source exists
             if !sparse_checkout.source_exists() {
-                let diagnostics = sparse_checkout.get_checkout_diagnostics();
-                return Err(GraftError::source(format!(
+                let diagnostics = sparse_checkout.get_checkout_diagnostics()?;
+                return Err(GraftError::from_source(format!(
                     "Source path '{}' not found in repository '{}' at reference '{}'\n\n{}",
                     pull.source, repo_url, reference, diagnostics
                 ))
@@ -274,7 +295,7 @@ impl<'a> PullOperation<'a> {
 
             // IMPORTANT: Keep sparse_checkout alive until after copy_files completes
             // to prevent TempDir cleanup
-            _sparse_checkout_guard = Some(sparse_checkout);
+            sparse_checkout_guard = Some(sparse_checkout);
 
             checkout_path
         } else {
@@ -283,13 +304,13 @@ impl<'a> PullOperation<'a> {
             // Local filesystem - construct path directly
             let base_path = repository
                 .local_path()
-                .ok_or_else(|| return GraftError::source("Invalid local repository".to_owned()))?;
+                .ok_or_else(|| GraftError::from_source("Invalid local repository".to_owned()))?;
 
             let source_path = base_path.join(&pull.source);
 
             // Verify source exists
             if !source_path.exists() {
-                return Err(GraftError::source(format!(
+                return Err(GraftError::from_source(format!(
                     "Source path '{}' not found in local repository '{}'",
                     pull.source, repo_url
                 ))
@@ -301,7 +322,7 @@ impl<'a> PullOperation<'a> {
             let is_dir = source_path.is_dir();
 
             if pull.pull_type == "file" && !is_file {
-                return Err(GraftError::source(format!(
+                return Err(GraftError::from_source(format!(
                     "Source path '{}' is not a file (type specified as 'file')",
                     source_path.display()
                 ))
@@ -309,14 +330,14 @@ impl<'a> PullOperation<'a> {
             }
 
             if pull.pull_type == "directory" && !is_dir {
-                return Err(GraftError::source(format!(
+                return Err(GraftError::from_source(format!(
                     "Source path '{}' is not a directory (type specified as 'directory')",
                     source_path.display()
                 ))
                 .into());
             }
 
-            _sparse_checkout_guard = None;
+            sparse_checkout_guard = None;
 
             source_path
         };
@@ -329,6 +350,8 @@ impl<'a> PullOperation<'a> {
             &pull.pull_type,
             pull.reset,
         )?;
+
+        drop(sparse_checkout_guard);
 
         // Apply text replacements
         let mut replacements_applied = if pull.replacements.is_empty() {
@@ -343,10 +366,12 @@ impl<'a> PullOperation<'a> {
         replacements_applied += graft_result.replacements_applied;
 
         // Execute commands
-        let mut commands_executed = if !pull.commands.is_empty() {
+        let mut commands_executed = if pull.commands.is_empty() {
+            0
+        } else {
             // For file operations, commands should run in the parent directory
             let command_working_dir = if pull.pull_type == "file" {
-                std::path::Path::new(&pull.target)
+                Path::new(&pull.target)
                     .parent()
                     .and_then(|p| p.to_str())
                     .unwrap_or(&pull.target)
@@ -356,8 +381,6 @@ impl<'a> PullOperation<'a> {
 
             execute_commands(&pull.commands, command_working_dir)
                 .context("Command execution failed")?
-        } else {
-            0
         };
         commands_executed += graft_result.commands_executed;
 
@@ -373,7 +396,7 @@ impl<'a> PullOperation<'a> {
         let target_path = Path::new(&pull.target);
 
         // Check if target exists and is a directory
-        if !self.system.exists(target_path) || !self.system.is_dir(target_path) {
+        if !self.system.exists(target_path)? || !self.system.is_dir(target_path)? {
             // Target doesn't exist or isn't a directory, no graft files to process
             return Ok(GraftProcessingResult::default());
         }
@@ -409,10 +432,25 @@ impl<'a> PullOperation<'a> {
                 })?;
 
             // Build context for this graft (inherit from parent)
-            let graft_context = self.build_graft_context(discovered, &base_context)?;
+            let graft_context = Self::build_graft_context(discovered, &base_context);
 
             // Validate context requirements
-            if !graft_config.context.is_empty() {
+            if graft_config.context.is_empty() {
+                // No context defined, apply replacements without validation
+                if !graft_config.replacements.is_empty() {
+                    let replacements = apply_graft_replacements(
+                        self.system,
+                        discovered.directory.to_str().ok_or_else(|| {
+                            GraftError::filesystem("Invalid directory path".to_owned())
+                        })?,
+                        &graft_config.replacements,
+                        &graft_context,
+                    )
+                    .context("Failed to apply graft replacements")?;
+
+                    total_replacements += replacements;
+                }
+            } else {
                 let validated =
                     ValidatedContext::new(graft_config.context.clone(), graft_context.clone())
                         .context("Context validation failed")?;
@@ -427,7 +465,7 @@ impl<'a> PullOperation<'a> {
                     let replacements = apply_graft_replacements(
                         self.system,
                         discovered.directory.to_str().ok_or_else(|| {
-                            return GraftError::filesystem("Invalid directory path".to_owned());
+                            GraftError::filesystem("Invalid directory path".to_owned())
                         })?,
                         &graft_config.replacements,
                         &validated.values,
@@ -440,21 +478,6 @@ impl<'a> PullOperation<'a> {
                         replacements,
                         discovered.directory.display()
                     );
-                }
-            } else {
-                // No context defined, apply replacements without validation
-                if !graft_config.replacements.is_empty() {
-                    let replacements = apply_graft_replacements(
-                        self.system,
-                        discovered.directory.to_str().ok_or_else(|| {
-                            return GraftError::filesystem("Invalid directory path".to_owned());
-                        })?,
-                        &graft_config.replacements,
-                        &graft_context,
-                    )
-                    .context("Failed to apply graft replacements")?;
-
-                    total_replacements += replacements;
                 }
             }
 
@@ -477,9 +500,7 @@ impl<'a> PullOperation<'a> {
                         warn!(
                             "Post-command failed in {}: {}",
                             discovered.directory.display(),
-                            result
-                                .error
-                                .unwrap_or_else(|| return "Unknown error".to_owned())
+                            result.error.unwrap_or_else(|| "Unknown error".to_owned())
                         );
                     }
                 }
@@ -500,14 +521,13 @@ impl<'a> PullOperation<'a> {
 
     /// Build context for a specific graft (with parent inheritance)
     fn build_graft_context(
-        &self,
-        _discovered: &crate::operations::discovery::DiscoveredGraft,
+        _discovered: &DiscoveredGraft,
         base_context: &ContextValues,
-    ) -> Result<ContextValues> {
+    ) -> ContextValues {
         // For now, just use base context
         // A more sophisticated approach would cache parsed .graft.yaml files
         // and inherit context from parent grafts
-        Ok(base_context.clone())
+        base_context.clone()
     }
 }
 
@@ -529,11 +549,11 @@ struct PullResult {
 /// Merge CLI arguments into configuration
 fn merge_cli_args(config: &mut Config, args: &Args) -> Result<()> {
     // Override global repository and tag if provided via CLI
-    if let Some(ref repo) = args.repository {
+    if let Some(repo) = args.repository.as_ref() {
         config.repository = Some(repo.clone());
     }
 
-    if let Some(ref tag) = args.tag {
+    if let Some(tag) = args.tag.as_ref() {
         config.tag = Some(tag.clone());
     }
 
@@ -577,20 +597,17 @@ fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
                 .types
                 .get(i)
                 .cloned()
-                .unwrap_or_else(|| return "directory".to_owned()),
+                .unwrap_or_else(|| "directory".to_owned()),
             repository: pull_args.repositories.get(i).cloned(),
             tag: pull_args.tags.get(i).cloned(),
             reset: pull_args.resets.get(i).copied().unwrap_or(false),
             commands: if let Some(cmd_str) = pull_args.commands.get(i) {
-                cmd_str
-                    .split(',')
-                    .map(|s| return s.trim().to_owned())
-                    .collect()
+                cmd_str.split(',').map(|s| s.trim().to_owned()).collect()
             } else {
                 Vec::new()
             },
             replacements: parse_replacements_for_pull(pull_args, i)?,
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
         };
 
         pulls.push(pull);
@@ -604,7 +621,7 @@ fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
 fn parse_replacements_for_pull(
     pull_args: &PullArgs,
     _pull_index: usize,
-) -> Result<Vec<crate::cli::ReplacementConfig>> {
+) -> Result<Vec<ReplacementConfig>> {
     let mut replacements = Vec::new();
 
     // Strategy: Each replacement is associated with the pull at the same index
@@ -632,7 +649,7 @@ fn parse_replacements_for_pull(
 }
 
 /// Parse a single replacement string in format "SOURCE=TARGET" or "SOURCE=env:VAR"
-fn parse_replacement_string(input: &str) -> Result<crate::cli::ReplacementConfig> {
+fn parse_replacement_string(input: &str) -> Result<ReplacementConfig> {
     let parts: Vec<&str> = input.splitn(2, '=').collect();
 
     if parts.len() != 2 {
@@ -646,13 +663,13 @@ fn parse_replacement_string(input: &str) -> Result<crate::cli::ReplacementConfig
     let target_part = parts[1];
 
     if let Some(env_var) = target_part.strip_prefix("env:") {
-        Ok(crate::cli::ReplacementConfig {
+        Ok(ReplacementConfig {
             source,
             target: None,
             value_from_env: Some(env_var.to_owned()),
         })
     } else {
-        Ok(crate::cli::ReplacementConfig {
+        Ok(ReplacementConfig {
             source,
             target: Some(target_part.to_owned()),
             value_from_env: None,
@@ -661,11 +678,19 @@ fn parse_replacement_string(input: &str) -> Result<crate::cli::ReplacementConfig
 }
 
 /// Build a Config structure from CLI arguments only (no file loading)
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The configuration file cannot be loaded or parsed
+/// - The configuration is invalid
+/// - The configuration cannot be merged with CLI overrides
+#[inline]
 pub fn build_config_from_args(args: &Args) -> Result<Config> {
     let mut config = Config {
         repository: args.repository.clone(),
         tag: args.tag.clone(),
-        context: std::collections::HashMap::new(),
+        context: HashMap::new(),
         pulls: Vec::new(),
     };
 
@@ -684,15 +709,23 @@ pub fn build_config_from_args(args: &Args) -> Result<Config> {
 }
 
 /// Build a Config structure from both config file and CLI overrides
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The configuration file cannot be loaded or parsed
+/// - The configuration is invalid
+/// - The configuration cannot be merged with CLI overrides
+#[inline]
 pub fn build_merged_config(args: &Args, system: &dyn System) -> Result<Config> {
     // Load base config if exists
-    let mut config = if std::path::Path::new(&args.config).exists() {
+    let mut config = if Path::new(&args.config).exists() {
         Config::load_from_file(system, &args.config)?
     } else {
         Config {
             repository: None,
             tag: None,
-            context: std::collections::HashMap::new(),
+            context: HashMap::new(),
             pulls: Vec::new(),
         }
     };
