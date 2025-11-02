@@ -156,10 +156,15 @@ jobs:
           echo "FAILURE_MENTION=$FAILURE_MENTION" >> $GITHUB_ENV
 
       - name: Send Discord Notification
-        if: secrets.DISCORD_WEBHOOK_URL != ''
         run: |
           # Use webhook from GitHub secrets
           WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
+
+          # Skip if webhook URL is not configured
+          if [[ -z "$WEBHOOK_URL" ]]; then
+            echo "Discord webhook URL not configured, skipping notification"
+            exit 0
+          fi
 
           # Create JSON payload with failure-specific content
           if [[ "${{ env.STATUS_TEXT }}" == "**SUCCESS**" ]]; then
