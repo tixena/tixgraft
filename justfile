@@ -24,36 +24,13 @@ fmt-check:
     @echo "Checking code formatting..."
     cargo fmt --all -- --check
 
-# Run linting with clippy
-lint:
-    @echo "Running clippy lints..."
-    cargo clippy --all-targets -- \
-        -W clippy::all \
-        -W clippy::pedantic \
-        -W clippy::nursery \
-        -W clippy::as_conversions \
-        -W clippy::panic \
-        -W clippy::unwrap_used \
-        -W clippy::print_stdout \
-        -W clippy::missing_docs_in_private_items \
-        -W clippy::missing_inline_in_public_items \
-        -W clippy::allow_attributes_without_reason \
-        -W clippy::arithmetic_side_effects \
-        -W clippy::float_arithmetic \
-        -W clippy::min_ident_chars \
-        -W clippy::mod_module_files \
-        -W clippy::question_mark_used \
-        -W clippy::single_call_fn \
-        -W clippy::std_instead_of_alloc \
-        -W clippy::std_instead_of_core \
-        -W clippy::shadow_unrelated \
-        -D warnings
-
-# Run clippy linting and fix warnings
-clippy-lint-fix:
+# Run linting with clippy (optionally fix issues with fix=true)
+lint fix='false':
+    #!/usr/bin/env bash
     set -e
-    cargo fix --allow-dirty
-    cargo clippy --all-targets --fix --allow-dirty -- \
+
+    # Define lint flags once to avoid duplication
+    LINT_FLAGS="\
         -W clippy::all \
         -W clippy::pedantic \
         -W clippy::nursery \
@@ -69,12 +46,22 @@ clippy-lint-fix:
         -W clippy::min_ident_chars \
         -W clippy::mod_module_files \
         -W clippy::question_mark_used \
-        -W clippy::single_call_fn \
         -W clippy::std_instead_of_alloc \
         -W clippy::std_instead_of_core \
         -W clippy::shadow_unrelated \
-        -D warnings
-    cargo fmt 
+        -D warnings"
+
+    if [ "{{fix}}" = "true" ]; then
+        echo "Running cargo fix..."
+        cargo fix --allow-dirty
+        echo "Running clippy with fixes..."
+        cargo clippy --all-targets --fix --allow-dirty -- $LINT_FLAGS
+        echo "Formatting code..."
+        cargo fmt
+    else
+        echo "Running clippy lints..."
+        cargo clippy --all-targets -- $LINT_FLAGS
+    fi 
 
 # Run all tests
 test:

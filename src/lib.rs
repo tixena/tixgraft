@@ -6,7 +6,6 @@
 
 #![expect(clippy::allow_attributes_without_reason)]
 #![expect(clippy::pub_use)]
-#![expect(clippy::single_call_fn)]
 #![expect(clippy::question_mark_used)]
 #![expect(clippy::arithmetic_side_effects)]
 #![expect(clippy::option_if_let_else)]
