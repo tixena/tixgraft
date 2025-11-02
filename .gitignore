@@ -21,4 +21,6 @@ target
 #.idea/
 .vscode/
 
+.beads/
+
 notes/
