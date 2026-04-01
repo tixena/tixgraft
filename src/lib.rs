@@ -30,6 +30,7 @@ use anyhow::Result;
 use cli::Args;
 use config::Config;
 use operations::pull::PullOperation;
+use operations::skill::{self, SkillStatus};
 use operations::to_command_line::{OutputFormat, generate_command_line};
 use operations::to_config::generate_yaml_config;
 use system::System;
@@ -91,6 +92,74 @@ pub fn run_to_command_line(
     println!("{command_line}");
 
     Ok(())
+}
+
+/// Install the tixgraft Claude Code skill
+///
+/// # Errors
+///
+/// Returns an error if directory creation or file writing fails.
+#[inline]
+pub fn run_skill_install(global: bool) -> Result<()> {
+    let system = RealSystem;
+    let target_dir = skill::resolve_skill_path(global)?;
+    skill::skill_install(&system, &target_dir)?;
+    Ok(())
+}
+
+/// Uninstall the tixgraft Claude Code skill
+///
+/// # Errors
+///
+/// Returns an error if the directory exists but cannot be removed.
+#[inline]
+pub fn run_skill_uninstall(global: bool) -> Result<()> {
+    let system = RealSystem;
+    let target_dir = skill::resolve_skill_path(global)?;
+    skill::skill_uninstall(&system, &target_dir)?;
+    Ok(())
+}
+
+/// Test whether the tixgraft Claude Code skill is installed and up to date.
+///
+/// Returns an exit code:
+/// - 0: installed and up to date (or user chose to install/upgrade)
+/// - 1: not installed and user declined
+/// - 2: outdated and user declined upgrade
+///
+/// # Errors
+///
+/// Returns an error if filesystem operations fail.
+pub fn run_skill_test(global: bool, auto_yes: bool) -> Result<i32> {
+    let system = RealSystem;
+    let target_dir = skill::resolve_skill_path(global)?;
+
+    match skill::skill_check(&system, &target_dir)? {
+        SkillStatus::UpToDate => {
+            eprintln!("Skill is installed and up to date.");
+            Ok(0)
+        }
+        SkillStatus::NotInstalled => {
+            let should_install =
+                auto_yes || skill::prompt_yes_no("Skill is not installed. Install now?")?;
+            if should_install {
+                skill::skill_install(&system, &target_dir)?;
+                Ok(0)
+            } else {
+                Ok(1)
+            }
+        }
+        SkillStatus::Outdated => {
+            let should_upgrade =
+                auto_yes || skill::prompt_yes_no("Skill is outdated. Upgrade now?")?;
+            if should_upgrade {
+                skill::skill_install(&system, &target_dir)?;
+                Ok(0)
+            } else {
+                Ok(2)
+            }
+        }
+    }
 }
 
 /// Run the to-config command

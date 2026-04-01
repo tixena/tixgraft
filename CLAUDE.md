@@ -64,6 +64,13 @@ The following commands can be executed without asking for user approval:
 - `cargo build` - Build the project
 - `cargo clippy` - Run linting
 
+**Skill management:**
+- `tixgraft --skill-install` - Install the Claude Code skill (project-scoped)
+- `tixgraft --skill-install -g` - Install the Claude Code skill globally
+- `tixgraft --skill-uninstall` - Uninstall the Claude Code skill
+- `tixgraft --skill-test` - Test skill installation status
+- `tixgraft --skill-test --yes` - Test and auto-install/upgrade
+
 **Git operations:**
 - `git status` - Check repository status
 - `git diff` - View changes
@@ -165,7 +172,7 @@ The codebase follows a modular architecture with clear separation of concerns:
   - `mock.rs` - In-memory implementation for fast, isolated unit tests
 
 - **`error/`** - Error handling
-  - `types.rs` - Custom error types with specific exit codes (1-5)
+  - `types.rs` - Custom error types with specific exit codes (1-6)
 
 - **`utils/`** - Utility functions
   - `path.rs` - Path validation and security (prevents directory traversal)
@@ -200,7 +207,7 @@ The codebase follows a modular architecture with clear separation of concerns:
     - `read/write/copy/exists/is_dir/is_file` - All filesystem operations abstracted
   - **Critical**: Unit tests MUST use MockSystem, never RealSystem (see Testing Guidelines below)
 
-- **Error Handling**: Custom `GraftError` enum with specific exit codes for different error types (configuration=1, source=2, command=3, git=4, filesystem=5)
+- **Error Handling**: Custom `GraftError` enum with specific exit codes for different error types (configuration=1, source=2, command=3, git=4, filesystem=5, skill=6)
 
 - **Configuration Hierarchy**: Global settings (repository, tag) can be overridden per-pull operation, and CLI arguments override everything
 
@@ -360,3 +367,4 @@ This is useful for:
 - 3: Command error
 - 4: Git error
 - 5: Filesystem error
+- 6: Skill error

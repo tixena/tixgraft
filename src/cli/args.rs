@@ -63,6 +63,10 @@ pub struct Args {
     /// Pull operations (can be specified multiple times)
     #[command(flatten)]
     pub pulls: PullArgs,
+
+    /// Skill management arguments
+    #[command(flatten)]
+    pub skill: SkillArgs,
 }
 
 impl Args {
@@ -114,6 +118,31 @@ pub struct PullArgs {
     /// Can be specified multiple times per pull operation
     #[arg(long = "pull-replacement", value_name = "REPLACEMENT")]
     pub replacements: Vec<String>,
+}
+
+/// Skill management arguments
+#[derive(Parser, Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct SkillArgs {
+    /// Install the tixgraft Claude Code skill
+    #[arg(long = "skill-install", conflicts_with_all = ["skill_uninstall", "skill_test", "to_command_line", "to_config"])]
+    pub skill_install: bool,
+
+    /// Uninstall the tixgraft Claude Code skill
+    #[arg(long = "skill-uninstall", conflicts_with_all = ["skill_install", "skill_test", "to_command_line", "to_config"])]
+    pub skill_uninstall: bool,
+
+    /// Test whether the tixgraft Claude Code skill is installed and up to date
+    #[arg(long = "skill-test", conflicts_with_all = ["skill_install", "skill_uninstall", "to_command_line", "to_config"])]
+    pub skill_test: bool,
+
+    /// Apply skill operation globally (~/.claude/skills/tixgraft/)
+    #[arg(short = 'g', long = "global")]
+    pub global: bool,
+
+    /// Auto-confirm prompts (used with --skill-test)
+    #[arg(short = 'y', long = "yes")]
+    pub yes: bool,
 }
 
 /// Individual pull configuration

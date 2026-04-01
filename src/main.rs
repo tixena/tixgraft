@@ -45,9 +45,11 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     // Initialize tracing subscriber based on verbose flag
-    // Don't use verbose logging for conversion modes
-    let log_level = if args.to_command_line || args.to_config {
-        "error" // Only show errors for conversion modes
+    // Don't use verbose logging for conversion or skill modes
+    let is_skill_mode =
+        args.skill.skill_install || args.skill.skill_uninstall || args.skill.skill_test;
+    let log_level = if args.to_command_line || args.to_config || is_skill_mode {
+        "error" // Only show errors for conversion/skill modes
     } else if args.verbose {
         "debug"
     } else {
@@ -56,6 +58,59 @@ fn main() -> Result<()> {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(log_level));
 
     fmt().with_target(false).with_env_filter(filter).init();
+
+    // Validate skill flag constraints
+    let any_skill = args.skill.skill_install || args.skill.skill_uninstall || args.skill.skill_test;
+    if args.skill.global && !any_skill {
+        error!("--global (-g) requires one of --skill-install, --skill-uninstall, or --skill-test");
+        std::process::exit(1);
+    }
+    if args.skill.yes && !args.skill.skill_test {
+        error!("--yes (-y) can only be used with --skill-test");
+        std::process::exit(1);
+    }
+
+    // Handle skill commands
+    if args.skill.skill_install {
+        match tixgraft::run_skill_install(args.skill.global) {
+            Ok(()) => std::process::exit(0),
+            Err(err) => {
+                error!("{}", err);
+                std::process::exit(
+                    err.downcast_ref::<GraftError>()
+                        .map_or(1, GraftError::exit_code),
+                );
+            }
+        }
+    }
+
+    if args.skill.skill_uninstall {
+        match tixgraft::run_skill_uninstall(args.skill.global) {
+            Ok(()) => {
+                std::process::exit(0);
+            }
+            Err(err) => {
+                error!("{}", err);
+                std::process::exit(
+                    err.downcast_ref::<GraftError>()
+                        .map_or(1, GraftError::exit_code),
+                );
+            }
+        }
+    }
+
+    if args.skill.skill_test {
+        match tixgraft::run_skill_test(args.skill.global, args.skill.yes) {
+            Ok(code) => std::process::exit(code),
+            Err(err) => {
+                error!("{}", err);
+                std::process::exit(
+                    err.downcast_ref::<GraftError>()
+                        .map_or(1, GraftError::exit_code),
+                );
+            }
+        }
+    }
 
     // Handle to-config mode
     if args.to_config {

@@ -24,3 +24,4 @@ target
 .beads/
 
 notes/
+.claude/settings.local.json

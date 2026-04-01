@@ -49,6 +49,7 @@ indicatif = "0.18"
 # Logging and tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+include_dir = "0.7"
 
 [dev-dependencies]
 # Testing utilities

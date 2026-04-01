@@ -25,6 +25,10 @@ pub enum GraftError {
     /// Filesystem Error - file operation failed
     #[error("Filesystem error: {message}")]
     Filesystem { message: String },
+
+    /// Skill Error - skill management operation failed
+    #[error("Skill error: {message}")]
+    Skill { message: String },
 }
 
 impl GraftError {
@@ -38,6 +42,7 @@ impl GraftError {
             Self::Command { .. } => 3,
             Self::Git { .. } => 4,
             Self::Filesystem { .. } => 5,
+            Self::Skill { .. } => 6,
         }
     }
 
@@ -77,6 +82,14 @@ impl GraftError {
     #[inline]
     pub fn filesystem<S: Into<String>>(message: S) -> Self {
         Self::Filesystem {
+            message: message.into(),
+        }
+    }
+
+    /// Create a skill error
+    #[inline]
+    pub fn skill<S: Into<String>>(message: S) -> Self {
+        Self::Skill {
             message: message.into(),
         }
     }
