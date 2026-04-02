@@ -270,34 +270,26 @@ pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
     Ok(())
 }
 
+/// Tests for private functions only. Public API tests are in `tests/repository_unit_tests.rs`.
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "These are unit tests")]
 mod tests {
     use super::*;
-    use crate::system::real::RealSystem;
-    use tempfile::TempDir;
 
     #[test]
     fn normalize_repository_url_tst() {
-        // Short format
         assert_eq!(
             normalize_repository_url("my_organization/repo").unwrap(),
             "https://github.com/my_organization/repo.git"
         );
-
-        // HTTPS without .git
         assert_eq!(
             normalize_repository_url("https://github.com/my_organization/repo").unwrap(),
             "https://github.com/my_organization/repo.git"
         );
-
-        // HTTPS with .git
         assert_eq!(
             normalize_repository_url("https://github.com/my_organization/repo.git").unwrap(),
             "https://github.com/my_organization/repo.git"
         );
-
-        // SSH
         assert_eq!(
             normalize_repository_url("git@github.com:my_organization/repo.git").unwrap(),
             "git@github.com:my_organization/repo.git"
@@ -309,124 +301,5 @@ mod tests {
         normalize_repository_url("invalid").unwrap_err();
         normalize_repository_url("").unwrap_err();
         normalize_repository_url("too/many/slashes").unwrap_err();
-    }
-
-    #[test]
-    fn detect_git_source() {
-        let system = RealSystem::new();
-
-        // Short format
-        let repo = Repository::new(&system, "my_organization/repo").unwrap();
-        assert!(repo.is_git());
-        assert!(!repo.is_local());
-        assert_eq!(
-            repo.git_url().unwrap(),
-            "https://github.com/my_organization/repo.git"
-        );
-
-        // HTTPS
-        let repo_2 =
-            Repository::new(&system, "https://github.com/my_organization/repo.git").unwrap();
-        assert!(repo_2.is_git());
-        assert!(!repo_2.is_local());
-
-        // SSH
-        let repo_3 = Repository::new(&system, "git@github.com:my_organization/repo.git").unwrap();
-        assert!(repo_3.is_git());
-        assert!(!repo_3.is_local());
-    }
-
-    #[test]
-    fn detect_local_source_with_file_prefix() {
-        let system = RealSystem::new();
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-
-        // Test with file:// prefix
-        let url = format!("file://{}", path.display());
-        let repo = Repository::new(&system, &url).unwrap();
-
-        assert!(repo.is_local());
-        assert!(!repo.is_git());
-        assert!(repo.local_path().is_some());
-        assert_eq!(repo.local_path().unwrap(), path);
-    }
-
-    #[test]
-    fn detect_local_source_with_absolute_path() {
-        let system = RealSystem::new();
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path().to_str().unwrap();
-        let url = format!("file:{path}");
-
-        let repo = Repository::new(&system, &url).unwrap();
-
-        assert!(repo.is_local());
-        assert!(!repo.is_git());
-        assert!(repo.local_path().is_some());
-    }
-
-    #[test]
-    fn detect_local_source_with_relative_path() {
-        let system = RealSystem::new();
-        // Create a temporary directory in current working directory
-        let temp_dir = TempDir::new_in(".").unwrap();
-        let dir_name = temp_dir.path().file_name().unwrap().to_str().unwrap();
-        let relative_path = format!("file:./{dir_name}");
-
-        let repo = Repository::new(&system, &relative_path).unwrap();
-
-        assert!(repo.is_local());
-        assert!(!repo.is_git());
-        assert!(repo.local_path().is_some());
-    }
-
-    #[test]
-    fn local_source_nonexistent_path() {
-        let system = RealSystem::new();
-        let result = Repository::new(&system, "file:///nonexistent/path/that/does/not/exist");
-        assert!(result.is_err());
-
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("does not exist"));
-    }
-
-    #[test]
-    fn local_source_file_not_directory() {
-        let system = RealSystem::new();
-        let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
-        system.write(&file_path, b"test").unwrap();
-
-        let url = format!("file://{}", file_path.display());
-        let result = Repository::new(&system, &url);
-
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("not a directory"));
-    }
-
-    #[test]
-    fn repository_methods() {
-        let system = RealSystem::new();
-
-        // Test Git repository methods
-        let repo = Repository::new(&system, "my_organization/repo").unwrap();
-        assert_eq!(repo.original_url(), "my_organization/repo");
-        assert_eq!(
-            repo.git_url().unwrap(),
-            "https://github.com/my_organization/repo.git"
-        );
-        assert_eq!(repo.local_path(), None);
-
-        // Test local repository methods
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path();
-        let url = format!("file://{}", path.display());
-        let new_repo = Repository::new(&system, &url).unwrap();
-
-        assert_eq!(new_repo.original_url(), &url);
-        assert!(new_repo.local_path().is_some());
-        assert_eq!(new_repo.local_path().unwrap(), path);
     }
 }

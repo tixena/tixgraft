@@ -452,57 +452,6 @@ mod tests {
     }
 
     #[test]
-    fn merge_context_values_tst() {
-        let mut parent = HashMap::new();
-        parent.insert("a".to_owned(), json!("parent-a"));
-        parent.insert("b".to_owned(), json!("parent-b"));
-
-        let mut child = HashMap::new();
-        child.insert("b".to_owned(), json!("child-b"));
-        child.insert("c".to_owned(), json!("child-c"));
-
-        let merged = merge_context_values(parent, child);
-        assert_eq!(merged.get("a"), Some(&json!("parent-a")));
-        assert_eq!(merged.get("b"), Some(&json!("child-b")));
-        assert_eq!(merged.get("c"), Some(&json!("child-c")));
-    }
-
-    #[test]
-    fn value_to_string_tst() {
-        assert_eq!(value_to_string(&json!("hello")).unwrap(), "hello");
-        assert_eq!(value_to_string(&json!(42_i64)).unwrap(), "42");
-        assert_eq!(value_to_string(&json!(true)).unwrap(), "true");
-        assert_eq!(
-            value_to_string(&json!(["a", "b"])).unwrap(),
-            "[\"a\",\"b\"]"
-        );
-        // Null value
-        assert_eq!(value_to_string(&json!(null)).unwrap(), "");
-        // Object value
-        let obj_str = value_to_string(&json!({"key": "val"})).unwrap();
-        assert!(obj_str.contains("key"));
-    }
-
-    #[test]
-    fn validated_context_get_and_get_as_string() {
-        let definitions = vec![ContextPropertyDefinition {
-            data_type: ContextDataType::String,
-            default_value: None,
-            description: "Name".to_owned(),
-            name: "name".to_owned(),
-        }];
-
-        let mut values = HashMap::new();
-        values.insert("name".to_owned(), json!("Alice"));
-
-        let ctx = ValidatedContext::new(definitions, values).unwrap();
-        assert_eq!(ctx.get("name"), Some(&json!("Alice")));
-        assert_eq!(ctx.get("missing"), None);
-        assert_eq!(ctx.get_as_string("name").unwrap(), "Alice");
-        ctx.get_as_string("missing").unwrap_err();
-    }
-
-    #[test]
     fn coerce_number_to_string() {
         // Number should coerce to string
         let val = coerce_to_string(&json!(42_i64));
@@ -581,18 +530,6 @@ mod tests {
     fn coerce_float_to_boolean_fails() {
         // Float numbers can't coerce to boolean (no as_i64)
         coerce_to_boolean("test", &json!(2.5_f64)).unwrap_err();
-    }
-
-    #[test]
-    fn merge_context_values_removes_empty_string() {
-        let mut parent = HashMap::new();
-        parent.insert("key".to_owned(), json!("value"));
-
-        let mut child = HashMap::new();
-        child.insert("key".to_owned(), json!(""));
-
-        let merged = merge_context_values(parent, child);
-        assert_eq!(merged.get("key"), None);
     }
 
     #[test]

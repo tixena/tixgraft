@@ -12,7 +12,9 @@ mod tests {
     use serde_json::json;
     use std::collections::HashMap;
     use std::path::Path;
-    use tixgraft::config::context::ValidatedContext;
+    use tixgraft::config::context::{
+        ContextPropertyDefinition, ValidatedContext, merge_context_values, value_to_string,
+    };
     use tixgraft::config::graft_yaml::GraftConfig;
     use tixgraft::operations::{apply_graft_replacements, copy_files};
     use tixgraft::system::{System as _, mock::MockSystem};
@@ -429,5 +431,62 @@ replacements:
             .read_to_string(Path::new("/target/file.txt"))
             .unwrap();
         assert_eq!(result, "Context: FromContext\nStatic: StaticValue");
+    }
+
+    #[test]
+    fn merge_context_values_tst() {
+        let mut parent = HashMap::new();
+        parent.insert("a".to_owned(), json!("parent-a"));
+        parent.insert("b".to_owned(), json!("parent-b"));
+
+        let mut child = HashMap::new();
+        child.insert("b".to_owned(), json!("child-b"));
+        child.insert("c".to_owned(), json!("child-c"));
+
+        let merged = merge_context_values(parent, child);
+        assert_eq!(merged.get("a"), Some(&json!("parent-a")));
+        assert_eq!(merged.get("b"), Some(&json!("child-b")));
+        assert_eq!(merged.get("c"), Some(&json!("child-c")));
+    }
+
+    #[test]
+    fn merge_context_values_removes_empty_string() {
+        let mut parent = HashMap::new();
+        parent.insert("key".to_owned(), json!("value"));
+
+        let mut child = HashMap::new();
+        child.insert("key".to_owned(), json!(""));
+
+        let merged = merge_context_values(parent, child);
+        assert_eq!(merged.get("key"), None);
+    }
+
+    #[test]
+    fn value_to_string_tst() {
+        assert_eq!(value_to_string(&json!("hello")).unwrap(), "hello");
+        assert_eq!(value_to_string(&json!(42_i64)).unwrap(), "42");
+        assert_eq!(value_to_string(&json!(true)).unwrap(), "true");
+        assert_eq!(
+            value_to_string(&json!(["a", "b"])).unwrap(),
+            "[\"a\",\"b\"]"
+        );
+        assert_eq!(value_to_string(&json!(null)).unwrap(), "");
+        let obj_str = value_to_string(&json!({"key": "val"})).unwrap();
+        assert!(obj_str.contains("key"));
+    }
+
+    #[test]
+    fn validated_context_get_and_get_as_string() {
+        let def_yaml = "- name: name\n  description: Name\n  dataType: string\n";
+        let definitions: Vec<ContextPropertyDefinition> = serde_yaml::from_str(def_yaml).unwrap();
+
+        let mut values = HashMap::new();
+        values.insert("name".to_owned(), json!("Alice"));
+
+        let ctx = ValidatedContext::new(definitions, values).unwrap();
+        assert_eq!(ctx.get("name"), Some(&json!("Alice")));
+        assert_eq!(ctx.get("missing"), None);
+        assert_eq!(ctx.get_as_string("name").unwrap(), "Alice");
+        ctx.get_as_string("missing").unwrap_err();
     }
 }
