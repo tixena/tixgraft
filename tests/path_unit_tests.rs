@@ -6,8 +6,9 @@ mod tests {
 
     use std::path::{Path, PathBuf};
     use tixgraft::utils::path::{
-        common_path_prefix, depth, get_file_extension, has_extension, normalize,
-        normalize_separators, validate_path_safety,
+        common_path_prefix, depth, escapes_from_base, get_file_extension, has_extension,
+        is_path_allowed, join_path_safe, normalize, normalize_separators, to_unix, to_windows,
+        validate_path_safety,
     };
     #[test]
     fn normalize_path() {
@@ -77,5 +78,75 @@ mod tests {
     fn common_path_prefix_tst() {
         let prefix = common_path_prefix(Path::new("a/b/c/d"), Path::new("a/b/x/y"));
         assert_eq!(prefix, PathBuf::from("a/b"));
+
+        // No common prefix
+        let prefix = common_path_prefix(Path::new("a/b"), Path::new("x/y"));
+        assert_eq!(prefix, PathBuf::from(""));
+
+        // Identical paths
+        let prefix = common_path_prefix(Path::new("a/b/c"), Path::new("a/b/c"));
+        assert_eq!(prefix, PathBuf::from("a/b/c"));
+    }
+
+    #[test]
+    fn join_path_safe_tst() {
+        // Normal join
+        let result = join_path_safe("base", "sub/path").unwrap();
+        assert_eq!(result, "base/sub/path");
+
+        // Rejects traversal
+        assert!(join_path_safe("base", "../escape").is_err());
+
+        // Rejects absolute component
+        assert!(join_path_safe("base", "/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn to_unix_tst() {
+        assert_eq!(to_unix("path\\to\\file"), "path/to/file");
+        assert_eq!(to_unix("already/unix"), "already/unix");
+        assert_eq!(to_unix(""), "");
+    }
+
+    #[test]
+    fn to_windows_tst() {
+        assert_eq!(to_windows("path/to/file"), "path\\to\\file");
+        assert_eq!(to_windows("already\\windows"), "already\\windows");
+        assert_eq!(to_windows(""), "");
+    }
+
+    #[test]
+    fn is_path_allowed_tst() {
+        // Direct match
+        assert!(is_path_allowed(Path::new("src/main.rs"), &["src"]));
+
+        // No match
+        assert!(!is_path_allowed(Path::new("src/main.rs"), &["tests"]));
+
+        // Glob pattern
+        assert!(is_path_allowed(Path::new("src/main.rs"), &["*.rs"]));
+        assert!(!is_path_allowed(Path::new("src/main.rs"), &["*.txt"]));
+
+        // Empty patterns
+        assert!(!is_path_allowed(Path::new("anything"), &[]));
+    }
+
+    #[test]
+    fn escapes_from_base_tst() {
+        // Normalized path check (non-existent paths, fallback branch)
+        assert!(escapes_from_base(
+            Path::new("/outside/path"),
+            Path::new("/base/dir")
+        ));
+        assert!(!escapes_from_base(
+            Path::new("/base/dir/sub"),
+            Path::new("/base/dir")
+        ));
+    }
+
+    #[test]
+    fn validate_path_safety_dotdot_not_escaping() {
+        // a/../a doesn't escape — it normalizes to "a"
+        validate_path_safety("a/../a").unwrap();
     }
 }
