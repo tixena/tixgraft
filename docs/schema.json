@@ -16,7 +16,6 @@
     "pulls": {
       "type": "array",
       "description": "List of pull operations",
-      "minItems": 1,
       "items": {
         "type": "object",
         "required": ["source", "target"],
@@ -99,8 +98,18 @@
         },
         "additionalProperties": false
       }
+    },
+    "children": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Paths to child tixgraft.yaml files to execute",
+      "default": []
+    },
+    "processChildrenFirst": {
+      "type": "boolean",
+      "description": "If true, execute children before parent pulls (default: false)",
+      "default": false
     }
   },
-  "required": ["pulls"],
   "additionalProperties": false
 }

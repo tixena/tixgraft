@@ -93,7 +93,7 @@ context:
   organization: "mycompany"
   environment: "production"
 
-# Pull operations (required, minimum 1)
+# Pull operations (required unless 'children' is present)
 pulls:
   - source: "path/in/repo"         # Required
     target: "./local/path"          # Required
@@ -115,6 +115,40 @@ pulls:
 ```
 
 **Config hierarchy**: CLI arguments > per-pull config > global config.
+
+### Children (Cascading Execution)
+
+A config can reference child `tixgraft.yaml` files for cascading execution:
+
+```yaml
+# Pure orchestrator -- no pulls, just children
+children:
+  - "./services/api/tixgraft.yaml"
+  - "./services/web/tixgraft.yaml"
+```
+
+```yaml
+# Mixed -- own pulls plus children
+repository: "my_org/scaffolds"
+tag: "main"
+
+children:
+  - "./services/api/tixgraft.yaml"
+
+# processChildrenFirst: true  # Run children before parent pulls
+
+pulls:
+  - source: "shared/config"
+    target: "./shared-config"
+```
+
+**Rules:**
+- Children must be in subdirectories (no `..`, no absolute paths)
+- Children are fully independent -- no inheritance of `repository`, `tag`, or `context`
+- Max nesting depth: 11
+- A config must have `pulls` or `children` (or both)
+- Default execution order: parent pulls first, then children
+- `processChildrenFirst: true` reverses the order
 
 ## Text Replacements
 
@@ -305,6 +339,17 @@ tixgraft --repository my_org/configs \
   --pull-target ./Dockerfile \
   --pull-type file \
   --pull-replacement "{{NODE_VERSION}}=20"
+```
+
+### Orchestrate multiple services with children
+
+```yaml
+# tixgraft.yaml (project root)
+children:
+  - "./services/api/tixgraft.yaml"
+  - "./services/web/tixgraft.yaml"
+  - "./services/worker/tixgraft.yaml"
+# Each child config is independent with its own repository, tag, pulls, etc.
 ```
 
 ### Generate a shareable command from config

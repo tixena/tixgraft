@@ -1,7 +1,7 @@
 //! YAML configuration loading and parsing.
 
 use crate::config::schema::validate_against_schema;
-use crate::config::{Config, validation::validate_config};
+use crate::config::{Config, validation::validate_config_with_base_dir};
 use crate::system::System;
 use anyhow::{Context as _, Result, anyhow};
 use std::path::Path;
@@ -47,7 +47,11 @@ pub fn load_config(system: &dyn System, path: &str) -> Result<Config> {
     validate_against_schema(&config_value).context("Configuration validation failed")?;
 
     // Validate configuration logic (path safety, env vars, etc.)
-    validate_config(system, &config).context("Configuration validation failed")?;
+    // Resolve children paths relative to the config file's directory so that
+    // nested configs (A→B→C) validate correctly regardless of CWD.
+    let base_dir = Path::new(path).parent();
+    validate_config_with_base_dir(system, &config, base_dir)
+        .context("Configuration validation failed")?;
 
     Ok(config)
 }

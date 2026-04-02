@@ -260,6 +260,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let args = build_command_args(&config);
@@ -293,6 +295,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let args = build_command_args(&config);
@@ -329,6 +333,8 @@ mod tests {
                 ],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let args = build_command_args(&config);
@@ -356,6 +362,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let result = generate_command_line(&config, OutputFormat::Shell);
@@ -410,6 +418,8 @@ mod tests {
             tag: Some("main".to_owned()),
             context: HashMap::new(),
             pulls: vec![],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let args = build_command_args(&config);
@@ -438,6 +448,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let result = generate_command_line(&config, OutputFormat::Shell);
@@ -467,6 +479,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let args = build_command_args(&config);
@@ -507,6 +521,8 @@ mod tests {
                     context: HashMap::new(),
                 },
             ],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let args = build_command_args(&config);

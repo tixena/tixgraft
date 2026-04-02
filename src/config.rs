@@ -34,7 +34,20 @@ pub struct Config {
     pub context: HashMap<String, Value>,
 
     /// List of pull operations.
+    #[serde(default)]
     pub pulls: Vec<PullConfig>,
+
+    /// Paths to child tixgraft.yaml files to execute.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<String>,
+
+    /// If true, execute children before parent pulls (default: false).
+    #[serde(
+        default,
+        skip_serializing_if = "std::ops::Not::not",
+        rename = "processChildrenFirst"
+    )]
+    pub process_children_first: bool,
 }
 
 impl Config {

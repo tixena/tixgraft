@@ -94,6 +94,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
@@ -123,6 +125,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
@@ -150,6 +154,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         // Serialize to YAML
@@ -204,6 +210,8 @@ mod tests {
                 ],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
@@ -232,6 +240,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
@@ -272,6 +282,8 @@ mod tests {
                     context: HashMap::new(),
                 },
             ],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
@@ -299,6 +311,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
@@ -324,6 +338,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
@@ -351,6 +367,8 @@ mod tests {
                 replacements: vec![],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
@@ -367,6 +385,8 @@ mod tests {
             repository: Some("my_organization/repo".to_owned()),
             tag: Some("main".to_owned()),
             pulls: vec![],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         // Serialization should work, but validation would fail
@@ -396,6 +416,8 @@ mod tests {
                 }],
                 context: HashMap::new(),
             }],
+            children: Vec::new(),
+            process_children_first: false,
         };
 
         let yaml = serialize_config(&config).unwrap();
