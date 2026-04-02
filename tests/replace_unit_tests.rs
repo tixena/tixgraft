@@ -2,6 +2,10 @@
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "test code uses indexing after length assertions"
+)]
 mod tests {
     use serde_json::json;
     use std::collections::HashMap;
@@ -217,9 +221,7 @@ mod tests {
             .with_file("/test/file.txt", b"data")
             .unwrap();
 
-        let result =
-            apply_regex_replacement(&system, Path::new("/test/file.txt"), r"[invalid", "x");
-        assert!(result.is_err());
+        apply_regex_replacement(&system, Path::new("/test/file.txt"), "[invalid", "x").unwrap_err();
     }
 
     #[test]
@@ -270,8 +272,7 @@ mod tests {
             Some("val".to_owned()),
             Some("ENV".to_owned()),
         );
-        let result = get_replacement_value(&system, &replacement);
-        assert!(result.is_err());
+        get_replacement_value(&system, &replacement).unwrap_err();
     }
 
     #[test]

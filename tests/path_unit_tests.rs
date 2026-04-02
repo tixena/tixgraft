@@ -2,6 +2,10 @@
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
+#[expect(
+    clippy::shadow_unrelated,
+    reason = "test functions reuse variable names for clarity"
+)]
 mod tests {
 
     use std::path::{Path, PathBuf};
@@ -95,10 +99,10 @@ mod tests {
         assert_eq!(result, "base/sub/path");
 
         // Rejects traversal
-        assert!(join_path_safe("base", "../escape").is_err());
+        join_path_safe("base", "../escape").unwrap_err();
 
         // Rejects absolute component
-        assert!(join_path_safe("base", "/etc/passwd").is_err());
+        join_path_safe("base", "/etc/passwd").unwrap_err();
     }
 
     #[test]

@@ -97,7 +97,7 @@ mod tests {
         assert_eq!(size, 0); // MockSystem limitation
 
         // Non-existent file should error
-        assert!(get_file_size(&system, Path::new("/test/missing.txt")).is_err());
+        get_file_size(&system, Path::new("/test/missing.txt")).unwrap_err();
     }
 
     #[test]
@@ -166,8 +166,8 @@ mod tests {
 
     #[test]
     fn format_file_size_large_values() {
-        assert_eq!(format_file_size(1_073_741_824), "1.0 GB");
-        assert_eq!(format_file_size(1_099_511_627_776), "1.0 TB");
+        assert_eq!(format_file_size(0x4000_0000), "1.0 GB");
+        assert_eq!(format_file_size(0x100_0000_0000), "1.0 TB");
     }
 
     #[test]

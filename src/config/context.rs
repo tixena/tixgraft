@@ -476,5 +476,143 @@ mod tests {
             value_to_string(&json!(["a", "b"])).unwrap(),
             "[\"a\",\"b\"]"
         );
+        // Null value
+        assert_eq!(value_to_string(&json!(null)).unwrap(), "");
+        // Object value
+        let obj_str = value_to_string(&json!({"key": "val"})).unwrap();
+        assert!(obj_str.contains("key"));
+    }
+
+    #[test]
+    fn validated_context_get_and_get_as_string() {
+        let definitions = vec![ContextPropertyDefinition {
+            data_type: ContextDataType::String,
+            default_value: None,
+            description: "Name".to_owned(),
+            name: "name".to_owned(),
+        }];
+
+        let mut values = HashMap::new();
+        values.insert("name".to_owned(), json!("Alice"));
+
+        let ctx = ValidatedContext::new(definitions, values).unwrap();
+        assert_eq!(ctx.get("name"), Some(&json!("Alice")));
+        assert_eq!(ctx.get("missing"), None);
+        assert_eq!(ctx.get_as_string("name").unwrap(), "Alice");
+        ctx.get_as_string("missing").unwrap_err();
+    }
+
+    #[test]
+    fn coerce_number_to_string() {
+        // Number should coerce to string
+        let val = coerce_to_string(&json!(42_i64));
+        assert_eq!(val, json!("42"));
+    }
+
+    #[test]
+    fn coerce_bool_to_string() {
+        let val = coerce_to_string(&json!(true));
+        assert_eq!(val, json!("true"));
+    }
+
+    #[test]
+    fn coerce_null_to_string() {
+        let val = coerce_to_string(&json!(null));
+        assert_eq!(val, json!("null"));
+    }
+
+    #[test]
+    fn coerce_string_float_to_number() {
+        coerce_to_number("test", &json!("3.5")).unwrap();
+    }
+
+    #[test]
+    fn coerce_invalid_string_to_number() {
+        coerce_to_number("test", &json!("not-a-number")).unwrap_err();
+    }
+
+    #[test]
+    fn coerce_bool_to_number_fails() {
+        coerce_to_number("test", &json!(true)).unwrap_err();
+    }
+
+    #[test]
+    fn coerce_number_to_boolean() {
+        // Non-zero integer to boolean
+        let result = coerce_to_boolean("test", &json!(1_i64));
+        assert_eq!(result.unwrap(), json!(true));
+
+        let result = coerce_to_boolean("test", &json!(0_i64));
+        assert_eq!(result.unwrap(), json!(false));
+    }
+
+    #[test]
+    fn coerce_string_yes_no_to_boolean() {
+        assert_eq!(
+            coerce_to_boolean("test", &json!("yes")).unwrap(),
+            json!(true)
+        );
+        assert_eq!(
+            coerce_to_boolean("test", &json!("no")).unwrap(),
+            json!(false)
+        );
+        assert_eq!(coerce_to_boolean("test", &json!("1")).unwrap(), json!(true));
+        assert_eq!(
+            coerce_to_boolean("test", &json!("0")).unwrap(),
+            json!(false)
+        );
+        assert_eq!(
+            coerce_to_boolean("test", &json!("false")).unwrap(),
+            json!(false)
+        );
+    }
+
+    #[test]
+    fn coerce_invalid_string_to_boolean() {
+        coerce_to_boolean("test", &json!("maybe")).unwrap_err();
+    }
+
+    #[test]
+    fn coerce_null_to_boolean_fails() {
+        coerce_to_boolean("test", &json!(null)).unwrap_err();
+    }
+
+    #[test]
+    fn coerce_float_to_boolean_fails() {
+        // Float numbers can't coerce to boolean (no as_i64)
+        coerce_to_boolean("test", &json!(2.5_f64)).unwrap_err();
+    }
+
+    #[test]
+    fn merge_context_values_removes_empty_string() {
+        let mut parent = HashMap::new();
+        parent.insert("key".to_owned(), json!("value"));
+
+        let mut child = HashMap::new();
+        child.insert("key".to_owned(), json!(""));
+
+        let merged = merge_context_values(parent, child);
+        assert_eq!(merged.get("key"), None);
+    }
+
+    #[test]
+    fn type_error_in_validation() {
+        let definitions = vec![ContextPropertyDefinition {
+            data_type: ContextDataType::Number,
+            default_value: None,
+            description: "Count".to_owned(),
+            name: "count".to_owned(),
+        }];
+
+        let mut values = HashMap::new();
+        values.insert("count".to_owned(), json!(true)); // bool can't be number
+        let result = validate_and_merge_values(&definitions, values);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid context values")
+        );
     }
 }

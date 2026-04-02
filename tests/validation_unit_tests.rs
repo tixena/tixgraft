@@ -3,7 +3,7 @@
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
-    use serde_yaml;
+    use std::path::Path;
     use tixgraft::cli::{PullConfig, ReplacementConfig};
     use tixgraft::config::Config;
     use tixgraft::config::validation::{
@@ -49,16 +49,16 @@ mod tests {
 
     fn make_config(pulls: Vec<PullConfig>, children: Vec<String>) -> Config {
         let yaml = serde_yaml::to_string(&serde_yaml::Value::Mapping({
-            let mut m = serde_yaml::Mapping::new();
-            m.insert(
+            let mut mapping = serde_yaml::Mapping::new();
+            mapping.insert(
                 serde_yaml::Value::String("repository".into()),
                 serde_yaml::Value::String("org/repo".into()),
             );
-            m.insert(
+            mapping.insert(
                 serde_yaml::Value::String("tag".into()),
                 serde_yaml::Value::String("main".into()),
             );
-            m
+            mapping
         }))
         .unwrap();
         let mut config: Config = serde_yaml::from_str(&yaml).unwrap();
@@ -68,7 +68,7 @@ mod tests {
     }
 
     fn make_pull(source: &str, target: &str) -> PullConfig {
-        let yaml = format!("source: {source}\ntarget: {target}\ntype: directory",);
+        let yaml = format!("source: {source}\ntarget: {target}\ntype: directory");
         serde_yaml::from_str(&yaml).unwrap()
     }
 
@@ -96,7 +96,7 @@ mod tests {
 
         let config = make_config(vec![], vec!["child/tixgraft.yaml".to_owned()]);
         // Need base_dir since children paths resolve relative to it
-        validate_config_with_base_dir(&system, &config, Some(std::path::Path::new("/"))).unwrap();
+        validate_config_with_base_dir(&system, &config, Some(Path::new("/"))).unwrap();
     }
 
     #[test]

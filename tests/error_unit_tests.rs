@@ -1,7 +1,6 @@
 //! Unit tests for error types.
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
     use tixgraft::error::GraftError;
 
@@ -34,21 +33,21 @@ mod tests {
 
     #[test]
     fn exit_codes() {
-        assert_eq!(GraftError::configuration("x").exit_code(), 1);
-        assert_eq!(GraftError::from_source("x").exit_code(), 2);
-        assert_eq!(GraftError::command("x").exit_code(), 3);
-        assert_eq!(GraftError::git("x").exit_code(), 4);
-        assert_eq!(GraftError::filesystem("x").exit_code(), 5);
-        assert_eq!(GraftError::skill("x").exit_code(), 6);
+        assert_eq!(GraftError::configuration("x").exit_code(), 1_i32);
+        assert_eq!(GraftError::from_source("x").exit_code(), 2_i32);
+        assert_eq!(GraftError::command("x").exit_code(), 3_i32);
+        assert_eq!(GraftError::git("x").exit_code(), 4_i32);
+        assert_eq!(GraftError::filesystem("x").exit_code(), 5_i32);
+        assert_eq!(GraftError::skill("x").exit_code(), 6_i32);
     }
 
     #[test]
     fn accepts_string_and_str() {
         // &str
-        let _ = GraftError::command("static str");
+        drop(GraftError::command("static str"));
         // String
-        let _ = GraftError::command(String::from("owned string"));
+        drop(GraftError::command(String::from("owned string")));
         // format!
-        let _ = GraftError::command(format!("formatted {}", 42));
+        drop(GraftError::command(format!("formatted {}", 42_i32)));
     }
 }

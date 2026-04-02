@@ -6,6 +6,10 @@
     clippy::indexing_slicing,
     reason = "test code uses indexing after length assertions"
 )]
+#[expect(
+    clippy::shadow_unrelated,
+    reason = "test functions reuse variable names for clarity"
+)]
 mod tests {
     use tixgraft::operations::commands::{
         execute_commands, execute_commands_interactive, validate_commands,
@@ -60,8 +64,7 @@ mod tests {
     #[test]
     fn execute_commands_nonexistent_dir() {
         let commands = vec!["echo test".to_owned()];
-        let result = execute_commands(&commands, "/nonexistent_dir_12345");
-        assert!(result.is_err());
+        execute_commands(&commands, "/nonexistent_dir_12345").unwrap_err();
     }
 
     #[test]
@@ -84,8 +87,7 @@ mod tests {
     #[test]
     fn execute_commands_interactive_nonexistent_dir() {
         let commands = vec!["echo test".to_owned()];
-        let result = execute_commands_interactive(&commands, "/nonexistent_dir_12345");
-        assert!(result.is_err());
+        execute_commands_interactive(&commands, "/nonexistent_dir_12345").unwrap_err();
     }
 
     #[test]
@@ -104,8 +106,7 @@ mod tests {
         let temp_dir = system.create_temp_dir().unwrap();
 
         let commands = vec!["false".to_owned()];
-        let result = execute_commands_interactive(&commands, temp_dir.path().to_str().unwrap());
-        assert!(result.is_err());
+        execute_commands_interactive(&commands, temp_dir.path().to_str().unwrap()).unwrap_err();
     }
 
     #[test]

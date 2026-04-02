@@ -125,8 +125,7 @@ mod tests {
             .with_file("/target/old.txt", b"old content")
             .unwrap();
 
-        let result = copy_files(&system, Path::new("/source"), "/target", "directory", true);
-        assert!(result.is_ok());
+        copy_files(&system, Path::new("/source"), "/target", "directory", true).unwrap();
         // Old file should be gone after reset
         assert!(!system.exists(Path::new("/target/old.txt")).unwrap());
         assert!(system.exists(Path::new("/target/a.txt")).unwrap());
