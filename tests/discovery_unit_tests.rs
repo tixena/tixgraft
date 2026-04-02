@@ -108,4 +108,40 @@ mod tests {
         let result = discover_graft_files(&system, Path::new("/nonexistent/path"));
         result.unwrap_err();
     }
+
+    #[test]
+    fn discover_not_a_directory() {
+        let system = MockSystem::new()
+            .with_file("/test/file.txt", b"data")
+            .unwrap();
+
+        let result = discover_graft_files(&system, Path::new("/test/file.txt"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not a directory"));
+    }
+
+    #[test]
+    fn discover_graft_with_non_graft_files() {
+        // Ensure non-.graft.yaml files are ignored
+        let system = MockSystem::new()
+            .with_dir("/test")
+            .unwrap()
+            .with_file("/test/.graft.yaml", b"# Graft\n")
+            .unwrap()
+            .with_file("/test/readme.md", b"# Readme\n")
+            .unwrap()
+            .with_file("/test/config.yaml", b"key: value\n")
+            .unwrap();
+
+        let grafts = discover_graft_files(&system, Path::new("/test")).unwrap();
+        assert_eq!(grafts.len(), 1);
+    }
+
+    #[test]
+    fn cleanup_empty_directory() {
+        let system = MockSystem::new().with_dir("/test").unwrap();
+
+        let deleted = cleanup_graft_files(&system, Path::new("/test")).unwrap();
+        assert_eq!(deleted, 0);
+    }
 }
