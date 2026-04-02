@@ -91,10 +91,14 @@ fn main() -> Result<()> {
 
     // Handle skill commands
     if args.skill.skill_install {
-        exit(result_to_exit_code(tixgraft::run_skill_install(args.skill.global)));
+        exit(result_to_exit_code(tixgraft::run_skill_install(
+            args.skill.global,
+        )));
     }
     if args.skill.skill_uninstall {
-        exit(result_to_exit_code(tixgraft::run_skill_uninstall(args.skill.global)));
+        exit(result_to_exit_code(tixgraft::run_skill_uninstall(
+            args.skill.global,
+        )));
     }
     if args.skill.skill_test {
         match tixgraft::run_skill_test(args.skill.global, args.skill.yes) {

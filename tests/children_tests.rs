@@ -9,7 +9,12 @@ mod tests {
     use tempfile::TempDir;
 
     /// Create a local source directory with a single file and return its canonicalized path.
-    fn create_local_source(temp_dir: &TempDir, dir_name: &str, file_name: &str, content: &str) -> String {
+    fn create_local_source(
+        temp_dir: &TempDir,
+        dir_name: &str,
+        file_name: &str,
+        content: &str,
+    ) -> String {
         let source_dir = temp_dir.path().join(dir_name);
         fs::create_dir_all(&source_dir).unwrap();
         fs::write(source_dir.join(file_name), content).unwrap();
@@ -24,7 +29,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
 
         // Create two local sources: one for parent, one for child
-        let parent_repo = create_local_source(&temp_dir, "repo_parent", "parent.txt", "parent content");
+        let parent_repo =
+            create_local_source(&temp_dir, "repo_parent", "parent.txt", "parent content");
         let child_repo = create_local_source(&temp_dir, "repo_child", "child.txt", "child content");
 
         // Create child config in a subdirectory
@@ -62,12 +68,17 @@ children:
             .arg("tixgraft.yaml")
             .assert()
             .success()
-            .stdout(predicate::str::contains("Completed pull operations successfully"));
+            .stdout(predicate::str::contains(
+                "Completed pull operations successfully",
+            ));
 
         // Verify parent pull landed
         let parent_output = temp_dir.path().join("parent_out/parent.txt");
         assert!(parent_output.exists(), "Parent output file should exist");
-        assert_eq!(fs::read_to_string(&parent_output).unwrap(), "parent content");
+        assert_eq!(
+            fs::read_to_string(&parent_output).unwrap(),
+            "parent content"
+        );
 
         // Verify child pull landed (in the child's subdirectory)
         let child_output = temp_dir.path().join("sub/child_out/child.txt");
@@ -115,7 +126,11 @@ children:
 
         // The child's target "./out/data.txt" should resolve relative to the child dir
         let output = temp_dir.path().join("level1/level2/out/data.txt");
-        assert!(output.exists(), "File should land relative to child config dir at {}", output.display());
+        assert!(
+            output.exists(),
+            "File should land relative to child config dir at {}",
+            output.display()
+        );
         assert_eq!(fs::read_to_string(&output).unwrap(), "resolved data");
 
         // Should NOT appear at the parent level
@@ -132,7 +147,8 @@ children:
         let temp_dir = TempDir::new().unwrap();
 
         // Create sources
-        let parent_repo = create_local_source(&temp_dir, "repo_parent", "marker.txt", "PARENT_MARKER");
+        let parent_repo =
+            create_local_source(&temp_dir, "repo_parent", "marker.txt", "PARENT_MARKER");
         let child_repo = create_local_source(&temp_dir, "repo_child", "marker.txt", "CHILD_MARKER");
 
         // Child config
@@ -185,7 +201,10 @@ children:
         let child_pos = stdout.find("Processing child config");
 
         assert!(pull_pos.is_some(), "Should contain parent pull output");
-        assert!(child_pos.is_some(), "Should contain child processing output");
+        assert!(
+            child_pos.is_some(),
+            "Should contain child processing output"
+        );
         assert!(
             pull_pos.unwrap() < child_pos.unwrap(),
             "Default order: parent pulls should execute before children"
@@ -251,7 +270,10 @@ children:
         let child_pos = stdout.find("Processing child config");
         let pull_pos = stdout.find("Starting tixgraft pull operation");
 
-        assert!(child_pos.is_some(), "Should contain child processing output");
+        assert!(
+            child_pos.is_some(),
+            "Should contain child processing output"
+        );
         assert!(pull_pos.is_some(), "Should contain parent pull output");
         assert!(
             child_pos.unwrap() < pull_pos.unwrap(),

@@ -2,7 +2,10 @@
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
-#[expect(clippy::indexing_slicing, reason = "test code uses indexing for YAML value comparison")]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "test code uses indexing for YAML value comparison"
+)]
 mod tests {
 
     use assert_cmd::Command;

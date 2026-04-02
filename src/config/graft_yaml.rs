@@ -259,7 +259,10 @@ impl Default for PostCommand {
 
 // Custom deserializer for PostCommand to handle missing 'type' field
 // (defaults to 'command' type when 'type' is not specified)
-#[expect(clippy::missing_trait_methods, reason = "custom Deserialize impl only needs deserialize method")]
+#[expect(
+    clippy::missing_trait_methods,
+    reason = "custom Deserialize impl only needs deserialize method"
+)]
 impl<'de> Deserialize<'de> for PostCommand {
     ///
     /// # Errors
@@ -317,7 +320,9 @@ impl<'de> Deserialize<'de> for PostCommand {
                     })?;
 
                     let options: Vec<ChoiceOption> = serde_json::from_value(options_value.clone())
-                        .map_err(|err| D::Error::custom(format!("Failed to parse options: {err}")))?;
+                        .map_err(|err| {
+                            D::Error::custom(format!("Failed to parse options: {err}"))
+                        })?;
 
                     Ok(Self::Choice { options })
                 }
@@ -373,8 +378,14 @@ fn validate_value_type(name: &str, value: &Value, expected_type: &ContextDataTyp
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code for brevity")]
-#[expect(clippy::indexing_slicing, reason = "indexing is acceptable in test code where lengths are asserted")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "unwrap is acceptable in test code for brevity"
+)]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "indexing is acceptable in test code where lengths are asserted"
+)]
 mod tests {
     use crate::system::{mock::MockSystem, real::RealSystem};
 
@@ -447,8 +458,14 @@ replacements:
     }
 
     #[test]
-    #[expect(clippy::panic, reason = "panic used as test assertion for enum variant mismatch")]
-    #[expect(clippy::pattern_type_mismatch, reason = "match on borrowed enum in test code")]
+    #[expect(
+        clippy::panic,
+        reason = "panic used as test assertion for enum variant mismatch"
+    )]
+    #[expect(
+        clippy::pattern_type_mismatch,
+        reason = "match on borrowed enum in test code"
+    )]
     fn post_command_default_type() {
         let yaml = r#"
 postCommands:
@@ -466,8 +483,14 @@ postCommands:
     }
 
     #[test]
-    #[expect(clippy::panic, reason = "panic used as test assertion for enum variant mismatch")]
-    #[expect(clippy::pattern_type_mismatch, reason = "match on borrowed enum in test code")]
+    #[expect(
+        clippy::panic,
+        reason = "panic used as test assertion for enum variant mismatch"
+    )]
+    #[expect(
+        clippy::pattern_type_mismatch,
+        reason = "match on borrowed enum in test code"
+    )]
     fn post_command_choice_type() {
         let yaml = r#"
 postCommands:

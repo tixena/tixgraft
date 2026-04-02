@@ -43,12 +43,13 @@ impl Repository {
     /// Returns an error if:
     /// - The repository is a local source
     #[inline]
-    #[expect(clippy::pattern_type_mismatch, reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+    #[expect(
+        clippy::pattern_type_mismatch,
+        reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
+    )]
     pub fn git_url(&self) -> Result<&str> {
         match &self.source {
-            RepositorySource::Git {
-                normalized_url, ..
-            } => Ok(normalized_url),
+            RepositorySource::Git { normalized_url, .. } => Ok(normalized_url),
             RepositorySource::Local { .. } => {
                 Err(GraftError::git("git_url() called on Local repository source").into())
             }
@@ -72,12 +73,13 @@ impl Repository {
     /// Get the local path (returns None if this is a Git source).
     #[must_use]
     #[inline]
-    #[expect(clippy::pattern_type_mismatch, reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+    #[expect(
+        clippy::pattern_type_mismatch,
+        reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
+    )]
     pub const fn local_path(&self) -> Option<&PathBuf> {
         match &self.source {
-            RepositorySource::Local {
-                resolved_path, ..
-            } => Some(resolved_path),
+            RepositorySource::Local { resolved_path, .. } => Some(resolved_path),
             RepositorySource::Git { .. } => None,
         }
     }
@@ -159,9 +161,7 @@ fn create_local_source(
     } else {
         system
             .current_dir()
-            .map_err(|err| {
-                GraftError::filesystem(format!("Cannot get current directory: {err}"))
-            })?
+            .map_err(|err| GraftError::filesystem(format!("Cannot get current directory: {err}")))?
             .join(&path)
     };
 
@@ -237,7 +237,10 @@ fn normalize_repository_url(url: &str) -> Result<String> {
 /// - The Git reference (tag/branch) is empty
 /// - The repository is local
 #[inline]
-#[expect(clippy::pattern_type_mismatch, reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+#[expect(
+    clippy::pattern_type_mismatch,
+    reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
+)]
 pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
     // For local repositories, we've already validated the path exists in detect_source_type
     if repo.is_local() {
@@ -247,9 +250,7 @@ pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
 
     // For Git repositories, validate URL and tag
     match &repo.source {
-        RepositorySource::Git {
-            normalized_url, ..
-        } => {
+        RepositorySource::Git { normalized_url, .. } => {
             if normalized_url.is_empty() {
                 return Err(GraftError::git("Repository URL cannot be empty".to_owned()).into());
             }

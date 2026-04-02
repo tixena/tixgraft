@@ -264,7 +264,10 @@ where
 #[inline]
 #[expect(clippy::as_conversions, reason = "This is for number formatting")]
 #[expect(clippy::cast_precision_loss, reason = "This is for number formatting")]
-#[expect(clippy::float_arithmetic, reason = "floating-point division required for human-readable size formatting")]
+#[expect(
+    clippy::float_arithmetic,
+    reason = "floating-point division required for human-readable size formatting"
+)]
 pub fn format_file_size(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     const THRESHOLD: f64 = 1024.0;

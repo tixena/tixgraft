@@ -2,7 +2,10 @@
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
-#[expect(clippy::indexing_slicing, reason = "Index-based assertions are acceptable in tests")]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "Index-based assertions are acceptable in tests"
+)]
 mod tests {
     use tixgraft::config::Config;
     use tixgraft::config::validation::validate_config;

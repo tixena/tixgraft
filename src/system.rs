@@ -3,7 +3,10 @@
 //! This module provides a unified trait for all external system interactions,
 //! allowing for easy testing with mock implementations.
 
-#![expect(clippy::module_name_repetitions, reason = "trait name System is the canonical name for this abstraction")]
+#![expect(
+    clippy::module_name_repetitions,
+    reason = "trait name System is the canonical name for this abstraction"
+)]
 
 pub mod mock;
 pub mod real;

@@ -177,7 +177,10 @@ fn validate_and_coerce_type(
 }
 
 /// Coerce a value to string.
-#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+#[expect(
+    clippy::pattern_type_mismatch,
+    reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
+)]
 fn coerce_to_string(value: &Value) -> Value {
     match value {
         Value::String(_) => value.clone(),
@@ -188,7 +191,10 @@ fn coerce_to_string(value: &Value) -> Value {
 }
 
 /// Coerce a value to number.
-#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+#[expect(
+    clippy::pattern_type_mismatch,
+    reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
+)]
 fn coerce_to_number(name: &str, value: &Value) -> Result<Value> {
     match value {
         Value::Number(_) => Ok(value.clone()),
@@ -222,7 +228,10 @@ fn coerce_to_number(name: &str, value: &Value) -> Result<Value> {
 }
 
 /// Coerce a value to boolean.
-#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+#[expect(
+    clippy::pattern_type_mismatch,
+    reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
+)]
 fn coerce_to_boolean(name: &str, value: &Value) -> Result<Value> {
     match value {
         Value::Bool(_) => Ok(value.clone()),
@@ -251,7 +260,10 @@ fn coerce_to_boolean(name: &str, value: &Value) -> Result<Value> {
 }
 
 /// Validate array type (no coercion, must be proper array).
-#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+#[expect(
+    clippy::pattern_type_mismatch,
+    reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
+)]
 fn validate_array(name: &str, value: &Value) -> Result<Value> {
     match value {
         Value::Array(_) => Ok(value.clone()),
@@ -271,7 +283,10 @@ fn validate_array(name: &str, value: &Value) -> Result<Value> {
 /// Returns an error if:
 /// - The value cannot be serialized to a string
 #[inline]
-#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+#[expect(
+    clippy::pattern_type_mismatch,
+    reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
+)]
 pub fn value_to_string(value: &Value) -> Result<String> {
     match value {
         Value::String(str_val) => Ok(str_val.clone()),
@@ -292,7 +307,10 @@ pub fn value_to_string(value: &Value) -> Result<String> {
 /// Returns the merged context values.
 #[must_use]
 #[inline]
-#[expect(clippy::iter_over_hash_type, reason = "iteration order is irrelevant for merging context values by key")]
+#[expect(
+    clippy::iter_over_hash_type,
+    reason = "iteration order is irrelevant for merging context values by key"
+)]
 pub fn merge_context_values(parent: ContextValues, child: ContextValues) -> ContextValues {
     let mut result = parent;
     for (key, value) in child {
@@ -307,8 +325,14 @@ pub fn merge_context_values(parent: ContextValues, child: ContextValues) -> Cont
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "unwrap is acceptable in tests for concise assertions")]
-#[expect(clippy::shadow_unrelated, reason = "test functions reuse variable names for clarity")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "unwrap is acceptable in tests for concise assertions"
+)]
+#[expect(
+    clippy::shadow_unrelated,
+    reason = "test functions reuse variable names for clarity"
+)]
 mod tests {
     use super::*;
     use serde_json::json;

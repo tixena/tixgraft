@@ -11,8 +11,14 @@ use serde_json::Value;
 #[command(long_about = None)]
 #[command(version)]
 #[non_exhaustive]
-#[expect(clippy::struct_excessive_bools, reason = "CLI args naturally have many boolean flags")]
-#[expect(clippy::arbitrary_source_item_ordering, reason = "field order defines CLI help output order")]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "CLI args naturally have many boolean flags"
+)]
+#[expect(
+    clippy::arbitrary_source_item_ordering,
+    reason = "field order defines CLI help output order"
+)]
 pub struct Args {
     /// Git repository URL or account/repo format.
     #[arg(long, value_name = "REPO")]
@@ -86,7 +92,10 @@ impl Args {
 /// Arguments for individual pull operations.
 #[derive(Parser, Debug, Clone, Default)]
 #[non_exhaustive]
-#[expect(clippy::arbitrary_source_item_ordering, reason = "field order defines CLI help output order")]
+#[expect(
+    clippy::arbitrary_source_item_ordering,
+    reason = "field order defines CLI help output order"
+)]
 pub struct PullArgs {
     /// Repository for specific pull.
     #[arg(long = "pull-repository", value_name = "REPO")]
@@ -125,8 +134,14 @@ pub struct PullArgs {
 /// Skill management arguments.
 #[derive(Parser, Debug, Clone, Default)]
 #[non_exhaustive]
-#[expect(clippy::arbitrary_source_item_ordering, reason = "field order defines CLI help output order")]
-#[expect(clippy::struct_excessive_bools, reason = "CLI args naturally have many boolean flags")]
+#[expect(
+    clippy::arbitrary_source_item_ordering,
+    reason = "field order defines CLI help output order"
+)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "CLI args naturally have many boolean flags"
+)]
 pub struct SkillArgs {
     /// Install the tixgraft Claude Code skill.
     #[arg(long = "skill-install", conflicts_with_all = ["skill_uninstall", "skill_test", "to_command_line", "to_config"])]
@@ -152,7 +167,10 @@ pub struct SkillArgs {
 /// Individual pull configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
-#[expect(clippy::arbitrary_source_item_ordering, reason = "field order matches YAML config schema for readability")]
+#[expect(
+    clippy::arbitrary_source_item_ordering,
+    reason = "field order matches YAML config schema for readability"
+)]
 pub struct PullConfig {
     pub source: String,
     pub target: String,
@@ -208,7 +226,10 @@ fn default_pull_type() -> String {
 /// Parse context arguments from CLI into a `HashMap`.
 /// Handles both --context and --context-json flags.
 /// Multiple values with the same key create an array.
-#[expect(clippy::iter_over_hash_type, reason = "iteration order does not matter for context key-value collection")]
+#[expect(
+    clippy::iter_over_hash_type,
+    reason = "iteration order does not matter for context key-value collection"
+)]
 fn parse_context_args(
     context_args: &[String],
     context_json_args: &[String],
@@ -252,7 +273,10 @@ fn parse_context_args(
 }
 
 /// Parse a KEY=VALUE string into its key and value components.
-#[expect(clippy::indexing_slicing, reason = "parts length is checked to be exactly 2 before indexing")]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "parts length is checked to be exactly 2 before indexing"
+)]
 fn parse_key_value(arg: &str) -> anyhow::Result<(String, String)> {
     let parts: Vec<&str> = arg.splitn(2, '=').collect();
     if parts.len() != 2 {
@@ -264,7 +288,10 @@ fn parse_key_value(arg: &str) -> anyhow::Result<(String, String)> {
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code for brevity")]
+#[expect(
+    clippy::unwrap_used,
+    reason = "unwrap is acceptable in test code for brevity"
+)]
 mod tests {
     use super::*;
 

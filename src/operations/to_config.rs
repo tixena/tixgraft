@@ -69,7 +69,10 @@ fn format_yaml_output(yaml: &str) -> String {
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "These are unit tests")]
-#[expect(clippy::indexing_slicing, reason = "index-based assertions are acceptable in tests")]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "index-based assertions are acceptable in tests"
+)]
 mod tests {
     use std::collections::HashMap;
 

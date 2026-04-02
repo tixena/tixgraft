@@ -123,8 +123,12 @@ pub fn apply_regex_replacement(
             files_processed = files_processed.saturating_add(1);
         }
     } else if system.is_dir(target_path)? {
-        files_processed =
-            files_processed.saturating_add(walk_and_apply_regex(system, target_path, &regex, replacement)?);
+        files_processed = files_processed.saturating_add(walk_and_apply_regex(
+            system,
+            target_path,
+            &regex,
+            replacement,
+        )?);
     } else {
         debug!("Skipping file: {}", target_path.display());
     }
@@ -154,8 +158,12 @@ pub fn apply_single_replacement(
         }
     } else if system.is_dir(target_path)? {
         // Directory case - recursively walk all files using System trait
-        files_processed = files_processed
-            .saturating_add(walk_and_apply(system, target_path, search_pattern, replacement_value)?);
+        files_processed = files_processed.saturating_add(walk_and_apply(
+            system,
+            target_path,
+            search_pattern,
+            replacement_value,
+        )?);
     } else {
         debug!("Skipping file: {}", target_path.display());
     }
@@ -454,9 +462,12 @@ fn walk_and_apply(
             }
         } else if system.is_dir(&entry_path)? {
             // Recursively process subdirectories
-            files_processed = files_processed.saturating_add(
-                walk_and_apply(system, &entry_path, search_pattern, replacement_value)?,
-            );
+            files_processed = files_processed.saturating_add(walk_and_apply(
+                system,
+                &entry_path,
+                search_pattern,
+                replacement_value,
+            )?);
         } else {
             debug!("Skipping directory: {}", entry_path.display());
         }
@@ -484,8 +495,12 @@ fn walk_and_apply_regex(
                 files_processed = files_processed.saturating_add(1);
             }
         } else if system.is_dir(&entry_path)? {
-            files_processed = files_processed
-                .saturating_add(walk_and_apply_regex(system, &entry_path, regex, replacement)?);
+            files_processed = files_processed.saturating_add(walk_and_apply_regex(
+                system,
+                &entry_path,
+                regex,
+                replacement,
+            )?);
         } else {
             debug!("Skipping directory: {}", entry_path.display());
         }

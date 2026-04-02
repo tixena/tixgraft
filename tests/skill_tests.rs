@@ -192,6 +192,8 @@ mod tests {
             .args(["--yes", "--skill-install"])
             .assert()
             .failure()
-            .stdout(predicate::str::contains("--yes (-y) can only be used with --skill-test"));
+            .stdout(predicate::str::contains(
+                "--yes (-y) can only be used with --skill-test",
+            ));
     }
 }

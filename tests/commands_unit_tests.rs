@@ -2,7 +2,10 @@
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
-#[expect(clippy::indexing_slicing, reason = "test code uses indexing after length assertions")]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "test code uses indexing after length assertions"
+)]
 mod tests {
     use tixgraft::operations::commands::{execute_commands, validate_commands};
     use tixgraft::system::System as _;

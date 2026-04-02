@@ -4,7 +4,6 @@
 //! from Git repositories using sparse checkout, apply text replacements, and
 //! execute post-processing commands.
 
-
 pub mod cli;
 pub mod config;
 pub mod error;

@@ -393,10 +393,7 @@ impl System for MockSystem {
         let result = bytes.clone();
         drop(state);
         String::from_utf8(result).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Invalid UTF-8: {err}"),
-            )
+            io::Error::new(io::ErrorKind::InvalidData, format!("Invalid UTF-8: {err}"))
         })
     }
 

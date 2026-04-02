@@ -2,8 +2,14 @@
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
-#[expect(clippy::indexing_slicing, reason = "test code uses indexing after length assertions")]
-#[expect(clippy::shadow_reuse, reason = "test code unwraps Result into same variable name for readability")]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "test code uses indexing after length assertions"
+)]
+#[expect(
+    clippy::shadow_reuse,
+    reason = "test code unwraps Result into same variable name for readability"
+)]
 mod tests {
 
     use tixgraft::config::Config;

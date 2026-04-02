@@ -23,7 +23,10 @@ const MAX_CHILDREN_DEPTH: usize = 11;
 
 /// Coordinates the complete pull operation.
 #[non_exhaustive]
-#[expect(clippy::module_name_repetitions, reason = "PullOperation is the canonical name for this type and removing the prefix would reduce clarity")]
+#[expect(
+    clippy::module_name_repetitions,
+    reason = "PullOperation is the canonical name for this type and removing the prefix would reduce clarity"
+)]
 pub struct PullOperation<'src> {
     /// The merged configuration driving this pull operation.
     config: Config,
@@ -56,13 +59,7 @@ impl<'src> PullOperation<'src> {
             .unwrap_or_else(|| Path::new("."));
         let mut visited = HashSet::new();
 
-        execute_config_recursive(
-            self.system,
-            &self.config,
-            config_dir,
-            &mut visited,
-            0,
-        )
+        execute_config_recursive(self.system, &self.config, config_dir, &mut visited, 0)
     }
 
     /// Quick check if a URL is a local filesystem path.
@@ -84,7 +81,10 @@ impl<'src> PullOperation<'src> {
     /// - The configuration cannot be merged with CLI overrides.
     /// - Git availability check fails.
     #[inline]
-    #[expect(clippy::needless_pass_by_value, reason = "Public API consumed by callers that pass Args by value; changing to &Args would break existing call sites")]
+    #[expect(
+        clippy::needless_pass_by_value,
+        reason = "Public API consumed by callers that pass Args by value; changing to &Args would break existing call sites"
+    )]
     pub fn new(args: Args, system: &'src dyn System) -> Result<Self> {
         // Load configuration
         let mut config = if Path::new(&args.config).exists() {
@@ -147,14 +147,7 @@ impl<'src> PullOperation<'src> {
             .unwrap_or_else(|| Path::new("."));
         let mut visited = HashSet::new();
 
-        preview_config_recursive(
-            self.system,
-            &self.config,
-            config_dir,
-            &mut visited,
-            0,
-            "",
-        )?;
+        preview_config_recursive(self.system, &self.config, config_dir, &mut visited, 0, "")?;
 
         info!("");
         info!("Run without --dry-run to execute these operations.");
@@ -254,7 +247,10 @@ fn execute_config_recursive(
 }
 
 /// Execute all pull operations for a config.
-#[expect(clippy::arithmetic_side_effects, reason = "Simple counter increments on usize totals that cannot realistically overflow")]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "Simple counter increments on usize totals that cannot realistically overflow"
+)]
 fn execute_pulls(system: &dyn System, config: &Config) -> Result<()> {
     if config.pulls.is_empty() {
         return Ok(());
@@ -314,7 +310,10 @@ fn execute_pulls(system: &dyn System, config: &Config) -> Result<()> {
 }
 
 /// Execute all children for a config.
-#[expect(clippy::arithmetic_side_effects, reason = "Depth increment cannot overflow for practical recursion depths")]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "Depth increment cannot overflow for practical recursion depths"
+)]
 fn execute_children(
     system: &dyn System,
     config: &Config,
@@ -324,21 +323,15 @@ fn execute_children(
 ) -> Result<()> {
     for child_path_str in &config.children {
         let child_config_path = config_dir.join(child_path_str);
-        let child_dir = child_config_path
-            .parent()
-            .unwrap_or_else(|| Path::new("."));
+        let child_dir = child_config_path.parent().unwrap_or_else(|| Path::new("."));
 
         info!("\n=> Processing child config: {}", child_path_str);
 
         let child_config_path_str = child_config_path.to_string_lossy();
         // load_from_file validates the config with children paths resolved
         // relative to the config file's directory (not CWD).
-        let child_config =
-            Config::load_from_file(system, &child_config_path_str).with_context(|| {
-                format!(
-                    "Error in child '{child_path_str}': failed to load config"
-                )
-            })?;
+        let child_config = Config::load_from_file(system, &child_config_path_str)
+            .with_context(|| format!("Error in child '{child_path_str}': failed to load config"))?;
 
         // Resolve child pull targets relative to child config directory
         let mut resolved_config = child_config;
@@ -347,14 +340,8 @@ fn execute_children(
             pull.target = resolved_target.to_string_lossy().to_string();
         }
 
-        execute_config_recursive(
-            system,
-            &resolved_config,
-            child_dir,
-            visited,
-            depth + 1,
-        )
-        .with_context(|| format!("Error in child '{child_path_str}'"))?;
+        execute_config_recursive(system, &resolved_config, child_dir, visited, depth + 1)
+            .with_context(|| format!("Error in child '{child_path_str}'"))?;
     }
 
     Ok(())
@@ -454,7 +441,10 @@ fn preview_pulls(config: &Config, indent: &str) -> Result<()> {
 }
 
 /// Preview all children for a config, recursing into each child.
-#[expect(clippy::arithmetic_side_effects, reason = "Depth increment cannot overflow for practical recursion depths")]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "Depth increment cannot overflow for practical recursion depths"
+)]
 fn preview_children(
     system: &dyn System,
     config: &Config,
@@ -465,9 +455,7 @@ fn preview_children(
 ) -> Result<()> {
     for child_path_str in &config.children {
         let child_config_path = config_dir.join(child_path_str);
-        let child_dir = child_config_path
-            .parent()
-            .unwrap_or_else(|| Path::new("."));
+        let child_dir = child_config_path.parent().unwrap_or_else(|| Path::new("."));
 
         info!("");
         info!("{indent}  Child: {}", child_path_str);
@@ -475,10 +463,8 @@ fn preview_children(
         let child_config_path_str = child_config_path.to_string_lossy();
         // load_from_file validates the config with children paths resolved
         // relative to the config file's directory (not CWD).
-        let child_config =
-            Config::load_from_file(system, &child_config_path_str).with_context(|| {
-                format!("Error in child '{child_path_str}': failed to load config")
-            })?;
+        let child_config = Config::load_from_file(system, &child_config_path_str)
+            .with_context(|| format!("Error in child '{child_path_str}': failed to load config"))?;
 
         // Resolve child pull targets relative to child config directory
         let mut resolved_config = child_config;
@@ -503,7 +489,10 @@ fn preview_children(
 }
 
 /// Execute a single pull operation.
-#[expect(clippy::arithmetic_side_effects, reason = "Simple counter increments on usize totals that cannot realistically overflow")]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "Simple counter increments on usize totals that cannot realistically overflow"
+)]
 fn execute_single_pull(
     system: &dyn System,
     config: &Config,
@@ -514,8 +503,7 @@ fn execute_single_pull(
     debug!("Executing single pull operation: {repo_url} - {reference:?}");
 
     // Create repository and determine source type
-    let repository =
-        Repository::new(system, repo_url).context("Failed to create repository")?;
+    let repository = Repository::new(system, repo_url).context("Failed to create repository")?;
 
     // For Git repositories, we need to keep the SparseCheckout alive to prevent
     // the TempDir from being deleted before we finish copying files
@@ -635,8 +623,7 @@ fn execute_single_pull(
             &pull.target
         };
 
-        execute_commands(&pull.commands, command_working_dir)
-            .context("Command execution failed")?
+        execute_commands(&pull.commands, command_working_dir).context("Command execution failed")?
     };
     commands_executed += graft_result.commands_executed;
 
@@ -659,7 +646,10 @@ fn build_graft_context(
 }
 
 /// Process all .graft.yaml files in the target directory.
-#[expect(clippy::arithmetic_side_effects, reason = "Simple counter increments on usize totals that cannot realistically overflow")]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "Simple counter increments on usize totals that cannot realistically overflow"
+)]
 fn process_graft_files(
     system: &dyn System,
     config: &Config,
@@ -695,8 +685,8 @@ fn process_graft_files(
         debug!("Processing .graft.yaml at: {}", discovered.path.display());
 
         // Load and parse .graft.yaml
-        let graft_config = GraftConfig::load_from_file(system, &discovered.path)
-            .with_context(|| {
+        let graft_config =
+            GraftConfig::load_from_file(system, &discovered.path).with_context(|| {
                 format!(
                     "Failed to load .graft.yaml from: {}",
                     discovered.path.display()
@@ -755,9 +745,8 @@ fn process_graft_files(
 
         // Execute post-commands
         if !graft_config.post_commands.is_empty() {
-            let results =
-                execute_post_commands(&graft_config.post_commands, &discovered.directory)
-                    .context("Failed to execute post-commands")?;
+            let results = execute_post_commands(&graft_config.post_commands, &discovered.directory)
+                .context("Failed to execute post-commands")?;
 
             total_commands += results.len();
             debug!(
@@ -780,8 +769,8 @@ fn process_graft_files(
     }
 
     // Cleanup: Delete all .graft.yaml files
-    let deleted = cleanup_graft_files(system, target_path)
-        .context("Failed to cleanup .graft.yaml files")?;
+    let deleted =
+        cleanup_graft_files(system, target_path).context("Failed to cleanup .graft.yaml files")?;
 
     debug!("Deleted {} .graft.yaml file(s)", deleted);
 
@@ -847,10 +836,15 @@ fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
             repository: pull_args.repositories.get(idx).cloned(),
             tag: pull_args.tags.get(idx).cloned(),
             reset: pull_args.resets.get(idx).copied().unwrap_or(false),
-            commands: pull_args.commands.get(idx).map_or_else(
-                Vec::new,
-                |cmd_str| cmd_str.split(',').map(|segment| segment.trim().to_owned()).collect(),
-            ),
+            commands: pull_args
+                .commands
+                .get(idx)
+                .map_or_else(Vec::new, |cmd_str| {
+                    cmd_str
+                        .split(',')
+                        .map(|segment| segment.trim().to_owned())
+                        .collect()
+                }),
             replacements: parse_replacements_for_pull(pull_args, idx)?,
             context: HashMap::new(),
         };

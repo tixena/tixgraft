@@ -153,9 +153,7 @@ fn validate_child_path(
     // Check file exists, resolving relative to base_dir when provided
     let resolved = base_dir.map_or_else(|| PathBuf::from(path), |dir| dir.join(path));
     if !system.exists(&resolved)? {
-        return Err(anyhow!(
-            "{context}: Child config file not found: '{path}'"
-        ));
+        return Err(anyhow!("{context}: Child config file not found: '{path}'"));
     }
 
     Ok(())

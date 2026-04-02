@@ -38,7 +38,9 @@ pub fn validate_against_schema(config: &Value) -> Result<()> {
             .map(|err| {
                 format!(
                     "  - Path '{}': {} (schema: {})",
-                    err.instance_path(), err, err.schema_path()
+                    err.instance_path(),
+                    err,
+                    err.schema_path()
                 )
             })
             .collect();

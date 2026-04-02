@@ -19,7 +19,10 @@ use crate::system::System;
 /// Main configuration structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
-#[expect(clippy::arbitrary_source_item_ordering, reason = "field order matches YAML config schema for readability")]
+#[expect(
+    clippy::arbitrary_source_item_ordering,
+    reason = "field order matches YAML config schema for readability"
+)]
 pub struct Config {
     /// Global repository URL or account/repo format.
     #[serde(skip_serializing_if = "Option::is_none")]

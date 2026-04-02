@@ -43,8 +43,9 @@ pub fn resolve_skill_path(global: bool) -> Result<PathBuf, GraftError> {
             .ok_or_else(|| GraftError::skill("Could not determine home directory"))?;
         Ok(home.join(SKILL_SUBDIR))
     } else {
-        let cwd = env::current_dir()
-            .map_err(|err| GraftError::skill(format!("Could not determine current directory: {err}")))?;
+        let cwd = env::current_dir().map_err(|err| {
+            GraftError::skill(format!("Could not determine current directory: {err}"))
+        })?;
         Ok(cwd.join(SKILL_SUBDIR))
     }
 }
@@ -154,11 +155,7 @@ pub fn prompt_yes_no(question: &str) -> Result<bool, GraftError> {
 // ---------------------------------------------------------------------------
 
 /// Recursively write all files from an embedded directory to the filesystem.
-fn write_embedded_files(
-    system: &dyn System,
-    base: &Path,
-    dir: &Dir<'_>,
-) -> Result<(), GraftError> {
+fn write_embedded_files(system: &dyn System, base: &Path, dir: &Dir<'_>) -> Result<(), GraftError> {
     for file in dir.files() {
         let target_path = base.join(file.path());
         if let Some(parent) = target_path.parent() {
@@ -166,14 +163,9 @@ fn write_embedded_files(
                 .create_dir_all(parent)
                 .map_err(|err| GraftError::skill(format!("Failed to create directory: {err}")))?;
         }
-        system
-            .write(&target_path, file.contents())
-            .map_err(|err| {
-                GraftError::skill(format!(
-                    "Failed to write {}: {err}",
-                    target_path.display()
-                ))
-            })?;
+        system.write(&target_path, file.contents()).map_err(|err| {
+            GraftError::skill(format!("Failed to write {}: {err}", target_path.display()))
+        })?;
     }
 
     for sub_dir in dir.dirs() {
@@ -260,9 +252,9 @@ fn collect_installed_paths(
             let sub_paths = collect_installed_paths(system, base, &entry)?;
             paths.extend(sub_paths);
         } else {
-            let relative = entry
-                .strip_prefix(base)
-                .map_err(|err| GraftError::skill(format!("Failed to compute relative path: {err}")))?;
+            let relative = entry.strip_prefix(base).map_err(|err| {
+                GraftError::skill(format!("Failed to compute relative path: {err}"))
+            })?;
             paths.insert(relative.to_path_buf());
         }
     }

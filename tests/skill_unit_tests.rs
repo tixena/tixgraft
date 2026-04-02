@@ -33,15 +33,14 @@ mod tests {
         let system = MockSystem::new()
             .with_dir("/project/.claude/skills/tixgraft")
             .unwrap()
-            .with_file(
-                "/project/.claude/skills/tixgraft/SKILL.md",
-                b"old content",
-            )
+            .with_file("/project/.claude/skills/tixgraft/SKILL.md", b"old content")
             .unwrap();
 
         skill_install(&system, skill_dir()).unwrap();
 
-        let content = system.read_to_string(&skill_dir().join("SKILL.md")).unwrap();
+        let content = system
+            .read_to_string(&skill_dir().join("SKILL.md"))
+            .unwrap();
         assert_ne!(content, "old content");
         assert!(content.contains("tixgraft"));
     }
@@ -108,10 +107,7 @@ mod tests {
 
         // Add an extra file that is not in the embedded content
         system
-            .write(
-                &skill_dir().join("extra.md"),
-                b"this should not be here",
-            )
+            .write(&skill_dir().join("extra.md"), b"this should not be here")
             .unwrap();
 
         let status = skill_check(&system, skill_dir()).unwrap();

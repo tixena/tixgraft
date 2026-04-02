@@ -84,7 +84,7 @@ jobs:
             ${{ runner.os }}-cargo-audit-
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit --version 0.21.0 || echo "cargo-audit already installed"
+        run: cargo install cargo-audit --version 0.22.1 || echo "cargo-audit already installed"
 
       - name: Run security audit
         run: cargo audit
