@@ -121,6 +121,10 @@ pub struct PullArgs {
     #[arg(long = "pull-reset")]
     pub resets: Vec<bool>,
 
+    /// Require clean git target directory before pulling (default: true).
+    #[arg(long = "pull-require-clean-target")]
+    pub require_clean_targets: Vec<bool>,
+
     /// Commands to execute after copying.
     #[arg(long = "pull-commands", value_name = "COMMANDS")]
     pub commands: Vec<String>,
@@ -182,6 +186,8 @@ pub struct PullConfig {
     pub tag: Option<String>,
     #[serde(default)]
     pub reset: bool,
+    #[serde(default = "default_true", rename = "requireCleanTarget")]
+    pub require_clean_target: bool,
     #[serde(default)]
     pub commands: Vec<String>,
     #[serde(default)]
@@ -221,6 +227,11 @@ impl ReplacementConfig {
 /// Returns the default pull type value for serde deserialization.
 fn default_pull_type() -> String {
     "directory".to_owned()
+}
+
+/// Returns `true` for serde deserialization default.
+const fn default_true() -> bool {
+    true
 }
 
 /// Parse context arguments from CLI into a `HashMap`.

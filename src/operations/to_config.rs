@@ -93,6 +93,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: false,
+                require_clean_target: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -124,6 +125,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: false,
+                require_clean_target: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -153,6 +155,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: true,
+                require_clean_target: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -198,6 +201,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: false,
+                require_clean_target: true,
                 commands: vec![],
                 replacements: vec![
                     ReplacementConfig {
@@ -239,6 +243,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: false,
+                require_clean_target: true,
                 commands: vec!["npm install".to_owned(), "npm run build".to_owned()],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -269,6 +274,7 @@ mod tests {
                     repository: None, // Uses global
                     tag: None,        // Uses global
                     reset: false,
+                    require_clean_target: true,
                     commands: vec![],
                     replacements: vec![],
                     context: HashMap::new(),
@@ -280,6 +286,7 @@ mod tests {
                     repository: Some("per-pull/repo".to_owned()), // Override
                     tag: Some("v2".to_owned()),                   // Override
                     reset: false,
+                    require_clean_target: true,
                     commands: vec![],
                     replacements: vec![],
                     context: HashMap::new(),
@@ -310,6 +317,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: false,
+                require_clean_target: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -337,6 +345,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: false,
+                require_clean_target: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -366,6 +375,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: false,
+                require_clean_target: true,
                 commands: vec!["echo 'line1'\necho 'line2'".to_owned()],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -411,6 +421,7 @@ mod tests {
                 repository: None,
                 tag: None,
                 reset: false,
+                require_clean_target: true,
                 commands: vec![],
                 replacements: vec![ReplacementConfig {
                     source: "{{VAR}}".to_owned(),

@@ -44,6 +44,7 @@ Each `--pull-*` flag at index N pairs with other `--pull-*` flags at the same in
 --pull-repository <repo>          # Override repository for this pull
 --pull-tag <ref>                  # Override tag for this pull
 --pull-reset                      # rm -rf target before copying
+--pull-require-clean-target       # require clean git target (default: true)
 --pull-commands <cmds>            # Post-copy commands (comma-separated)
 --pull-replacement <SRC=TGT>      # Text replacement: "{{PLACEHOLDER}}=value" or "{{VAR}}=env:ENV_NAME"
 ```
@@ -101,6 +102,7 @@ pulls:
     repository: "other/repo"        # Optional: override global
     tag: "v1.0.0"                   # Optional: override global
     reset: true                     # Optional: delete target first
+    requireCleanTarget: false       # Optional: skip uncommitted changes check (default: true)
     context:                        # Optional: per-pull context (merged with global)
       serviceName: "my-api"
       port: 8080

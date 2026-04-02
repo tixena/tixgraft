@@ -48,6 +48,11 @@
             "default": false,
             "description": "For directories, rm -rf target before copying"
           },
+          "requireCleanTarget": {
+            "type": "boolean",
+            "default": true,
+            "description": "Require target path to have no uncommitted git changes before pulling"
+          },
           "commands": {
             "type": "array",
             "description": "Commands to run after copying",

@@ -16,6 +16,7 @@ use anyhow::{Context as _, Result};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use tracing::{debug, info, warn};
 
 /// Max nesting depth for children configs.
@@ -419,6 +420,10 @@ fn preview_pulls(config: &Config, indent: &str) -> Result<()> {
             info!("{indent}      - Would reset target directory (reset: true)");
         }
 
+        if !pull.require_clean_target {
+            info!("{indent}      - Skipping clean-target check (requireCleanTarget: false)");
+        }
+
         if !pull.replacements.is_empty() {
             info!(
                 "{indent}      - Would apply {} text replacements",
@@ -501,6 +506,11 @@ fn execute_single_pull(
     reference: &str,
 ) -> Result<PullResult> {
     debug!("Executing single pull operation: {repo_url} - {reference:?}");
+
+    // Check for uncommitted changes in target if required
+    if pull.require_clean_target {
+        check_target_is_clean(&pull.target)?;
+    }
 
     // Create repository and determine source type
     let repository = Repository::new(system, repo_url).context("Failed to create repository")?;
@@ -836,6 +846,11 @@ fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
             repository: pull_args.repositories.get(idx).cloned(),
             tag: pull_args.tags.get(idx).cloned(),
             reset: pull_args.resets.get(idx).copied().unwrap_or(false),
+            require_clean_target: pull_args
+                .require_clean_targets
+                .get(idx)
+                .copied()
+                .unwrap_or(true),
             commands: pull_args
                 .commands
                 .get(idx)
@@ -979,4 +994,78 @@ pub fn build_merged_config(args: &Args, system: &dyn System) -> Result<Config> {
     }
 
     Ok(config)
+}
+
+/// Check that the target path has no uncommitted git changes.
+///
+/// Silently passes if the target does not exist, is not inside a git
+/// repository, or if the `git` binary is not available.
+///
+/// # Errors
+///
+/// Returns an error if modified or untracked files are found under the target.
+fn check_target_is_clean(target: &str) -> Result<()> {
+    let target_path = Path::new(target);
+
+    // If target doesn't exist yet, it's clean by definition
+    if !target_path.exists() {
+        debug!(
+            "Target path '{}' does not exist yet, skipping clean check",
+            target
+        );
+        return Ok(());
+    }
+
+    // Run git status scoped to the target path
+    let Ok(output) = Command::new("git")
+        .args(["status", "--porcelain", "--", target])
+        .output()
+    else {
+        debug!(
+            "Could not run git status for target '{}', skipping clean check",
+            target
+        );
+        return Ok(());
+    };
+
+    if !output.status.success() {
+        // git status failed — likely not a git repository
+        debug!(
+            "git status failed for target '{}' (not a git repo?), skipping clean check",
+            target
+        );
+        return Ok(());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let dirty_files: Vec<&str> = stdout.lines().filter(|line| !line.is_empty()).collect();
+
+    if dirty_files.is_empty() {
+        return Ok(());
+    }
+
+    let max_shown: usize = 10;
+    let file_list: String = dirty_files
+        .iter()
+        .take(max_shown)
+        .map(|line| format!("  {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let extra = if dirty_files.len() > max_shown {
+        format!(
+            "\n  ... and {} more",
+            dirty_files.len().saturating_sub(max_shown)
+        )
+    } else {
+        String::new()
+    };
+
+    Err(GraftError::filesystem(format!(
+        "Target path '{target}' has uncommitted changes. \
+         Commit or stash your changes before pulling, \
+         or set requireCleanTarget: false to skip this check.\n\
+         Dirty files:\n{file_list}{extra}"
+    ))
+    .into())
 }
