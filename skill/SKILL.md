@@ -45,6 +45,7 @@ Each `--pull-*` flag at index N pairs with other `--pull-*` flags at the same in
 --pull-tag <ref>                  # Override tag for this pull
 --pull-reset                      # rm -rf target before copying
 --pull-require-clean-target       # require clean git target (default: true)
+--pull-must-succeed               # whether failure is fatal (default: true)
 --pull-commands <cmds>            # Post-copy commands (comma-separated)
 --pull-replacement <SRC=TGT>      # Text replacement: "{{PLACEHOLDER}}=value" or "{{VAR}}=env:ENV_NAME"
 ```
@@ -103,6 +104,7 @@ pulls:
     tag: "v1.0.0"                   # Optional: override global
     reset: true                     # Optional: delete target first
     requireCleanTarget: false       # Optional: skip uncommitted changes check (default: true)
+    mustSucceed: false              # Optional: if false, failure warns instead of aborting (default: true)
     context:                        # Optional: per-pull context (merged with global)
       serviceName: "my-api"
       port: 8080
@@ -331,6 +333,9 @@ pulls:
     reset: true
     commands:
       - "kubectl apply -f ."
+  - source: "extras/monitoring"
+    target: "./k8s/monitoring"
+    mustSucceed: false              # Optional: warns on failure, doesn't abort
 ```
 
 ### Pull a single file

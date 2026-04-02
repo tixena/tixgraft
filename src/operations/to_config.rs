@@ -94,6 +94,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -126,6 +127,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -156,6 +158,7 @@ mod tests {
                 tag: None,
                 reset: true,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -202,6 +205,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![
                     ReplacementConfig {
@@ -244,6 +248,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec!["npm install".to_owned(), "npm run build".to_owned()],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -275,6 +280,7 @@ mod tests {
                     tag: None,        // Uses global
                     reset: false,
                     require_clean_target: true,
+                    must_succeed: true,
                     commands: vec![],
                     replacements: vec![],
                     context: HashMap::new(),
@@ -287,6 +293,7 @@ mod tests {
                     tag: Some("v2".to_owned()),                   // Override
                     reset: false,
                     require_clean_target: true,
+                    must_succeed: true,
                     commands: vec![],
                     replacements: vec![],
                     context: HashMap::new(),
@@ -318,6 +325,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -346,6 +354,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -376,6 +385,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec!["echo 'line1'\necho 'line2'".to_owned()],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -422,6 +432,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![ReplacementConfig {
                     source: "{{VAR}}".to_owned(),
@@ -439,5 +450,115 @@ mod tests {
         // YAML should properly escape/quote special characters
         assert!(yaml.contains("replacements:"));
         assert!(yaml.contains("VAR"));
+    }
+
+    #[test]
+    fn serialize_must_succeed_false() {
+        let config = Config {
+            context: HashMap::new(),
+
+            repository: Some("my_organization/repo".to_owned()),
+            tag: None,
+            pulls: vec![PullConfig {
+                source: "src".to_owned(),
+                target: "dst".to_owned(),
+                pull_type: "directory".to_owned(),
+                repository: None,
+                tag: None,
+                reset: false,
+                require_clean_target: true,
+                must_succeed: false,
+                commands: vec![],
+                replacements: vec![],
+                context: HashMap::new(),
+            }],
+            children: Vec::new(),
+            process_children_first: false,
+        };
+
+        let yaml = serialize_config(&config).unwrap();
+
+        // mustSucceed: false should appear in YAML
+        assert!(yaml.contains("mustSucceed: false"));
+    }
+
+    #[test]
+    fn roundtrip_must_succeed_false() {
+        let original_config = Config {
+            context: HashMap::new(),
+
+            repository: Some("my_organization/repo".to_owned()),
+            tag: None,
+            pulls: vec![PullConfig {
+                source: "src".to_owned(),
+                target: "dst".to_owned(),
+                pull_type: "directory".to_owned(),
+                repository: None,
+                tag: None,
+                reset: false,
+                require_clean_target: true,
+                must_succeed: false,
+                commands: vec![],
+                replacements: vec![],
+                context: HashMap::new(),
+            }],
+            children: Vec::new(),
+            process_children_first: false,
+        };
+
+        // Serialize to YAML
+        let yaml = serialize_config(&original_config).unwrap();
+
+        // Parse back (skip comment lines)
+        let yaml_without_comments: String = yaml
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .collect::<Vec<&str>>()
+            .join("\n");
+
+        let parsed_config: Config = serde_yaml::from_str(&yaml_without_comments).unwrap();
+
+        // must_succeed: false should be preserved through roundtrip
+        assert!(!parsed_config.pulls[0].must_succeed);
+    }
+
+    #[test]
+    fn serialize_must_succeed_true_is_default() {
+        let config = Config {
+            context: HashMap::new(),
+
+            repository: Some("my_organization/repo".to_owned()),
+            tag: None,
+            pulls: vec![PullConfig {
+                source: "src".to_owned(),
+                target: "dst".to_owned(),
+                pull_type: "directory".to_owned(),
+                repository: None,
+                tag: None,
+                reset: false,
+                require_clean_target: true,
+                must_succeed: true,
+                commands: vec![],
+                replacements: vec![],
+                context: HashMap::new(),
+            }],
+            children: Vec::new(),
+            process_children_first: false,
+        };
+
+        // Serialize to YAML
+        let yaml = serialize_config(&config).unwrap();
+
+        // Parse back (skip comment lines)
+        let yaml_without_comments: String = yaml
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .collect::<Vec<&str>>()
+            .join("\n");
+
+        let parsed_config: Config = serde_yaml::from_str(&yaml_without_comments).unwrap();
+
+        // must_succeed defaults to true
+        assert!(parsed_config.pulls[0].must_succeed);
     }
 }

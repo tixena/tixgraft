@@ -288,18 +288,29 @@ fn execute_pulls(system: &dyn System, config: &Config) -> Result<()> {
             .clone();
 
         debug!("Pull config: {:?}", pull);
-        let result = execute_single_pull(system, config, pull, repo_url, &reference)?;
+        match execute_single_pull(system, config, pull, repo_url, &reference) {
+            Ok(result) => {
+                debug!("execute_single_pull Result: {:?}", result);
 
-        debug!("execute_single_pull Result: {:?}", result);
+                total_files += result.files_copied;
+                total_replacements += result.replacements_applied;
+                total_commands += result.commands_executed;
 
-        total_files += result.files_copied;
-        total_replacements += result.replacements_applied;
-        total_commands += result.commands_executed;
-
-        info!(
-            "  \u{2713} {} \u{2192} {} ({}, {} files)",
-            pull.source, pull.target, pull.pull_type, result.files_copied
-        );
+                info!(
+                    "  \u{2713} {} \u{2192} {} ({}, {} files)",
+                    pull.source, pull.target, pull.pull_type, result.files_copied
+                );
+            }
+            Err(err) => {
+                if pull.must_succeed {
+                    return Err(err);
+                }
+                warn!(
+                    "  \u{26a0} Pull #{} failed (mustSucceed: false, continuing): {}",
+                    display_index, err
+                );
+            }
+        }
     }
 
     info!("\n\u{2713} Completed pull operations successfully");
@@ -422,6 +433,10 @@ fn preview_pulls(config: &Config, indent: &str) -> Result<()> {
 
         if !pull.require_clean_target {
             info!("{indent}      - Skipping clean-target check (requireCleanTarget: false)");
+        }
+
+        if !pull.must_succeed {
+            info!("{indent}      - Non-fatal: failures will be warnings (mustSucceed: false)");
         }
 
         if !pull.replacements.is_empty() {
@@ -851,6 +866,7 @@ fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
                 .get(idx)
                 .copied()
                 .unwrap_or(true),
+            must_succeed: pull_args.must_succeeds.get(idx).copied().unwrap_or(true),
             commands: pull_args
                 .commands
                 .get(idx)

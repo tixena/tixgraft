@@ -114,6 +114,12 @@ fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Conf
         args.push("false".to_owned());
     }
 
+    // Must succeed (only emit when false, since true is the default)
+    if !pull.must_succeed {
+        args.push("--pull-must-succeed".to_owned());
+        args.push("false".to_owned());
+    }
+
     // Replacements
     for replacement in &pull.replacements {
         args.push("--pull-replacement".to_owned());
@@ -266,6 +272,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -302,6 +309,7 @@ mod tests {
                 tag: None,
                 reset: true,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -330,6 +338,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![
                     ReplacementConfig {
@@ -371,6 +380,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec!["echo 'line1'\necho 'line2'".to_owned()],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -458,6 +468,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -490,6 +501,7 @@ mod tests {
                 tag: None,
                 reset: false,
                 require_clean_target: true,
+                must_succeed: true,
                 commands: vec![],
                 replacements: vec![],
                 context: HashMap::new(),
@@ -521,6 +533,7 @@ mod tests {
                     tag: None,        // Uses global
                     reset: false,
                     require_clean_target: true,
+                    must_succeed: true,
                     commands: vec![],
                     replacements: vec![],
                     context: HashMap::new(),
@@ -533,6 +546,7 @@ mod tests {
                     tag: Some("v2".to_owned()),                   // Override
                     reset: false,
                     require_clean_target: true,
+                    must_succeed: true,
                     commands: vec![],
                     replacements: vec![],
                     context: HashMap::new(),
@@ -548,5 +562,66 @@ mod tests {
         assert!(args.contains(&"per-pull/repo".to_owned()));
         assert!(args.contains(&"--pull-tag".to_owned()));
         assert!(args.contains(&"v2".to_owned()));
+    }
+
+    #[test]
+    fn must_succeed_true_not_emitted() {
+        use crate::cli::PullConfig;
+
+        let config = Config {
+            repository: Some("my_organization/repo".to_owned()),
+            tag: None,
+            context: HashMap::new(),
+            pulls: vec![PullConfig {
+                source: "src".to_owned(),
+                target: "dst".to_owned(),
+                pull_type: "directory".to_owned(),
+                repository: None,
+                tag: None,
+                reset: false,
+                require_clean_target: true,
+                must_succeed: true,
+                commands: vec![],
+                replacements: vec![],
+                context: HashMap::new(),
+            }],
+            children: Vec::new(),
+            process_children_first: false,
+        };
+
+        let args = build_command_args(&config);
+        // Default must_succeed=true should NOT emit the flag
+        assert!(!args.contains(&"--pull-must-succeed".to_owned()));
+    }
+
+    #[test]
+    fn must_succeed_false_emitted() {
+        use crate::cli::PullConfig;
+
+        let config = Config {
+            repository: Some("my_organization/repo".to_owned()),
+            tag: None,
+            context: HashMap::new(),
+            pulls: vec![PullConfig {
+                source: "src".to_owned(),
+                target: "dst".to_owned(),
+                pull_type: "directory".to_owned(),
+                repository: None,
+                tag: None,
+                reset: false,
+                require_clean_target: true,
+                must_succeed: false,
+                commands: vec![],
+                replacements: vec![],
+                context: HashMap::new(),
+            }],
+            children: Vec::new(),
+            process_children_first: false,
+        };
+
+        let args = build_command_args(&config);
+        // must_succeed=false should emit the flag
+        assert!(args.contains(&"--pull-must-succeed".to_owned()));
+        assert!(args.contains(&"false".to_owned()));
     }
 }

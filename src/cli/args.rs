@@ -125,6 +125,10 @@ pub struct PullArgs {
     #[arg(long = "pull-require-clean-target")]
     pub require_clean_targets: Vec<bool>,
 
+    /// Whether a pull failure is fatal (default: true). Set to false for optional pulls.
+    #[arg(long = "pull-must-succeed")]
+    pub must_succeeds: Vec<bool>,
+
     /// Commands to execute after copying.
     #[arg(long = "pull-commands", value_name = "COMMANDS")]
     pub commands: Vec<String>,
@@ -188,6 +192,8 @@ pub struct PullConfig {
     pub reset: bool,
     #[serde(default = "default_true", rename = "requireCleanTarget")]
     pub require_clean_target: bool,
+    #[serde(default = "default_true", rename = "mustSucceed")]
+    pub must_succeed: bool,
     #[serde(default)]
     pub commands: Vec<String>,
     #[serde(default)]

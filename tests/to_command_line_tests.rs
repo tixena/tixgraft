@@ -342,4 +342,56 @@ pulls:
         // Verify backslash continuations are present for multiline output
         assert!(stdout.contains(" \\\n"));
     }
+
+    #[test]
+    fn to_command_line_must_succeed_false() {
+        let mut config_file = NamedTempFile::new().unwrap();
+        writeln!(
+            config_file,
+            r#"
+repository: "my_organization/repo"
+pulls:
+  - source: "src"
+    target: "dst"
+    mustSucceed: false
+"#
+        )
+        .unwrap();
+
+        let mut cmd = Command::cargo_bin("tixgraft").unwrap();
+        cmd.arg("--config")
+            .arg(config_file.path())
+            .arg("--to-command-line")
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("--pull-must-succeed"))
+            .stdout(predicate::str::contains("false"));
+    }
+
+    #[test]
+    fn to_command_line_must_succeed_default_not_emitted() {
+        let mut config_file = NamedTempFile::new().unwrap();
+        writeln!(
+            config_file,
+            r#"
+repository: "my_organization/repo"
+pulls:
+  - source: "src"
+    target: "dst"
+"#
+        )
+        .unwrap();
+
+        let mut cmd = Command::cargo_bin("tixgraft").unwrap();
+        let output = cmd
+            .arg("--config")
+            .arg(config_file.path())
+            .arg("--to-command-line")
+            .output()
+            .unwrap();
+
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        // Default mustSucceed (true) should NOT emit the flag
+        assert!(!stdout.contains("--pull-must-succeed"));
+    }
 }

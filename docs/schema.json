@@ -53,6 +53,11 @@
             "default": true,
             "description": "Require target path to have no uncommitted git changes before pulling"
           },
+          "mustSucceed": {
+            "type": "boolean",
+            "default": true,
+            "description": "If false, pull failure logs a warning instead of aborting (default: true)"
+          },
           "commands": {
             "type": "array",
             "description": "Commands to run after copying",
