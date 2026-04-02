@@ -1,4 +1,4 @@
-//! Integration tests for Git sparse checkout functionality
+//! Integration tests for Git sparse checkout functionality.
 //!
 //! These tests verify that sparse checkout works correctly with nested directory
 //! structures and that the temporary directory lifetime is managed properly.
@@ -12,7 +12,7 @@ mod tests {
     use std::process::Command as StdCommand;
     use tempfile::TempDir;
 
-    /// Helper to create a test Git repository with nested directory structure
+    /// Helper to create a test Git repository with nested directory structure.
     fn create_test_git_repo() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
         let repo_path = temp_dir.path();

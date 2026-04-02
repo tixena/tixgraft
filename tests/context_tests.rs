@@ -1,4 +1,4 @@
-//! Unit tests for context feature
+//! Unit tests for context feature.
 //!
 //! Tests the context workflow including:
 //! - .graft.yaml discovery and parsing
@@ -191,8 +191,8 @@ replacements:
         let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
         let services = json!([
-            {"name": "api", "port": 8_080i32},
-            {"name": "web", "port": 3_000i32}
+            {"name": "api", "port": 8_080_i32},
+            {"name": "web", "port": 3_000_i32}
         ]);
 
         let mut context = HashMap::new();

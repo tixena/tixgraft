@@ -1,7 +1,8 @@
-//! Tests for post-command execution
+//! Tests for post-command execution.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
+#[expect(clippy::indexing_slicing, reason = "test code uses indexing after length assertions")]
 mod tests {
     use std::fs;
     use tempfile::TempDir;
@@ -29,7 +30,7 @@ mod tests {
     fn execute_command_with_cwd() {
         let temp_dir = TempDir::new().unwrap();
         let sub_dir = temp_dir.path().join("subdir");
-        fs::create_dir(&sub_dir).unwrap();
+        fs::create_dir_all(&sub_dir).unwrap();
 
         // Create a file in subdir to verify cwd
         fs::write(sub_dir.join("test.txt"), "content").unwrap();
@@ -114,7 +115,7 @@ mod tests {
     fn resolve_working_directory_tst() {
         let temp_dir = TempDir::new().unwrap();
         let sub_dir = temp_dir.path().join("subdir");
-        fs::create_dir(&sub_dir).unwrap();
+        fs::create_dir_all(&sub_dir).unwrap();
 
         // Test None (uses graft_directory)
         let result = resolve_working_directory(None, temp_dir.path()).unwrap();

@@ -1,4 +1,4 @@
-//! Configuration validation logic
+//! Configuration validation logic.
 
 use crate::cli::{PullConfig, ReplacementConfig};
 use crate::config::Config;
@@ -6,7 +6,7 @@ use crate::system::System;
 use anyhow::{Result, anyhow};
 use regex::Regex;
 
-/// Validate a complete configuration
+/// Validate a complete configuration.
 ///
 /// # Errors
 ///
@@ -36,13 +36,14 @@ pub fn validate_config(system: &dyn System, config: &Config) -> Result<()> {
     Ok(())
 }
 
-/// Validate a single pull configuration
+/// Validate a single pull configuration.
 fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) -> Result<()> {
-    let context = format!("Pull operation #{}", index + 1);
+    let display_index = index.saturating_add(1);
+    let context = format!("Pull operation #{display_index}");
 
     // Validate repository URL if present
     if let Some(repo) = pull.repository.as_ref() {
-        validate_repository_url(repo).map_err(|e| anyhow!("{context}: {e}"))?;
+        validate_repository_url(repo).map_err(|err| anyhow!("{context}: {err}"))?;
     }
 
     // Validate source path
@@ -65,15 +66,14 @@ fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) ->
     }
 
     // Validate path safety (prevent path traversal)
-    validate_path_safety(&pull.target).map_err(|e| anyhow!("{context}: {e}"))?;
+    validate_path_safety(&pull.target).map_err(|err| anyhow!("{context}: {err}"))?;
 
     // Validate commands
     for (cmd_index, command) in pull.commands.iter().enumerate() {
         if command.trim().is_empty() {
+            let display_cmd_index = cmd_index.saturating_add(1);
             return Err(anyhow!(
-                "{}: Command #{} cannot be empty",
-                context,
-                cmd_index + 1
+                "{context}: Command #{display_cmd_index} cannot be empty"
             ));
         }
     }
@@ -86,7 +86,7 @@ fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) ->
     Ok(())
 }
 
-/// Validate a repository URL format
+/// Validate a repository URL format.
 ///
 /// # Errors
 ///
@@ -124,7 +124,7 @@ pub fn validate_repository_url(url: &str) -> Result<()> {
     ))
 }
 
-/// Validate path safety (prevent directory traversal)
+/// Validate path safety (prevent directory traversal).
 ///
 /// # Errors
 ///
@@ -148,14 +148,16 @@ pub fn validate_path_safety(path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Validate a text replacement configuration
+/// Validate a text replacement configuration.
 fn validate_replacement(
     system: &dyn System,
     replacement: &ReplacementConfig,
     pull_index: usize,
     repl_index: usize,
 ) -> Result<()> {
-    let context = format!("Pull #{}, Replacement #{}", pull_index + 1, repl_index + 1);
+    let display_pull = pull_index.saturating_add(1);
+    let display_repl = repl_index.saturating_add(1);
+    let context = format!("Pull #{display_pull}, Replacement #{display_repl}");
 
     // Source must not be empty
     if replacement.source.trim().is_empty() {

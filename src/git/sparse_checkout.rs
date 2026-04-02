@@ -1,4 +1,4 @@
-//! Git sparse checkout implementation
+//! Git sparse checkout implementation.
 
 use crate::error::GraftError;
 use crate::git::Repository;
@@ -9,36 +9,77 @@ use std::process::Command;
 use tempfile::TempDir;
 use tracing::debug;
 
-/// Performs sparse checkout of a specific path from a Git repository
+/// Performs sparse checkout of a specific path from a Git repository.
 #[non_exhaustive]
 pub struct SparseCheckout {
-    pub repository: Repository,
+    /// Git reference (tag/branch) to checkout.
     pub reference: String,
+    /// Repository to clone from.
+    pub repository: Repository,
+    /// Path within the repository to sparse-checkout.
     pub source_path: String,
+    /// Temporary directory for the sparse checkout.
     pub temp_dir: TempDir,
 }
 
 impl SparseCheckout {
-    /// Create a new sparse checkout operation
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The temporary directory cannot be created
-    #[inline]
-    pub fn new(repository: Repository, reference: String, source_path: String) -> Result<Self> {
-        let temp_dir =
-            TempDir::new().context("Failed to create temporary directory for Git operations")?;
+    /// Checkout the specified reference.
+    fn checkout_reference(&self, repo_path: &Path) -> Result<()> {
+        debug!(
+            "checkout_reference -> Checking out reference: {}",
+            self.reference
+        );
+        let output = Command::new("git")
+            .args(["checkout", &self.reference])
+            .current_dir(repo_path)
+            .output()
+            .context("Failed to execute git checkout")?;
 
-        Ok(Self {
-            repository,
-            reference,
-            source_path,
-            temp_dir,
-        })
+        if !output.status.success() {
+            debug!("checkout_reference -> Failed to checkout reference");
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GraftError::git(format!(
+                "Failed to checkout reference '{}': {}",
+                self.reference,
+                stderr.trim()
+            ))
+            .into());
+        }
+
+        debug!("checkout_reference -> Reference checked out successfully");
+
+        Ok(())
     }
 
-    /// Execute the sparse checkout operation
+    /// Clone the repository with blob filter and no checkout.
+    fn clone_repository(&self, repo_path: &Path) -> Result<()> {
+        let output = Command::new("git")
+            .args([
+                "clone",
+                "--filter=blob:none",
+                "--no-checkout",
+                self.repository.git_url()?,
+                repo_path.to_str().ok_or_else(|| {
+                    anyhow::anyhow!("Failed to convert repository path to string")
+                })?,
+            ])
+            .output()
+            .context("Failed to execute git clone command")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GraftError::git(format!(
+                "Failed to clone repository '{}': {}",
+                self.repository.original_url(),
+                stderr.trim()
+            ))
+            .into());
+        }
+
+        Ok(())
+    }
+
+    /// Execute the sparse checkout operation.
     ///
     /// # Errors
     ///
@@ -81,118 +122,8 @@ impl SparseCheckout {
         Ok(result_path)
     }
 
-    /// Clone the repository with blob filter and no checkout
-    fn clone_repository(&self, repo_path: &Path) -> Result<()> {
-        let output = Command::new("git")
-            .args([
-                "clone",
-                "--filter=blob:none",
-                "--no-checkout",
-                self.repository.git_url()?,
-                repo_path.to_str().ok_or_else(|| {
-                    anyhow::anyhow!("Failed to convert repository path to string")
-                })?,
-            ])
-            .output()
-            .context("Failed to execute git clone command")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GraftError::git(format!(
-                "Failed to clone repository '{}': {}",
-                self.repository.original_url(),
-                stderr.trim()
-            ))
-            .into());
-        }
-
-        Ok(())
-    }
-
-    /// Initialize sparse checkout configuration
-    fn init_sparse_checkout(repo_path: &Path) -> Result<()> {
-        let output = Command::new("git")
-            .args(["sparse-checkout", "init", "--cone"])
-            .current_dir(repo_path)
-            .output()
-            .context("Failed to execute git sparse-checkout init")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GraftError::git(format!(
-                "Failed to initialize sparse checkout: {}",
-                stderr.trim()
-            ))
-            .into());
-        }
-
-        Ok(())
-    }
-
-    /// Set sparse checkout patterns
-    fn set_sparse_patterns(&self, repo_path: &Path) -> Result<()> {
-        let output = Command::new("git")
-            .args(["sparse-checkout", "set", &self.source_path])
-            .current_dir(repo_path)
-            .output()
-            .context("Failed to execute git sparse-checkout set")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GraftError::git(format!(
-                "Failed to set sparse checkout patterns: {}",
-                stderr.trim()
-            ))
-            .into());
-        }
-
-        Ok(())
-    }
-
-    /// Checkout the specified reference
-    fn checkout_reference(&self, repo_path: &Path) -> Result<()> {
-        debug!(
-            "checkout_reference -> Checking out reference: {}",
-            self.reference
-        );
-        let output = Command::new("git")
-            .args(["checkout", &self.reference])
-            .current_dir(repo_path)
-            .output()
-            .context("Failed to execute git checkout")?;
-
-        if !output.status.success() {
-            debug!("checkout_reference -> Failed to checkout reference");
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GraftError::git(format!(
-                "Failed to checkout reference '{}': {}",
-                self.reference,
-                stderr.trim()
-            ))
-            .into());
-        }
-
-        debug!("checkout_reference -> Reference checked out successfully");
-
-        Ok(())
-    }
-
-    /// Get the path to the temporary directory
-    #[must_use]
-    #[inline]
-    pub fn temp_path(&self) -> &Path {
-        self.temp_dir.path()
-    }
-
-    /// Check if the source path exists after checkout
-    #[must_use]
-    #[inline]
-    pub fn source_exists(&self) -> bool {
-        self.temp_dir.path().join(&self.source_path).exists()
-    }
-
-    /// Get diagnostic information about what was actually checked out
-    /// This is useful for debugging when `source_exists()` returns false
+    /// Get diagnostic information about what was actually checked out.
+    /// This is useful for debugging when `source_exists()` returns false.
     ///
     /// # Errors
     ///
@@ -251,9 +182,82 @@ impl SparseCheckout {
 
         Ok(diagnostics)
     }
+
+    /// Initialize sparse checkout configuration.
+    fn init_sparse_checkout(repo_path: &Path) -> Result<()> {
+        let output = Command::new("git")
+            .args(["sparse-checkout", "init", "--cone"])
+            .current_dir(repo_path)
+            .output()
+            .context("Failed to execute git sparse-checkout init")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GraftError::git(format!(
+                "Failed to initialize sparse checkout: {}",
+                stderr.trim()
+            ))
+            .into());
+        }
+
+        Ok(())
+    }
+
+    /// Create a new sparse checkout operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The temporary directory cannot be created
+    #[inline]
+    pub fn new(repository: Repository, reference: String, source_path: String) -> Result<Self> {
+        let temp_dir =
+            TempDir::new().context("Failed to create temporary directory for Git operations")?;
+
+        Ok(Self {
+            reference,
+            repository,
+            source_path,
+            temp_dir,
+        })
+    }
+
+    /// Set sparse checkout patterns.
+    fn set_sparse_patterns(&self, repo_path: &Path) -> Result<()> {
+        let output = Command::new("git")
+            .args(["sparse-checkout", "set", &self.source_path])
+            .current_dir(repo_path)
+            .output()
+            .context("Failed to execute git sparse-checkout set")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(GraftError::git(format!(
+                "Failed to set sparse checkout patterns: {}",
+                stderr.trim()
+            ))
+            .into());
+        }
+
+        Ok(())
+    }
+
+    /// Check if the source path exists after checkout.
+    #[must_use]
+    #[inline]
+    pub fn source_exists(&self) -> bool {
+        self.temp_dir.path().join(&self.source_path).exists()
+    }
+
+    /// Get the path to the temporary directory.
+    #[must_use]
+    #[inline]
+    pub fn temp_path(&self) -> &Path {
+        self.temp_dir.path()
+    }
 }
 
-/// Check if Git is available and meets minimum version requirements
+/// Check if Git is available and meets minimum version requirements.
 ///
 /// # Errors
 ///
@@ -288,7 +292,7 @@ pub fn check_git_availability() -> Result<()> {
     Ok(())
 }
 
-/// Parse Git version string into tuple (major, minor, patch)
+/// Parse Git version string into tuple (major, minor, patch).
 ///
 /// # Errors
 ///
@@ -298,9 +302,21 @@ pub fn check_git_availability() -> Result<()> {
 pub fn parse_git_version(version: &str) -> Result<(u32, u32, u32)> {
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() >= 3 {
-        let major = parts[0].parse().context("Invalid major version")?;
-        let minor = parts[1].parse().context("Invalid minor version")?;
-        let patch = parts[2].parse().context("Invalid patch version")?;
+        let major = parts
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("Missing major version"))?
+            .parse()
+            .context("Invalid major version")?;
+        let minor = parts
+            .get(1)
+            .ok_or_else(|| anyhow::anyhow!("Missing minor version"))?
+            .parse()
+            .context("Invalid minor version")?;
+        let patch = parts
+            .get(2)
+            .ok_or_else(|| anyhow::anyhow!("Missing patch version"))?
+            .parse()
+            .context("Invalid patch version")?;
         Ok((major, minor, patch))
     } else {
         Err(anyhow::anyhow!("Invalid version format"))

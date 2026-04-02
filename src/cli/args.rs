@@ -4,44 +4,45 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Command-line arguments for tixgraft
+/// Command-line arguments for tixgraft.
 #[derive(Parser, Debug, Clone)]
 #[command(name = "tixgraft")]
 #[command(about = "A CLI tool for fetching reusable components from Git repositories")]
 #[command(long_about = None)]
 #[command(version)]
 #[non_exhaustive]
-#[expect(clippy::struct_excessive_bools)]
+#[expect(clippy::struct_excessive_bools, reason = "CLI args naturally have many boolean flags")]
+#[expect(clippy::arbitrary_source_item_ordering, reason = "field order defines CLI help output order")]
 pub struct Args {
-    /// Git repository URL or account/repo format
+    /// Git repository URL or account/repo format.
     #[arg(long, value_name = "REPO")]
     pub repository: Option<String>,
 
-    /// Git reference (branch, tag, or commit hash)
+    /// Git reference (branch, tag, or commit hash).
     #[arg(long, value_name = "REF")]
     pub tag: Option<String>,
 
-    /// Configuration file path
+    /// Configuration file path.
     #[arg(long, value_name = "PATH", default_value = "./tixgraft.yaml")]
     pub config: String,
 
-    /// Preview operations without executing
+    /// Preview operations without executing.
     #[arg(long)]
     pub dry_run: bool,
 
-    /// Enable verbose logging output
+    /// Enable verbose logging output.
     #[arg(short, long)]
     pub verbose: bool,
 
-    /// Output the equivalent command-line invocation instead of executing
+    /// Output the equivalent command-line invocation instead of executing.
     #[arg(long = "to-command-line", conflicts_with = "to_config")]
     pub to_command_line: bool,
 
-    /// Output the equivalent YAML configuration instead of executing
+    /// Output the equivalent YAML configuration instead of executing.
     #[arg(long = "to-config", conflicts_with = "to_command_line")]
     pub to_config: bool,
 
-    /// Output format for to-command-line: shell or json
+    /// Output format for to-command-line: shell or json.
     #[arg(
         long = "output-format",
         value_name = "FORMAT",
@@ -50,27 +51,27 @@ pub struct Args {
     )]
     pub output_format: String,
 
-    /// Context values in KEY=VALUE format (can be specified multiple times)
-    /// Multiple values with the same key create an array
+    /// Context values in KEY=VALUE format (can be specified multiple times).
+    /// Multiple values with the same key create an array.
     #[arg(long = "context", value_name = "KEY=VALUE")]
     pub context: Vec<String>,
 
-    /// Context values as JSON in KEY=JSON format (can be specified multiple times)
-    /// Use this for complex values like arrays of objects
+    /// Context values as JSON in KEY=JSON format (can be specified multiple times).
+    /// Use this for complex values like arrays of objects.
     #[arg(long = "context-json", value_name = "KEY=JSON")]
     pub context_json: Vec<String>,
 
-    /// Pull operations (can be specified multiple times)
+    /// Pull operations (can be specified multiple times).
     #[command(flatten)]
     pub pulls: PullArgs,
 
-    /// Skill management arguments
+    /// Skill management arguments.
     #[command(flatten)]
     pub skill: SkillArgs,
 }
 
 impl Args {
-    /// Parse context arguments into a `HashMap`
+    /// Parse context arguments into a `HashMap`.
     ///
     /// # Errors
     ///
@@ -82,72 +83,76 @@ impl Args {
     }
 }
 
-/// Arguments for individual pull operations
+/// Arguments for individual pull operations.
 #[derive(Parser, Debug, Clone, Default)]
 #[non_exhaustive]
+#[expect(clippy::arbitrary_source_item_ordering, reason = "field order defines CLI help output order")]
 pub struct PullArgs {
-    /// Repository for specific pull
+    /// Repository for specific pull.
     #[arg(long = "pull-repository", value_name = "REPO")]
     pub repositories: Vec<String>,
 
-    /// Git reference for specific pull
+    /// Git reference for specific pull.
     #[arg(long = "pull-tag", value_name = "REF")]
     pub tags: Vec<String>,
 
-    /// Pull type: file or directory
+    /// Pull type: file or directory.
     #[arg(long = "pull-type", value_name = "TYPE", value_parser = ["file", "directory"])]
     pub types: Vec<String>,
 
-    /// Source path in Git repository
+    /// Source path in Git repository.
     #[arg(long = "pull-source", value_name = "PATH")]
     pub sources: Vec<String>,
 
-    /// Target path in local workspace
+    /// Target path in local workspace.
     #[arg(long = "pull-target", value_name = "PATH")]
     pub targets: Vec<String>,
 
-    /// Reset target directory before copying
+    /// Reset target directory before copying.
     #[arg(long = "pull-reset")]
     pub resets: Vec<bool>,
 
-    /// Commands to execute after copying
+    /// Commands to execute after copying.
     #[arg(long = "pull-commands", value_name = "COMMANDS")]
     pub commands: Vec<String>,
 
-    /// Text replacements in format "SOURCE=TARGET" or "`SOURCE=env:ENV_VAR`"
-    /// Can be specified multiple times per pull operation
+    /// Text replacements in format "SOURCE=TARGET" or "`SOURCE=env:ENV_VAR`".
+    /// Can be specified multiple times per pull operation.
     #[arg(long = "pull-replacement", value_name = "REPLACEMENT")]
     pub replacements: Vec<String>,
 }
 
-/// Skill management arguments
+/// Skill management arguments.
 #[derive(Parser, Debug, Clone, Default)]
 #[non_exhaustive]
+#[expect(clippy::arbitrary_source_item_ordering, reason = "field order defines CLI help output order")]
+#[expect(clippy::struct_excessive_bools, reason = "CLI args naturally have many boolean flags")]
 pub struct SkillArgs {
-    /// Install the tixgraft Claude Code skill
+    /// Install the tixgraft Claude Code skill.
     #[arg(long = "skill-install", conflicts_with_all = ["skill_uninstall", "skill_test", "to_command_line", "to_config"])]
     pub skill_install: bool,
 
-    /// Uninstall the tixgraft Claude Code skill
+    /// Uninstall the tixgraft Claude Code skill.
     #[arg(long = "skill-uninstall", conflicts_with_all = ["skill_install", "skill_test", "to_command_line", "to_config"])]
     pub skill_uninstall: bool,
 
-    /// Test whether the tixgraft Claude Code skill is installed and up to date
+    /// Test whether the tixgraft Claude Code skill is installed and up to date.
     #[arg(long = "skill-test", conflicts_with_all = ["skill_install", "skill_uninstall", "to_command_line", "to_config"])]
     pub skill_test: bool,
 
-    /// Apply skill operation globally (~/.claude/skills/tixgraft/)
+    /// Apply skill operation globally (~/.claude/skills/tixgraft/).
     #[arg(short = 'g', long = "global")]
     pub global: bool,
 
-    /// Auto-confirm prompts (used with --skill-test)
+    /// Auto-confirm prompts (used with --skill-test).
     #[arg(short = 'y', long = "yes")]
     pub yes: bool,
 }
 
-/// Individual pull configuration
+/// Individual pull configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
+#[expect(clippy::arbitrary_source_item_ordering, reason = "field order matches YAML config schema for readability")]
 pub struct PullConfig {
     pub source: String,
     pub target: String,
@@ -163,12 +168,12 @@ pub struct PullConfig {
     pub commands: Vec<String>,
     #[serde(default)]
     pub replacements: Vec<ReplacementConfig>,
-    /// Context values for this pull
+    /// Context values for this pull.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub context: HashMap<String, Value>,
 }
 
-/// Text replacement configuration
+/// Text replacement configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct ReplacementConfig {
@@ -195,13 +200,15 @@ impl ReplacementConfig {
     }
 }
 
+/// Returns the default pull type value for serde deserialization.
 fn default_pull_type() -> String {
     "directory".to_owned()
 }
 
-/// Parse context arguments from CLI into a `HashMap`
-/// Handles both --context and --context-json flags
-/// Multiple values with the same key create an array
+/// Parse context arguments from CLI into a `HashMap`.
+/// Handles both --context and --context-json flags.
+/// Multiple values with the same key create an array.
+#[expect(clippy::iter_over_hash_type, reason = "iteration order does not matter for context key-value collection")]
 fn parse_context_args(
     context_args: &[String],
     context_json_args: &[String],
@@ -217,9 +224,9 @@ fn parse_context_args(
     // Parse --context-json arguments
     for arg in context_json_args {
         let (key, json_str) = parse_key_value(arg)?;
-        let value: Value = serde_json::from_str(&json_str).map_err(|e| {
+        let value: Value = serde_json::from_str(&json_str).map_err(|err| {
             anyhow::anyhow!(
-                "Invalid JSON in --context-json for key '{key}': {e}\nValue: {json_str}"
+                "Invalid JSON in --context-json for key '{key}': {err}\nValue: {json_str}"
             )
         })?;
         result.entry(key).or_default().push(value);
@@ -244,7 +251,8 @@ fn parse_context_args(
     Ok(final_result)
 }
 
-/// Parse KEY=VALUE string
+/// Parse a KEY=VALUE string into its key and value components.
+#[expect(clippy::indexing_slicing, reason = "parts length is checked to be exactly 2 before indexing")]
 fn parse_key_value(arg: &str) -> anyhow::Result<(String, String)> {
     let parts: Vec<&str> = arg.splitn(2, '=').collect();
     if parts.len() != 2 {
@@ -256,7 +264,7 @@ fn parse_key_value(arg: &str) -> anyhow::Result<(String, String)> {
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used)]
+#[expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code for brevity")]
 mod tests {
     use super::*;
 

@@ -1,4 +1,4 @@
-//! Tests for directory traversal and discovery
+//! Tests for directory traversal and discovery.
 //!
 //! Note: These tests use `MockSystem` and do NOT test actual .gitignore behavior.
 //! To test .gitignore support from the `ignore` crate, create end-to-end integration
@@ -6,6 +6,7 @@
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
+#[expect(clippy::indexing_slicing, reason = "test code uses indexing after length assertions")]
 mod tests {
 
     use std::path::Path;

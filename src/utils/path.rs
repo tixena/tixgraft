@@ -1,10 +1,10 @@
-//! Path manipulation and validation utilities
+//! Path manipulation and validation utilities.
 
 use crate::error::GraftError;
 use anyhow::{Result, anyhow};
 use std::path::{Component, Path, PathBuf};
 
-/// Normalize a path by resolving `.` and `..` components
+/// Normalize a path by resolving `.` and `..` components.
 #[must_use]
 #[inline]
 pub fn normalize(path: &Path) -> PathBuf {
@@ -33,7 +33,7 @@ pub fn normalize(path: &Path) -> PathBuf {
     components.iter().collect()
 }
 
-/// Validate that a path is safe (no directory traversal)
+/// Validate that a path is safe (no directory traversal).
 ///
 /// # Errors
 ///
@@ -70,7 +70,7 @@ pub fn validate_path_safety(path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Convert a path to be relative to a base directory
+/// Convert a path to be relative to a base directory.
 ///
 /// # Errors
 ///
@@ -99,7 +99,7 @@ pub fn make_relative_to(path: &Path, base: &Path) -> Result<PathBuf> {
         })
 }
 
-/// Check if a path would escape the given base directory
+/// Check if a path would escape the given base directory.
 #[must_use]
 #[inline]
 pub fn escapes_from_base(path: &Path, base: &Path) -> bool {
@@ -116,7 +116,7 @@ pub fn escapes_from_base(path: &Path, base: &Path) -> bool {
     !normalized_path.starts_with(&normalized_base)
 }
 
-/// Get the common prefix of two paths
+/// Get the common prefix of two paths.
 #[must_use]
 #[inline]
 pub fn common_path_prefix(path1: &Path, path2: &Path) -> PathBuf {
@@ -136,14 +136,14 @@ pub fn common_path_prefix(path1: &Path, path2: &Path) -> PathBuf {
     common
 }
 
-/// Convert backslashes to forward slashes (for cross-platform compatibility)
+/// Convert backslashes to forward slashes (for cross-platform compatibility).
 #[must_use]
 #[inline]
 pub fn normalize_separators(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-/// Join path components safely
+/// Join path components safely.
 ///
 /// # Errors
 ///
@@ -159,7 +159,7 @@ pub fn join_path_safe(base: &str, component: &str) -> Result<String> {
     Ok(normalize_separators(&result.to_string_lossy()))
 }
 
-/// Extract file extension in lowercase
+/// Extract file extension in lowercase.
 #[must_use]
 #[inline]
 pub fn get_file_extension(path: &Path) -> Option<String> {
@@ -168,14 +168,14 @@ pub fn get_file_extension(path: &Path) -> Option<String> {
         .map(str::to_lowercase)
 }
 
-/// Check if a path has a specific extension (case-insensitive)
+/// Check if a path has a specific extension (case-insensitive).
 #[must_use]
 #[inline]
 pub fn has_extension(path: &Path, extension: &str) -> bool {
     get_file_extension(path).is_some_and(|ext| ext == extension.to_lowercase())
 }
 
-/// Get a unique filename by appending a number if the file exists
+/// Get a unique filename by appending a number if the file exists.
 #[must_use]
 #[inline]
 pub fn get_unique_filename(path: PathBuf) -> PathBuf {
@@ -194,19 +194,18 @@ pub fn get_unique_filename(path: PathBuf) -> PathBuf {
         .map(ToOwned::to_owned);
     let parent = path.parent().unwrap_or_else(|| Path::new("")).to_path_buf();
 
-    let mut counter = 1;
+    let mut counter = 1_i32;
     loop {
-        let filename = if let Some(ext) = extension.as_ref() {
-            format!("{stem}-{counter}.{ext}")
-        } else {
-            format!("{stem}-{counter}")
-        };
+        let filename = extension.as_ref().map_or_else(
+            || format!("{stem}-{counter}"),
+            |ext| format!("{stem}-{counter}.{ext}"),
+        );
 
         let new_path = parent.join(filename);
         if !new_path.exists() {
             return new_path;
         }
-        counter += 1;
+        counter = counter.saturating_add(1);
 
         // Prevent infinite loops
         if counter > 10000 {
@@ -215,7 +214,7 @@ pub fn get_unique_filename(path: PathBuf) -> PathBuf {
     }
 }
 
-/// Check if a path is within allowed patterns
+/// Check if a path is within allowed patterns.
 #[must_use]
 #[inline]
 pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
@@ -240,21 +239,21 @@ pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
     false
 }
 
-/// Convert a Windows path to Unix-style path
+/// Convert a Windows path to Unix-style path.
 #[inline]
 #[must_use]
 pub fn to_unix(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-/// Convert a Unix path to Windows-style path (for Windows compatibility)
+/// Convert a Unix path to Windows-style path (for Windows compatibility).
 #[inline]
 #[must_use]
 pub fn to_windows(path: &str) -> String {
     path.replace('/', "\\")
 }
 
-/// Get the depth of a path (number of directory levels)
+/// Get the depth of a path (number of directory levels).
 #[inline]
 #[must_use]
 pub fn depth(path: &Path) -> usize {

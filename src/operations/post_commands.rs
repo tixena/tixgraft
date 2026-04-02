@@ -1,4 +1,4 @@
-//! Post-command execution for .graft.yaml files
+//! Post-command execution for .graft.yaml files.
 //!
 //! Handles execution of commands after graft processing, including
 //! simple commands and conditional choice-based execution.
@@ -10,10 +10,24 @@ use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// Execute all post-commands in order
+/// Result of executing a post-command.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ExecutionResult {
+    /// The type of command that was executed.
+    pub command_type: String,
+    /// Error output, if any.
+    pub error: Option<String>,
+    /// Standard output from the command.
+    pub output: String,
+    /// Whether the command succeeded.
+    pub success: bool,
+}
+
+/// Execute all post-commands in order.
 ///
-/// Commands execute in the directory containing the .graft.yaml file
-/// Continues executing all commands even if some fail, collecting all results
+/// Commands execute in the directory containing the .graft.yaml file.
+/// Continues executing all commands even if some fail, collecting all results.
 ///
 /// # Errors
 ///
@@ -34,9 +48,9 @@ pub fn execute_post_commands(
                 // Convert execution errors into failed ExecutionResult
                 ExecutionResult {
                     command_type: "command".to_owned(),
-                    success: false,
-                    output: String::new(),
                     error: Some(format!("{err:#}")),
+                    output: String::new(),
+                    success: false,
                 }
             }
         };
@@ -46,23 +60,17 @@ pub fn execute_post_commands(
     Ok(results)
 }
 
-/// Result of executing a post-command
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct ExecutionResult {
-    pub command_type: String,
-    pub success: bool,
-    pub output: String,
-    pub error: Option<String>,
-}
-
-/// Execute a single post-command
+/// Execute a single post-command.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - The post-command cannot be executed
 #[inline]
+#[expect(
+    clippy::ref_patterns,
+    reason = "ref is required to borrow fields when matching on a dereferenced enum to satisfy pattern_type_mismatch"
+)]
 pub fn execute_post_command(
     post_command: &PostCommand,
     graft_directory: &Path,
@@ -77,45 +85,43 @@ pub fn execute_post_command(
     }
 }
 
-/// Execute a simple command
-fn execute_simple_command(
-    command: &str,
-    args: &[String],
-    cwd: Option<&str>,
-    graft_directory: &Path,
-) -> Result<ExecutionResult> {
-    let working_dir = resolve_working_directory(cwd, graft_directory)?;
+/// Resolve the working directory for command execution.
+///
+/// If cwd is None, uses `graft_directory`.
+/// If cwd is Some, resolves it relative to `graft_directory`.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The working directory does not exist
+#[inline]
+pub fn resolve_working_directory(cwd: Option<&str>, graft_directory: &Path) -> Result<PathBuf> {
+    if let Some(cwd_str) = cwd {
+        let cwd_path = Path::new(cwd_str);
 
-    let output = Command::new(command)
-        .args(args)
-        .current_dir(&working_dir)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .with_context(|| {
-            format!(
-                "Failed to execute command '{}' in directory '{}'",
-                command,
-                working_dir.display()
-            )
-        })?;
+        // If absolute, use as-is
+        if cwd_path.is_absolute() {
+            return Ok(cwd_path.to_path_buf());
+        }
 
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+        // Otherwise, resolve relative to graft_directory
+        let resolved = graft_directory.join(cwd_path);
 
-    Ok(ExecutionResult {
-        command_type: "command".to_owned(),
-        success: output.status.success(),
-        output: stdout,
-        error: if stderr.is_empty() {
-            None
-        } else {
-            Some(stderr)
-        },
-    })
+        if !resolved.exists() {
+            return Err(GraftError::configuration(format!(
+                "Working directory does not exist: {}",
+                resolved.display()
+            ))
+            .into());
+        }
+
+        Ok(resolved)
+    } else {
+        Ok(graft_directory.to_path_buf())
+    }
 }
 
-/// Execute a conditional choice
+/// Execute a conditional choice.
 ///
 /// Tests each option's command and matches the output against a regex pattern.
 /// The first matching option's `onMatch` command is executed.
@@ -147,13 +153,51 @@ fn execute_choice(options: &[ChoiceOption], graft_directory: &Path) -> Result<Ex
     // No matches found, return a no-op result
     Ok(ExecutionResult {
         command_type: "choice".to_owned(),
-        success: true,
-        output: "No matching option found".to_owned(),
         error: None,
+        output: "No matching option found".to_owned(),
+        success: true,
     })
 }
 
-/// Execute a test command (for choice conditions)
+/// Execute a simple command.
+fn execute_simple_command(
+    command: &str,
+    args: &[String],
+    cwd: Option<&str>,
+    graft_directory: &Path,
+) -> Result<ExecutionResult> {
+    let working_dir = resolve_working_directory(cwd, graft_directory)?;
+
+    let output = Command::new(command)
+        .args(args)
+        .current_dir(&working_dir)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .with_context(|| {
+            format!(
+                "Failed to execute command '{}' in directory '{}'",
+                command,
+                working_dir.display()
+            )
+        })?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    Ok(ExecutionResult {
+        command_type: "command".to_owned(),
+        error: if stderr.is_empty() {
+            None
+        } else {
+            Some(stderr)
+        },
+        output: stdout,
+        success: output.status.success(),
+    })
+}
+
+/// Execute a test command (for choice conditions).
 fn execute_test_command(test: &TestCommand, graft_directory: &Path) -> Result<ExecutionResult> {
     let working_dir = resolve_working_directory(test.cwd.as_deref(), graft_directory)?;
 
@@ -176,48 +220,12 @@ fn execute_test_command(test: &TestCommand, graft_directory: &Path) -> Result<Ex
 
     Ok(ExecutionResult {
         command_type: "test".to_owned(),
-        success: output.status.success(),
-        output: stdout,
         error: if stderr.is_empty() {
             None
         } else {
             Some(stderr)
         },
+        output: stdout,
+        success: output.status.success(),
     })
-}
-
-/// Resolve the working directory for command execution
-///
-/// If cwd is None, uses `graft_directory`
-/// If cwd is Some, resolves it relative to `graft_directory`
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - The working directory does not exist
-#[inline]
-pub fn resolve_working_directory(cwd: Option<&str>, graft_directory: &Path) -> Result<PathBuf> {
-    if let Some(cwd_str) = cwd {
-        let cwd_path = Path::new(cwd_str);
-
-        // If absolute, use as-is
-        if cwd_path.is_absolute() {
-            return Ok(cwd_path.to_path_buf());
-        }
-
-        // Otherwise, resolve relative to graft_directory
-        let resolved = graft_directory.join(cwd_path);
-
-        if !resolved.exists() {
-            return Err(GraftError::configuration(format!(
-                "Working directory does not exist: {}",
-                resolved.display()
-            ))
-            .into());
-        }
-
-        Ok(resolved)
-    } else {
-        Ok(graft_directory.to_path_buf())
-    }
 }

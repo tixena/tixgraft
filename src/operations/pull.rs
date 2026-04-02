@@ -1,4 +1,4 @@
-//! Pull operation coordination
+//! Pull operation coordination.
 
 use crate::cli::{Args, PullArgs, PullConfig, ReplacementConfig};
 use crate::config::Config;
@@ -17,117 +17,38 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::{debug, info, warn};
 
-/// Coordinates the complete pull operation
+/// Coordinates the complete pull operation.
 #[non_exhaustive]
-#[expect(clippy::module_name_repetitions, reason = "PullOperation")]
+#[expect(clippy::module_name_repetitions, reason = "PullOperation is the canonical name for this type and removing the prefix would reduce clarity")]
 pub struct PullOperation<'src> {
+    /// The merged configuration driving this pull operation.
     config: Config,
+    /// Whether to only preview operations without executing them.
     dry_run: bool,
+    /// The system abstraction for filesystem operations.
     system: &'src dyn System,
 }
 
 impl<'src> PullOperation<'src> {
-    /// Create a new pull operation from CLI arguments
+    /// Build context for a specific graft (with parent inheritance).
+    fn build_graft_context(
+        _discovered: &DiscoveredGraft,
+        base_context: &ContextValues,
+    ) -> ContextValues {
+        // For now, just use base context
+        // A more sophisticated approach would cache parsed .graft.yaml files
+        // and inherit context from parent grafts
+        base_context.clone()
+    }
+
+    /// Execute the pull operation.
     ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - The configuration file cannot be loaded or parsed
-    /// - The configuration is invalid
-    /// - The configuration cannot be merged with CLI overrides
-    /// - Git availability check fails
+    /// - The pull operation cannot be executed.
     #[inline]
-    pub fn new(args: Args, system: &'src dyn System) -> Result<Self> {
-        // Load configuration
-        let mut config = if Path::new(&args.config).exists() {
-            Config::load_from_file(system, &args.config)?
-        } else if !args.config.ends_with("tixgraft.yaml") || !args.pulls.sources.is_empty() {
-            // If non-default config file specified but doesn't exist, or CLI args provided, that's an error
-            if !args.config.ends_with("tixgraft.yaml") {
-                return Err(GraftError::configuration(format!(
-                    "Configuration file not found: {}",
-                    args.config
-                ))
-                .into());
-            }
-
-            // Create minimal config from CLI args
-            Config {
-                repository: args.repository.clone(),
-                tag: args.tag.clone(),
-                context: HashMap::new(),
-                pulls: Vec::new(),
-            }
-        } else {
-            return Err(GraftError::configuration(
-                "No configuration found. Create a tixgraft.yaml file or provide pull arguments via CLI".to_owned()
-            ).into());
-        };
-
-        // Merge CLI arguments into config
-        merge_cli_args(&mut config, &args)?;
-
-        // Validate merged configuration
-        config.validate(system)?;
-
-        // Check if any pull operations require Git (i.e., not all are local)
-        let needs_git = Self::requires_git(&config);
-
-        if needs_git {
-            // Only check Git availability if we have at least one Git-based pull
-            check_git_availability().context("Git validation failed")?;
-        }
-
-        Ok(PullOperation {
-            config,
-            dry_run: args.dry_run,
-            system,
-        })
-    }
-
-    /// Check if the configuration requires Git (has at least one non-local repository)
-    fn requires_git(config: &Config) -> bool {
-        // Check global repository
-        if let Some(repo_url) = config.repository.as_ref()
-            && !Self::is_local_url(repo_url)
-        {
-            return true;
-        }
-
-        // Check per-pull repositories
-        for pull in &config.pulls {
-            if let Some(repo_url) = pull.repository.as_ref() {
-                if !Self::is_local_url(repo_url) {
-                    return true;
-                }
-            } else if config.repository.is_none() {
-                // If pull has no repository and global has no repository, we'll error anyway
-                // But be conservative and assume Git is needed
-                return true;
-            } else {
-                debug!("Skipping pull: {}", pull.source);
-            }
-        }
-
-        false
-    }
-
-    /// Quick check if a URL is a local filesystem path
-    fn is_local_url(url: &str) -> bool {
-        url.starts_with("file://")
-            || url.starts_with('~')
-            || url.starts_with("./")
-            || url.starts_with("../")
-            || (url.starts_with('/') && !url.starts_with("git@") && !url.starts_with("http"))
-    }
-
-    /// Execute the pull operation
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The pull operation cannot be executed
-    #[inline]
+    #[expect(clippy::arithmetic_side_effects, reason = "Simple counter increments on usize totals that cannot realistically overflow")]
     pub fn execute(&self) -> Result<()> {
         if self.dry_run {
             return self.preview_operations();
@@ -135,12 +56,13 @@ impl<'src> PullOperation<'src> {
 
         info!("Starting tixgraft pull operation...");
 
-        let mut total_files = 0;
-        let mut total_replacements = 0;
-        let mut total_commands = 0;
+        let mut total_files = 0_usize;
+        let mut total_replacements = 0_usize;
+        let mut total_commands = 0_usize;
 
         for (index, pull) in self.config.pulls.iter().enumerate() {
-            info!("\n=> Pull operation #{}", index + 1);
+            let display_index = index.saturating_add(1);
+            info!("\n=> Pull operation #{}", display_index);
 
             // Determine repository and reference
             let repo_url = pull
@@ -149,8 +71,7 @@ impl<'src> PullOperation<'src> {
                 .or(self.config.repository.as_ref())
                 .ok_or_else(|| {
                     GraftError::configuration(format!(
-                        "No repository specified for pull #{}",
-                        index + 1
+                        "No repository specified for pull #{display_index}"
                     ))
                 })?;
             debug!("Repository URL: {}", repo_url);
@@ -187,67 +108,8 @@ impl<'src> PullOperation<'src> {
         Ok(())
     }
 
-    /// Preview operations without executing them
-    fn preview_operations(&self) -> Result<()> {
-        info!("Dry run preview - no files will be modified:");
-        info!("");
-        info!("Planned operations:");
-
-        for (index, pull) in self.config.pulls.iter().enumerate() {
-            let repo_url = pull
-                .repository
-                .as_ref()
-                .or(self.config.repository.as_ref())
-                .ok_or_else(|| {
-                    GraftError::configuration(format!(
-                        "No repository specified for pull #{}",
-                        index + 1
-                    ))
-                })?;
-
-            let default_tag = "main".to_owned();
-            let reference = pull
-                .tag
-                .as_ref()
-                .or(self.config.tag.as_ref())
-                .unwrap_or(&default_tag);
-
-            info!(
-                "  [{}] Pull {} \u{2192} {} ({})",
-                index + 1,
-                pull.source,
-                pull.target,
-                pull.pull_type
-            );
-            info!("      - Repository: {}", repo_url);
-            info!("      - Reference: {}", reference);
-
-            if pull.reset {
-                info!("      - Would reset target directory (reset: true)");
-            }
-
-            if !pull.replacements.is_empty() {
-                info!(
-                    "      - Would apply {} text replacements",
-                    pull.replacements.len()
-                );
-            }
-
-            if !pull.commands.is_empty() {
-                info!("      - Would execute {} commands:", pull.commands.len());
-                for cmd in &pull.commands {
-                    info!("        * {}", cmd);
-                }
-            }
-        }
-
-        info!("");
-        info!("Run without --dry-run to execute these operations.");
-
-        Ok(())
-    }
-
-    /// Execute a single pull operation
+    /// Execute a single pull operation.
+    #[expect(clippy::arithmetic_side_effects, reason = "Simple counter increments on usize totals that cannot realistically overflow")]
     fn execute_single_pull(
         &self,
         pull: &PullConfig,
@@ -372,7 +234,7 @@ impl<'src> PullOperation<'src> {
             let command_working_dir = if pull.pull_type == "file" {
                 Path::new(&pull.target)
                     .parent()
-                    .and_then(|p| p.to_str())
+                    .and_then(|parent| parent.to_str())
                     .unwrap_or(&pull.target)
             } else {
                 &pull.target
@@ -384,13 +246,142 @@ impl<'src> PullOperation<'src> {
         commands_executed += graft_result.commands_executed;
 
         Ok(PullResult {
+            commands_executed,
             files_copied,
             replacements_applied,
-            commands_executed,
         })
     }
 
-    /// Process all .graft.yaml files in the target directory
+    /// Quick check if a URL is a local filesystem path.
+    fn is_local_url(url: &str) -> bool {
+        url.starts_with("file://")
+            || url.starts_with('~')
+            || url.starts_with("./")
+            || url.starts_with("../")
+            || (url.starts_with('/') && !url.starts_with("git@") && !url.starts_with("http"))
+    }
+
+    /// Create a new pull operation from CLI arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The configuration file cannot be loaded or parsed.
+    /// - The configuration is invalid.
+    /// - The configuration cannot be merged with CLI overrides.
+    /// - Git availability check fails.
+    #[inline]
+    #[expect(clippy::needless_pass_by_value, reason = "Public API consumed by callers that pass Args by value; changing to &Args would break existing call sites")]
+    pub fn new(args: Args, system: &'src dyn System) -> Result<Self> {
+        // Load configuration
+        let mut config = if Path::new(&args.config).exists() {
+            Config::load_from_file(system, &args.config)?
+        } else if !args.config.ends_with("tixgraft.yaml") || !args.pulls.sources.is_empty() {
+            // If non-default config file specified but doesn't exist, or CLI args provided, that's an error
+            if !args.config.ends_with("tixgraft.yaml") {
+                return Err(GraftError::configuration(format!(
+                    "Configuration file not found: {}",
+                    args.config
+                ))
+                .into());
+            }
+
+            // Create minimal config from CLI args
+            Config {
+                repository: args.repository.clone(),
+                tag: args.tag.clone(),
+                context: HashMap::new(),
+                pulls: Vec::new(),
+            }
+        } else {
+            return Err(GraftError::configuration(
+                "No configuration found. Create a tixgraft.yaml file or provide pull arguments via CLI".to_owned()
+            ).into());
+        };
+
+        // Merge CLI arguments into config
+        merge_cli_args(&mut config, &args)?;
+
+        // Validate merged configuration
+        config.validate(system)?;
+
+        // Check if any pull operations require Git (i.e., not all are local)
+        let needs_git = Self::requires_git(&config);
+
+        if needs_git {
+            // Only check Git availability if we have at least one Git-based pull
+            check_git_availability().context("Git validation failed")?;
+        }
+
+        Ok(PullOperation {
+            config,
+            dry_run: args.dry_run,
+            system,
+        })
+    }
+
+    /// Preview operations without executing them.
+    fn preview_operations(&self) -> Result<()> {
+        info!("Dry run preview - no files will be modified:");
+        info!("");
+        info!("Planned operations:");
+
+        for (index, pull) in self.config.pulls.iter().enumerate() {
+            let display_index = index.saturating_add(1);
+            let repo_url = pull
+                .repository
+                .as_ref()
+                .or(self.config.repository.as_ref())
+                .ok_or_else(|| {
+                    GraftError::configuration(format!(
+                        "No repository specified for pull #{display_index}"
+                    ))
+                })?;
+
+            let default_tag = "main".to_owned();
+            let reference = pull
+                .tag
+                .as_ref()
+                .or(self.config.tag.as_ref())
+                .unwrap_or(&default_tag);
+
+            info!(
+                "  [{}] Pull {} \u{2192} {} ({})",
+                display_index,
+                pull.source,
+                pull.target,
+                pull.pull_type
+            );
+            info!("      - Repository: {}", repo_url);
+            info!("      - Reference: {}", reference);
+
+            if pull.reset {
+                info!("      - Would reset target directory (reset: true)");
+            }
+
+            if !pull.replacements.is_empty() {
+                info!(
+                    "      - Would apply {} text replacements",
+                    pull.replacements.len()
+                );
+            }
+
+            if !pull.commands.is_empty() {
+                info!("      - Would execute {} commands:", pull.commands.len());
+                for cmd in &pull.commands {
+                    info!("        * {}", cmd);
+                }
+            }
+        }
+
+        info!("");
+        info!("Run without --dry-run to execute these operations.");
+
+        Ok(())
+    }
+
+    /// Process all .graft.yaml files in the target directory.
+    #[expect(clippy::arithmetic_side_effects, reason = "Simple counter increments on usize totals that cannot realistically overflow")]
     fn process_graft_files(&self, pull: &PullConfig) -> Result<GraftProcessingResult> {
         let target_path = Path::new(&pull.target);
 
@@ -411,8 +402,8 @@ impl<'src> PullOperation<'src> {
 
         info!("  Found {} .graft.yaml file(s)", discovered_grafts.len());
 
-        let mut total_replacements = 0;
-        let mut total_commands = 0;
+        let mut total_replacements = 0_usize;
+        let mut total_commands = 0_usize;
 
         // Merge root and pull-level context
         let base_context = merge_context_values(self.config.context.clone(), pull.context.clone());
@@ -513,39 +504,60 @@ impl<'src> PullOperation<'src> {
         debug!("Deleted {} .graft.yaml file(s)", deleted);
 
         Ok(GraftProcessingResult {
-            replacements_applied: total_replacements,
             commands_executed: total_commands,
+            replacements_applied: total_replacements,
         })
     }
 
-    /// Build context for a specific graft (with parent inheritance)
-    fn build_graft_context(
-        _discovered: &DiscoveredGraft,
-        base_context: &ContextValues,
-    ) -> ContextValues {
-        // For now, just use base context
-        // A more sophisticated approach would cache parsed .graft.yaml files
-        // and inherit context from parent grafts
-        base_context.clone()
+    /// Check if the configuration requires Git (has at least one non-local repository).
+    fn requires_git(config: &Config) -> bool {
+        // Check global repository
+        if let Some(repo_url) = config.repository.as_ref()
+            && !Self::is_local_url(repo_url)
+        {
+            return true;
+        }
+
+        // Check per-pull repositories
+        for pull in &config.pulls {
+            if let Some(repo_url) = pull.repository.as_ref() {
+                if !Self::is_local_url(repo_url) {
+                    return true;
+                }
+            } else if config.repository.is_none() {
+                // If pull has no repository and global has no repository, we'll error anyway
+                // But be conservative and assume Git is needed
+                return true;
+            } else {
+                debug!("Skipping pull: {}", pull.source);
+            }
+        }
+
+        false
     }
 }
 
-/// Result of processing .graft.yaml files
+/// Result of processing .graft.yaml files.
 #[derive(Debug, Default)]
 struct GraftProcessingResult {
-    replacements_applied: usize,
+    /// Number of post-commands executed across all graft files.
     commands_executed: usize,
+    /// Number of text replacements applied across all graft files.
+    replacements_applied: usize,
 }
 
-/// Result of a single pull operation
+/// Result of a single pull operation.
 #[derive(Debug)]
 struct PullResult {
-    files_copied: usize,
-    replacements_applied: usize,
+    /// Number of post-processing commands executed.
     commands_executed: usize,
+    /// Number of files copied from source to target.
+    files_copied: usize,
+    /// Number of text replacements applied in copied files.
+    replacements_applied: usize,
 }
 
-/// Merge CLI arguments into configuration
+/// Merge CLI arguments into configuration.
 fn merge_cli_args(config: &mut Config, args: &Args) -> Result<()> {
     // Override global repository and tag if provided via CLI
     if let Some(repo) = args.repository.as_ref() {
@@ -571,7 +583,7 @@ fn merge_cli_args(config: &mut Config, args: &Args) -> Result<()> {
     Ok(())
 }
 
-/// Create pull configurations from CLI arguments
+/// Create pull configurations from CLI arguments.
 fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
     let mut pulls = Vec::new();
 
@@ -588,24 +600,24 @@ fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
         )).into());
     }
 
-    for i in 0..count {
+    for (source, target) in pull_args.sources.iter().zip(pull_args.targets.iter()) {
+        let idx = pulls.len();
         let pull = PullConfig {
-            source: pull_args.sources[i].clone(),
-            target: pull_args.targets[i].clone(),
+            source: source.clone(),
+            target: target.clone(),
             pull_type: pull_args
                 .types
-                .get(i)
+                .get(idx)
                 .cloned()
                 .unwrap_or_else(|| "directory".to_owned()),
-            repository: pull_args.repositories.get(i).cloned(),
-            tag: pull_args.tags.get(i).cloned(),
-            reset: pull_args.resets.get(i).copied().unwrap_or(false),
-            commands: if let Some(cmd_str) = pull_args.commands.get(i) {
-                cmd_str.split(',').map(|s| s.trim().to_owned()).collect()
-            } else {
-                Vec::new()
-            },
-            replacements: parse_replacements_for_pull(pull_args, i)?,
+            repository: pull_args.repositories.get(idx).cloned(),
+            tag: pull_args.tags.get(idx).cloned(),
+            reset: pull_args.resets.get(idx).copied().unwrap_or(false),
+            commands: pull_args.commands.get(idx).map_or_else(
+                Vec::new,
+                |cmd_str| cmd_str.split(',').map(|segment| segment.trim().to_owned()).collect(),
+            ),
+            replacements: parse_replacements_for_pull(pull_args, idx)?,
             context: HashMap::new(),
         };
 
@@ -615,8 +627,8 @@ fn create_pulls_from_cli(pull_args: &PullArgs) -> Result<Vec<PullConfig>> {
     Ok(pulls)
 }
 
-/// Parse replacements for a specific pull index
-/// Replacements are matched to pulls based on occurrence order
+/// Parse replacements for a specific pull index.
+/// Replacements are matched to pulls based on occurrence order.
 fn parse_replacements_for_pull(
     pull_args: &PullArgs,
     _pull_index: usize,
@@ -647,19 +659,15 @@ fn parse_replacements_for_pull(
     Ok(replacements)
 }
 
-/// Parse a single replacement string in format "SOURCE=TARGET" or "SOURCE=env:VAR"
+/// Parse a single replacement string in format "SOURCE=TARGET" or "SOURCE=env:VAR".
 fn parse_replacement_string(input: &str) -> Result<ReplacementConfig> {
-    let parts: Vec<&str> = input.splitn(2, '=').collect();
-
-    if parts.len() != 2 {
-        return Err(GraftError::configuration(format!(
+    let (source_str, target_part) = input.split_once('=').ok_or_else(|| {
+        GraftError::configuration(format!(
             "Invalid replacement format: '{input}'. Expected 'SOURCE=TARGET' or 'SOURCE=env:VAR'"
         ))
-        .into());
-    }
+    })?;
 
-    let source = parts[0].to_owned();
-    let target_part = parts[1];
+    let source = source_str.to_owned();
 
     if let Some(env_var) = target_part.strip_prefix("env:") {
         Ok(ReplacementConfig {
@@ -676,14 +684,14 @@ fn parse_replacement_string(input: &str) -> Result<ReplacementConfig> {
     }
 }
 
-/// Build a Config structure from CLI arguments only (no file loading)
+/// Build a Config structure from CLI arguments only (no file loading).
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - The configuration file cannot be loaded or parsed
-/// - The configuration is invalid
-/// - The configuration cannot be merged with CLI overrides
+/// - The configuration file cannot be loaded or parsed.
+/// - The configuration is invalid.
+/// - The configuration cannot be merged with CLI overrides.
 #[inline]
 pub fn build_config_from_args(args: &Args) -> Result<Config> {
     let mut config = Config {
@@ -707,14 +715,14 @@ pub fn build_config_from_args(args: &Args) -> Result<Config> {
     Ok(config)
 }
 
-/// Build a Config structure from both config file and CLI overrides
+/// Build a Config structure from both config file and CLI overrides.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - The configuration file cannot be loaded or parsed
-/// - The configuration is invalid
-/// - The configuration cannot be merged with CLI overrides
+/// - The configuration file cannot be loaded or parsed.
+/// - The configuration is invalid.
+/// - The configuration cannot be merged with CLI overrides.
 #[inline]
 pub fn build_merged_config(args: &Args, system: &dyn System) -> Result<Config> {
     // Load base config if exists

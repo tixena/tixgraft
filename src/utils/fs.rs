@@ -1,4 +1,4 @@
-//! File system utilities
+//! File system utilities.
 
 use crate::system::System;
 use anyhow::{Context as _, Result};
@@ -6,7 +6,7 @@ use std::io::{self, Read as _, Write as _};
 use std::path::Path;
 use tracing::debug;
 
-/// Known text file extensions for binary detection
+/// Known text file extensions for binary detection.
 const TEXT_EXTENSIONS: &[&str] = &[
     "bash",
     "c",
@@ -70,7 +70,7 @@ const TEXT_EXTENSIONS: &[&str] = &[
     "zsh",
 ];
 
-/// Create parent directories for a file path if they don't exist
+/// Create parent directories for a file path if they don't exist.
 ///
 /// # Errors
 ///
@@ -91,11 +91,11 @@ pub fn create_parent_directories(system: &dyn System, file_path: &Path) -> Resul
     Ok(())
 }
 
-/// Check if a file is binary by examining its extension and content
+/// Check if a file is binary by examining its extension and content.
 ///
 /// # Returns
 ///
-/// Returns true if the file is binary, false otherwise
+/// Returns true if the file is binary, false otherwise.
 ///
 /// # Errors
 ///
@@ -110,7 +110,7 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
     }
 
     // Check if it has a known text file extension
-    if let Some(extension) = file_path.extension().and_then(|e| e.to_str()) {
+    if let Some(extension) = file_path.extension().and_then(|ext| ext.to_str()) {
         let ext = extension.to_lowercase();
         if TEXT_EXTENSIONS.contains(&ext.as_str()) {
             return Ok(false); // Known text file extension
@@ -132,14 +132,15 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
     }
 
     // Check for null bytes - text files don't have them
-    for &byte in &buffer[..bytes_read] {
+    let read_slice = buffer.get(..bytes_read).unwrap_or(&buffer);
+    for &byte in read_slice {
         if byte == 0 {
             return Ok(true); // Has null byte = binary
         }
     }
 
     // Check if it's valid UTF-8
-    if str::from_utf8(&buffer[..bytes_read]).is_ok() {
+    if str::from_utf8(read_slice).is_ok() {
         return Ok(false); // Valid UTF-8 = text
     }
 
@@ -147,7 +148,7 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
     Ok(true)
 }
 
-/// Get file size in bytes
+/// Get file size in bytes.
 ///
 /// # Errors
 ///
@@ -161,11 +162,11 @@ pub fn get_file_size(system: &dyn System, file_path: &Path) -> Result<u64> {
     Ok(metadata.len())
 }
 
-/// Check if directory is empty
+/// Check if directory is empty.
 ///
 /// # Returns
 ///
-/// Returns true if the directory is empty, false otherwise
+/// Returns true if the directory is empty, false otherwise.
 ///
 /// # Errors
 ///
@@ -184,7 +185,7 @@ pub fn is_directory_empty(system: &dyn System, dir_path: &Path) -> Result<bool> 
     Ok(entries.is_empty())
 }
 
-/// Safely remove directory and all its contents
+/// Safely remove directory and all its contents.
 ///
 /// # Errors
 ///
@@ -200,7 +201,7 @@ pub fn remove_dir_safe(system: &dyn System, dir_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Copy file with progress callback
+/// Copy file with progress callback.
 ///
 /// # Errors
 ///
@@ -242,26 +243,28 @@ where
             break;
         }
 
+        let write_slice = buffer.get(..bytes_read).unwrap_or(&buffer);
         target_file
-            .write_all(&buffer[..bytes_read])
+            .write_all(write_slice)
             .with_context(|| "Failed to write to target file")?;
 
-        total_copied += bytes_read as u64;
+        total_copied = total_copied.saturating_add(bytes_read as u64);
         progress_callback(total_copied, source_size);
     }
 
     Ok(total_copied)
 }
 
-/// Get human-readable file size
+/// Get human-readable file size.
 ///
 /// # Returns
 ///
-/// Returns a human-readable file size string
+/// Returns a human-readable file size string.
 #[must_use]
 #[inline]
 #[expect(clippy::as_conversions, reason = "This is for number formatting")]
 #[expect(clippy::cast_precision_loss, reason = "This is for number formatting")]
+#[expect(clippy::float_arithmetic, reason = "floating-point division required for human-readable size formatting")]
 pub fn format_file_size(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     const THRESHOLD: f64 = 1024.0;
@@ -271,21 +274,23 @@ pub fn format_file_size(bytes: u64) -> String {
     }
 
     let mut size = bytes as f64;
-    let mut unit_index = 0;
+    let mut unit_index: usize = 0;
+    let max_index = UNITS.len().saturating_sub(1);
 
-    while size >= THRESHOLD && unit_index < UNITS.len() - 1 {
+    while size >= THRESHOLD && unit_index < max_index {
         size /= THRESHOLD;
-        unit_index += 1;
+        unit_index = unit_index.saturating_add(1);
     }
 
+    let unit = UNITS.get(unit_index).unwrap_or(&"B");
     if unit_index == 0 {
-        format!("{} {}", bytes, UNITS[unit_index])
+        format!("{bytes} {unit}")
     } else {
-        format!("{:.1} {}", size, UNITS[unit_index])
+        format!("{size:.1} {unit}")
     }
 }
 
-/// Check if two paths point to the same file/directory
+/// Check if two paths point to the same file/directory.
 ///
 /// # Errors
 ///
@@ -303,7 +308,7 @@ pub fn paths_are_same(system: &dyn System, path1: &Path, path2: &Path) -> Result
     Ok(canonical1 == canonical2)
 }
 
-/// Create a temporary directory with a specific prefix
+/// Create a temporary directory with a specific prefix.
 ///
 /// # Errors
 ///
@@ -317,7 +322,7 @@ pub fn create_temp_dir(prefix: &str) -> Result<tempfile::TempDir> {
         .context("Failed to create temporary directory")
 }
 
-/// Ensure a directory exists, creating it if necessary
+/// Ensure a directory exists, creating it if necessary.
 ///
 /// # Errors
 ///

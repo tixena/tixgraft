@@ -1,4 +1,4 @@
-//! Unit tests for Git sparse checkout utilities
+//! Unit tests for Git sparse checkout utilities.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]

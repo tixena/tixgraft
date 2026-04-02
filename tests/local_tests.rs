@@ -1,4 +1,4 @@
-//! Integration tests for local filesystem repository sources
+//! Integration tests for local filesystem repository sources.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
@@ -14,8 +14,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
 
         // Create source directory structure
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
-        fs::create_dir(temp_dir.path().join("source/templates")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source/templates")).unwrap();
         fs::write(
             temp_dir.path().join("source/templates/file.txt"),
             "Hello from local source",
@@ -59,11 +59,11 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source directory structure
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
-        fs::create_dir(temp_dir.path().join("source/templates")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source/templates")).unwrap();
         fs::write(temp_dir.path().join("source/templates/file1.txt"), "File 1").unwrap();
         fs::write(temp_dir.path().join("source/templates/file2.txt"), "File 2").unwrap();
-        fs::create_dir(temp_dir.path().join("source/templates/subdir")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source/templates/subdir")).unwrap();
         fs::write(
             temp_dir.path().join("source/templates/subdir/file3.txt"),
             "File 3",
@@ -118,7 +118,7 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source directory structure
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
         fs::write(temp_dir.path().join("source/file.txt"), "Content").unwrap();
 
         // Create config file using absolute path with file: prefix
@@ -154,7 +154,7 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source directory structure
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
         fs::write(temp_dir.path().join("source/file.txt"), "Relative content").unwrap();
 
         // Create config file using relative path with file: prefix
@@ -186,7 +186,7 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source file with placeholders
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
         fs::write(
             temp_dir.path().join("source/template.txt"),
             "Hello {{NAME}}, your project is {{PROJECT}}!",
@@ -232,7 +232,7 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source file with placeholders
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
         fs::write(
             temp_dir.path().join("source/template.txt"),
             "App: {{APP_NAME}}",
@@ -277,7 +277,7 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source file
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
         fs::write(temp_dir.path().join("source/file.txt"), "Original").unwrap();
 
         // Create config file with post-copy command
@@ -319,11 +319,11 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source file
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
         fs::write(temp_dir.path().join("source/new.txt"), "New content").unwrap();
 
         // Create target with existing file
-        fs::create_dir(temp_dir.path().join("target")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("target")).unwrap();
         fs::write(temp_dir.path().join("target/old.txt"), "Old content").unwrap();
 
         // Create config file with reset: true for directory
@@ -383,7 +383,7 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source directory but not the file
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
 
         // Create config file
         let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
@@ -414,10 +414,10 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create two local sources
-        fs::create_dir(temp_dir.path().join("source1")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source1")).unwrap();
         fs::write(temp_dir.path().join("source1/file1.txt"), "From source 1").unwrap();
 
-        fs::create_dir(temp_dir.path().join("source2")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source2")).unwrap();
         fs::write(temp_dir.path().join("source2/file2.txt"), "From source 2").unwrap();
 
         // Create config file with multiple local sources
@@ -466,7 +466,7 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create source file
-        fs::create_dir(temp_dir.path().join("source")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source")).unwrap();
         fs::write(temp_dir.path().join("source/file.txt"), "Content").unwrap();
 
         // Create config file
@@ -502,10 +502,10 @@ pulls:
         let temp_dir = TempDir::new().unwrap();
 
         // Create two different source directories
-        fs::create_dir(temp_dir.path().join("source1")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source1")).unwrap();
         fs::write(temp_dir.path().join("source1/file.txt"), "From source 1").unwrap();
 
-        fs::create_dir(temp_dir.path().join("source2")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("source2")).unwrap();
         fs::write(temp_dir.path().join("source2/file.txt"), "From source 2").unwrap();
 
         // Create config file with global repository and per-pull override

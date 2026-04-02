@@ -1,4 +1,4 @@
-//! File and directory copying operations
+//! File and directory copying operations.
 
 use crate::error::GraftError;
 use crate::system::System;
@@ -7,7 +7,7 @@ use anyhow::{Context as _, Result};
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
-/// Copy files or directories from source to target
+/// Copy files or directories from source to target.
 ///
 /// # Errors
 ///
@@ -56,7 +56,7 @@ pub fn copy_files(
     }
 }
 
-/// Copy a single file
+/// Copy a single file.
 ///
 /// # Errors
 ///
@@ -89,7 +89,7 @@ pub fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<us
     Ok(1)
 }
 
-/// Copy a directory recursively
+/// Copy a directory recursively.
 ///
 /// # Errors
 ///
@@ -116,7 +116,7 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
             .with_context(|| format!("Failed to create target directory: {}", target.display()))?;
     }
 
-    let mut files_copied = 0;
+    let mut files_copied: usize = 0;
 
     // Walk through source directory using System abstraction
     let entries = system
@@ -159,7 +159,7 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
                 )
             })?;
 
-            files_copied += 1;
+            files_copied = files_copied.saturating_add(1);
         } else {
             debug!("Skipping file: {}", source_path.display());
         }
@@ -176,7 +176,7 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
     Ok(files_copied)
 }
 
-/// Calculate the total size of files to be copied (for progress indication)
+/// Calculate the total size of files to be copied (for progress indication).
 ///
 /// # Errors
 ///
@@ -196,12 +196,12 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
             }
         }
         "directory" => {
-            let mut total_size = 0;
+            let mut total_size: u64 = 0;
             if system.is_dir(source)? {
                 let entries = system.walk_dir(source, false, false)?;
                 for entry in entries {
                     if entry.is_file {
-                        total_size += system.metadata(&entry.path)?.len();
+                        total_size = total_size.saturating_add(system.metadata(&entry.path)?.len());
                     }
                 }
             }
@@ -211,7 +211,7 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
     }
 }
 
-/// Count files that will be copied
+/// Count files that will be copied.
 ///
 /// # Errors
 ///
@@ -229,12 +229,12 @@ pub fn count_files_to_copy(system: &dyn System, source: &Path, pull_type: &str) 
             }
         }
         "directory" => {
-            let mut file_count = 0;
+            let mut file_count: usize = 0;
             if system.is_dir(source)? {
                 let entries = system.walk_dir(source, false, false)?;
                 for entry in entries {
                     if entry.is_file {
-                        file_count += 1;
+                        file_count = file_count.saturating_add(1);
                     }
                 }
             }

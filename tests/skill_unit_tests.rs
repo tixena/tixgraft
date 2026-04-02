@@ -1,4 +1,4 @@
-//! Unit tests for skill management operations
+//! Unit tests for skill management operations.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
@@ -64,7 +64,7 @@ mod tests {
 
         // Should not error even if nothing is installed
         let result = skill_uninstall(&system, skill_dir());
-        assert!(result.is_ok());
+        result.unwrap();
     }
 
     #[test]

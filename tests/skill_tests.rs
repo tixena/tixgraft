@@ -1,10 +1,11 @@
-//! Integration tests for skill management CLI commands
+//! Integration tests for skill management CLI commands.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
     use assert_cmd::Command;
     use predicates::prelude::*;
+    use std::fs;
     use tempfile::TempDir;
 
     #[test]
@@ -20,7 +21,7 @@ mod tests {
         let skill_path = temp.path().join(".claude/skills/tixgraft/SKILL.md");
         assert!(skill_path.exists());
 
-        let content = std::fs::read_to_string(&skill_path).unwrap();
+        let content = fs::read_to_string(&skill_path).unwrap();
         assert!(content.contains("tixgraft"));
     }
 
@@ -117,7 +118,7 @@ mod tests {
 
         // Modify the installed file
         let skill_path = temp.path().join(".claude/skills/tixgraft/SKILL.md");
-        std::fs::write(&skill_path, "modified content").unwrap();
+        fs::write(&skill_path, "modified content").unwrap();
 
         // Test with --yes should auto-upgrade
         Command::cargo_bin("tixgraft")
@@ -129,7 +130,7 @@ mod tests {
             .stderr(predicate::str::contains("Skill installed to"));
 
         // Verify content was restored
-        let content = std::fs::read_to_string(&skill_path).unwrap();
+        let content = fs::read_to_string(&skill_path).unwrap();
         assert!(content.contains("tixgraft"));
         assert!(!content.contains("modified content"));
     }

@@ -1,9 +1,10 @@
-//! Tests for System temp directory abstraction
+//! Tests for System temp directory abstraction.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
 
+    use std::fs;
     use tixgraft::system::System as _;
     use tixgraft::system::mock::MockSystem;
     use tixgraft::system::real::RealSystem;
@@ -82,7 +83,7 @@ mod tests {
 
         // Create a file in the temp directory
         let file_path = temp_path.join("test.txt");
-        std::fs::write(&file_path, b"test content").unwrap();
+        fs::write(&file_path, b"test content").unwrap();
         assert!(file_path.exists());
     }
 
@@ -94,8 +95,8 @@ mod tests {
             let path = temp_dir.path().to_path_buf();
 
             // Create files in the temp directory
-            std::fs::write(path.join("file1.txt"), b"content1").unwrap();
-            std::fs::write(path.join("file2.txt"), b"content2").unwrap();
+            fs::write(path.join("file1.txt"), b"content1").unwrap();
+            fs::write(path.join("file2.txt"), b"content2").unwrap();
 
             // Verify files exist
             assert!(path.join("file1.txt").exists());

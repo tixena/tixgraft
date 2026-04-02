@@ -1,4 +1,4 @@
-//! Integration tests for to-command-line feature
+//! Integration tests for to-command-line feature.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
@@ -310,7 +310,7 @@ pulls:
             .arg("--to-command-line")
             .assert()
             .failure()
-            .code(1); // Configuration error
+            .code(1_i32); // Configuration error
     }
 
     #[test]

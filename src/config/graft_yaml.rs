@@ -1,4 +1,4 @@
-//! Parser for .graft.yaml files
+//! Parser for .graft.yaml files.
 //!
 //! Handles parsing of .graft.yaml files which define context requirements,
 //! replacements, and post-commands for grafts.
@@ -11,43 +11,43 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
 
-/// Complete .graft.yaml configuration
+/// Complete .graft.yaml configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct GraftConfig {
-    /// Context property definitions
+    /// Context property definitions.
     #[serde(default)]
     pub context: Vec<ContextPropertyDefinition>,
 
-    /// Text replacements
-    #[serde(default)]
-    pub replacements: Vec<GraftReplacement>,
-
-    /// Post-commands to execute after replacements
+    /// Post-commands to execute after replacements.
     #[serde(default)]
     pub post_commands: Vec<PostCommand>,
+
+    /// Text replacements.
+    #[serde(default)]
+    pub replacements: Vec<GraftReplacement>,
 }
 
-/// Replacement configuration in .graft.yaml
+/// Replacement configuration in .graft.yaml.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct GraftReplacement {
-    /// Source pattern to search for
+    /// Source pattern to search for.
     pub source: String,
 
-    /// Static replacement value
+    /// Static replacement value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<String>,
 
-    /// Environment variable to get value from
-    #[serde(rename = "valueFromEnv", skip_serializing_if = "Option::is_none")]
-    pub value_from_env: Option<String>,
-
-    /// Context property to get value from
+    /// Context property to get value from.
     #[serde(rename = "valueFromContext", skip_serializing_if = "Option::is_none")]
     pub value_from_context: Option<String>,
+
+    /// Environment variable to get value from.
+    #[serde(rename = "valueFromEnv", skip_serializing_if = "Option::is_none")]
+    pub value_from_env: Option<String>,
 }
 
 impl GraftReplacement {
@@ -62,18 +62,21 @@ impl GraftReplacement {
         Self {
             source,
             target,
-            value_from_env,
             value_from_context,
+            value_from_env,
         }
     }
 }
 
-/// Post-command configuration (enum for different types)
+/// Post-command configuration (enum for different types).
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum PostCommand {
-    /// Simple command execution
+    /// Conditional choice based on test command.
+    Choice { options: Vec<ChoiceOption> },
+
+    /// Simple command execution.
     Command {
         command: String,
         #[serde(default)]
@@ -81,9 +84,6 @@ pub enum PostCommand {
         #[serde(skip_serializing_if = "Option::is_none")]
         cwd: Option<String>,
     },
-
-    /// Conditional choice based on test command
-    Choice { options: Vec<ChoiceOption> },
 }
 
 impl PostCommand {
@@ -94,19 +94,19 @@ impl PostCommand {
     }
 }
 
-/// Choice option for conditional execution
+/// Choice option for conditional execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ChoiceOption {
-    /// Test command to run
-    pub test: TestCommand,
-
-    /// Expected output pattern to match
+    /// Expected output pattern to match.
     pub expected_output: String,
 
-    /// Command to execute if match succeeds
+    /// Command to execute if match succeeds.
     pub on_match: Box<PostCommand>,
+
+    /// Test command to run.
+    pub test: TestCommand,
 }
 
 impl ChoiceOption {
@@ -118,20 +118,20 @@ impl ChoiceOption {
         on_match: Box<PostCommand>,
     ) -> Self {
         Self {
-            test,
             expected_output,
             on_match,
+            test,
         }
     }
 }
 
-/// Test command for conditional execution
+/// Test command for conditional execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct TestCommand {
-    pub command: String,
     #[serde(default)]
     pub args: Vec<String>,
+    pub command: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
 }
@@ -140,40 +140,12 @@ impl TestCommand {
     #[must_use]
     #[inline]
     pub const fn new(command: String, args: Vec<String>, cwd: Option<String>) -> Self {
-        Self { command, args, cwd }
+        Self { args, command, cwd }
     }
 }
 
 impl GraftConfig {
-    /// Load .graft.yaml from string content
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The `.graft.yaml` configuration is invalid
-    #[inline]
-    pub fn load_from_string(content: &str) -> Result<Self> {
-        let config: Self = serde_yaml::from_str(content).map_err(|e| {
-            // Extract line and column information from serde_yaml error
-            if let Some(location) = e.location() {
-                anyhow::anyhow!(
-                    "Failed to parse .graft.yaml at line {}, column {}: {}",
-                    location.line(),
-                    location.column(),
-                    e
-                )
-            } else {
-                anyhow::anyhow!("Failed to parse .graft.yaml: {e}")
-            }
-        })?;
-
-        // Validate the configuration
-        config.validate()?;
-
-        Ok(config)
-    }
-
-    /// Load .graft.yaml from file
+    /// Load .graft.yaml from file.
     ///
     /// # Errors
     ///
@@ -198,7 +170,36 @@ impl GraftConfig {
         Self::load_from_string(&content)
     }
 
-    /// Validate the .graft.yaml configuration
+    /// Load .graft.yaml from string content.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The `.graft.yaml` configuration is invalid
+    #[inline]
+    pub fn load_from_string(content: &str) -> Result<Self> {
+        let config: Self = serde_yaml::from_str(content).map_err(|err| {
+            // Extract line and column information from serde_yaml error
+            err.location().map_or_else(
+                || anyhow::anyhow!("Failed to parse .graft.yaml: {err}"),
+                |location| {
+                    anyhow::anyhow!(
+                        "Failed to parse .graft.yaml at line {}, column {}: {}",
+                        location.line(),
+                        location.column(),
+                        err
+                    )
+                },
+            )
+        })?;
+
+        // Validate the configuration
+        config.validate()?;
+
+        Ok(config)
+    }
+
+    /// Validate the .graft.yaml configuration.
     fn validate(&self) -> Result<()> {
         // Validate context definitions
         for def in &self.context {
@@ -224,18 +225,12 @@ impl GraftConfig {
 
         // Validate replacements
         for replacement in &self.replacements {
-            let mut count = 0;
-            if replacement.target.is_some() {
-                count += 1;
-            }
-            if replacement.value_from_env.is_some() {
-                count += 1;
-            }
-            if replacement.value_from_context.is_some() {
-                count += 1;
-            }
+            let source_count = u8::from(replacement.target.is_some())
+                .checked_add(u8::from(replacement.value_from_env.is_some()))
+                .and_then(|sum| sum.checked_add(u8::from(replacement.value_from_context.is_some())))
+                .unwrap_or(u8::MAX);
 
-            if count != 1 {
+            if source_count != 1_u8 {
                 return Err(GraftError::configuration(
                     format!(
                         "Replacement for '{}' must specify exactly one of: target, valueFromEnv, or valueFromContext",
@@ -250,26 +245,7 @@ impl GraftConfig {
     }
 }
 
-/// Validate that a value matches the expected data type
-fn validate_value_type(name: &str, value: &Value, expected_type: &ContextDataType) -> Result<()> {
-    let matches = match *expected_type {
-        ContextDataType::String => value.is_string(),
-        ContextDataType::Number => value.is_number(),
-        ContextDataType::Boolean => value.is_boolean(),
-        ContextDataType::Array => value.is_array(),
-    };
-
-    if !matches {
-        return Err(GraftError::configuration(format!(
-            "Default value for property '{name}' has wrong type (expected {expected_type:?}, got {value:?})"
-        ))
-        .into());
-    }
-
-    Ok(())
-}
-
-/// Default implementation for `PostCommand` when not specified
+/// Default implementation for `PostCommand` when not specified.
 impl Default for PostCommand {
     #[inline]
     fn default() -> Self {
@@ -283,7 +259,7 @@ impl Default for PostCommand {
 
 // Custom deserializer for PostCommand to handle missing 'type' field
 // (defaults to 'command' type when 'type' is not specified)
-#[expect(clippy::missing_trait_methods)]
+#[expect(clippy::missing_trait_methods, reason = "custom Deserialize impl only needs deserialize method")]
 impl<'de> Deserialize<'de> for PostCommand {
     ///
     /// # Errors
@@ -313,23 +289,23 @@ impl<'de> Deserialize<'de> for PostCommand {
                     // Parse as command type
                     let command = obj
                         .get("command")
-                        .and_then(|v| v.as_str())
+                        .and_then(|val| val.as_str())
                         .ok_or_else(|| D::Error::custom("Missing 'command' field"))?
                         .to_owned();
 
                     let args = obj
                         .get("args")
-                        .and_then(|v| v.as_array())
+                        .and_then(|val| val.as_array())
                         .map(|arr| {
                             arr.iter()
-                                .filter_map(|v| v.as_str().map(ToOwned::to_owned))
+                                .filter_map(|val| val.as_str().map(ToOwned::to_owned))
                                 .collect()
                         })
                         .unwrap_or_default();
 
                     let cwd = obj
                         .get("cwd")
-                        .and_then(|v| v.as_str())
+                        .and_then(|val| val.as_str())
                         .map(ToOwned::to_owned);
 
                     Ok(Self::Command { command, args, cwd })
@@ -341,7 +317,7 @@ impl<'de> Deserialize<'de> for PostCommand {
                     })?;
 
                     let options: Vec<ChoiceOption> = serde_json::from_value(options_value.clone())
-                        .map_err(|e| D::Error::custom(format!("Failed to parse options: {e}")))?;
+                        .map_err(|err| D::Error::custom(format!("Failed to parse options: {err}")))?;
 
                     Ok(Self::Choice { options })
                 }
@@ -353,23 +329,23 @@ impl<'de> Deserialize<'de> for PostCommand {
             // No 'type' field, default to 'command' type
             let command = obj
                 .get("command")
-                .and_then(|v| v.as_str())
+                .and_then(|val| val.as_str())
                 .ok_or_else(|| D::Error::custom("Missing 'command' field"))?
                 .to_owned();
 
             let args = obj
                 .get("args")
-                .and_then(|v| v.as_array())
+                .and_then(|val| val.as_array())
                 .map(|arr| {
                     arr.iter()
-                        .filter_map(|v| v.as_str().map(ToOwned::to_owned))
+                        .filter_map(|val| val.as_str().map(ToOwned::to_owned))
                         .collect()
                 })
                 .unwrap_or_default();
 
             let cwd = obj
                 .get("cwd")
-                .and_then(|v| v.as_str())
+                .and_then(|val| val.as_str())
                 .map(ToOwned::to_owned);
 
             Ok(Self::Command { command, args, cwd })
@@ -377,8 +353,28 @@ impl<'de> Deserialize<'de> for PostCommand {
     }
 }
 
+/// Validate that a value matches the expected data type.
+fn validate_value_type(name: &str, value: &Value, expected_type: &ContextDataType) -> Result<()> {
+    let matches = match *expected_type {
+        ContextDataType::String => value.is_string(),
+        ContextDataType::Number => value.is_number(),
+        ContextDataType::Boolean => value.is_boolean(),
+        ContextDataType::Array => value.is_array(),
+    };
+
+    if !matches {
+        return Err(GraftError::configuration(format!(
+            "Default value for property '{name}' has wrong type (expected {expected_type:?}, got {value:?})"
+        ))
+        .into());
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
-#[expect(clippy::unwrap_used)]
+#[expect(clippy::unwrap_used, reason = "unwrap is acceptable in test code for brevity")]
+#[expect(clippy::indexing_slicing, reason = "indexing is acceptable in test code where lengths are asserted")]
 mod tests {
     use crate::system::{mock::MockSystem, real::RealSystem};
 
@@ -451,7 +447,8 @@ replacements:
     }
 
     #[test]
-    #[expect(clippy::panic)]
+    #[expect(clippy::panic, reason = "panic used as test assertion for enum variant mismatch")]
+    #[expect(clippy::pattern_type_mismatch, reason = "match on borrowed enum in test code")]
     fn post_command_default_type() {
         let yaml = r#"
 postCommands:
@@ -460,8 +457,8 @@ postCommands:
 "#;
         let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.post_commands.len(), 1);
-        match config.post_commands[0] {
-            PostCommand::Command { ref command, .. } => {
+        match &config.post_commands[0] {
+            PostCommand::Command { command, .. } => {
                 assert_eq!(command, "npm");
             }
             PostCommand::Choice { .. } => panic!("Expected Command type"),
@@ -469,7 +466,8 @@ postCommands:
     }
 
     #[test]
-    #[expect(clippy::panic)]
+    #[expect(clippy::panic, reason = "panic used as test assertion for enum variant mismatch")]
+    #[expect(clippy::pattern_type_mismatch, reason = "match on borrowed enum in test code")]
     fn post_command_choice_type() {
         let yaml = r#"
 postCommands:
@@ -485,8 +483,8 @@ postCommands:
 "#;
         let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
         assert_eq!(config.post_commands.len(), 1);
-        match config.post_commands[0] {
-            PostCommand::Choice { ref options } => {
+        match &config.post_commands[0] {
+            PostCommand::Choice { options } => {
                 assert_eq!(options.len(), 1);
                 assert_eq!(options[0].test.command, "node");
                 assert_eq!(options[0].expected_output, "v");

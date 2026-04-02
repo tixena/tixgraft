@@ -1,4 +1,4 @@
-//! Unit tests for YAML configuration loading
+//! Unit tests for YAML configuration loading.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]

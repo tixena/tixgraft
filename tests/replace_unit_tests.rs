@@ -1,4 +1,4 @@
-//! Unit tests for text replacement operations
+//! Unit tests for text replacement operations.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
@@ -58,7 +58,7 @@ mod tests {
         let system = MockSystem::new();
         let mut context = HashMap::new();
         context.insert("projectName".to_owned(), json!("my-app"));
-        context.insert("maxGb".to_owned(), json!(16));
+        context.insert("maxGb".to_owned(), json!(16_i32));
 
         // Test string context value
         let replacement = GraftReplacement::new(
@@ -113,7 +113,7 @@ mod tests {
 
         let mut context = HashMap::new();
         context.insert("name".to_owned(), json!("Alice"));
-        context.insert("value".to_owned(), json!(42));
+        context.insert("value".to_owned(), json!(42_i32));
 
         let replacements = vec![
             GraftReplacement::new("{{NAME}}".to_owned(), None, None, Some("name".to_owned())),

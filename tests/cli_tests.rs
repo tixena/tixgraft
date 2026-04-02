@@ -1,4 +1,4 @@
-//! CLI interface tests
+//! CLI interface tests.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
@@ -35,7 +35,7 @@ mod tests {
             .arg("nonexistent.yaml")
             .assert()
             .failure()
-            .code(1) // Configuration error
+            .code(1_i32) // Configuration error
             .stdout(predicate::str::contains("Configuration file not found"));
     }
 
@@ -85,7 +85,7 @@ pulls:
             .arg(config_path.to_str().unwrap())
             .assert()
             .failure()
-            .code(1) // Configuration error
+            .code(1_i32) // Configuration error
             .stdout(predicate::str::contains("Failed to parse YAML"));
     }
 
@@ -107,7 +107,7 @@ tag: "main"
             .arg(config_path.to_str().unwrap())
             .assert()
             .failure()
-            .code(1); // Configuration error - missing required field detected during parsing
+            .code(1_i32); // Configuration error - missing required field detected during parsing
     }
 
     #[test]
@@ -139,7 +139,7 @@ tag: "main"
             // Missing second target
             .assert()
             .failure()
-            .code(1) // Configuration error
+            .code(1_i32) // Configuration error
             .stdout(predicate::str::contains("Mismatch"));
     }
 }

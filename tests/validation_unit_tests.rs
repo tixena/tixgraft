@@ -1,4 +1,4 @@
-//! Unit tests for configuration validation
+//! Unit tests for configuration validation.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]

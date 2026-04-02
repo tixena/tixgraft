@@ -1,4 +1,4 @@
-//! Context management for grafts
+//! Context management for grafts.
 //!
 //! Provides data structures and validation for context properties that can be used
 //! in text replacements and other graft operations.
@@ -9,52 +9,74 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// Data type for context properties
+/// Data type for context properties.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum ContextDataType {
-    String,
-    Number,
-    Boolean,
     Array,
+    Boolean,
+    Number,
+    String,
 }
 
-/// Definition of a context property in .graft.yaml
+/// Definition of a context property in .graft.yaml.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ContextPropertyDefinition {
-    /// Property name
-    pub name: String,
-
-    /// Human-readable description
-    pub description: String,
-
-    /// Data type of the property
+    /// Data type of the property.
     pub data_type: ContextDataType,
 
-    /// Default value (if present, property is optional)
+    /// Default value (if present, property is optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_value: Option<Value>,
+
+    /// Human-readable description.
+    pub description: String,
+
+    /// Property name.
+    pub name: String,
 }
 
-/// Context values provided by user (property name -> value)
+/// Context values provided by user (property name -> value).
 pub type ContextValues = HashMap<String, Value>;
 
-/// Validated context with definitions and values
+/// Validated context with definitions and values.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ValidatedContext {
-    /// Property definitions from .graft.yaml
+    /// Property definitions from .graft.yaml.
     pub definitions: Vec<ContextPropertyDefinition>,
 
-    /// Resolved values (after merging, defaults, and validation)
+    /// Resolved values (after merging, defaults, and validation).
     pub values: ContextValues,
 }
 
 impl ValidatedContext {
-    /// Create a new validated context
+    /// Get a context value by name.
+    #[must_use]
+    #[inline]
+    pub fn get(&self, name: &str) -> Option<&Value> {
+        self.values.get(name)
+    }
+
+    /// Get a context value as a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The context property is not found
+    #[inline]
+    pub fn get_as_string(&self, name: &str) -> Result<String> {
+        let value = self.get(name).ok_or_else(|| {
+            GraftError::configuration(format!("Context property not found: {name}"))
+        })?;
+
+        value_to_string(value)
+    }
+
+    /// Create a new validated context.
     ///
     /// # Errors
     ///
@@ -73,31 +95,9 @@ impl ValidatedContext {
             values,
         })
     }
-
-    /// Get a context value by name
-    #[must_use]
-    #[inline]
-    pub fn get(&self, name: &str) -> Option<&Value> {
-        self.values.get(name)
-    }
-
-    /// Get a context value as a string
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The context property is not found
-    #[inline]
-    pub fn get_as_string(&self, name: &str) -> Result<String> {
-        let value = self.get(name).ok_or_else(|| {
-            GraftError::configuration(format!("Context property not found: {name}"))
-        })?;
-
-        value_to_string(value)
-    }
 }
 
-/// Validate context values against definitions and apply defaults
+/// Validate context values against definitions and apply defaults.
 fn validate_and_merge_values(
     definitions: &[ContextPropertyDefinition],
     mut provided_values: ContextValues,
@@ -119,8 +119,8 @@ fn validate_and_merge_values(
                 Ok(coerced_value) => {
                     result.insert(def.name.clone(), coerced_value);
                 }
-                Err(e) => {
-                    type_errors.push(format!("  - {}: {}", def.name, e));
+                Err(err) => {
+                    type_errors.push(format!("  - {}: {}", def.name, err));
                 }
             }
         } else if let Some(default_value) = def.default_value.as_ref() {
@@ -157,12 +157,12 @@ fn validate_and_merge_values(
     Ok(result)
 }
 
-/// Check if a value is an empty string
+/// Check if a value is an empty string.
 const fn is_empty_string(value: &Value) -> bool {
-    matches!(value, Value::String(s) if s.is_empty())
+    matches!(value, Value::String(str_val) if str_val.is_empty())
 }
 
-/// Validate and coerce a value to match the expected data type
+/// Validate and coerce a value to match the expected data type.
 fn validate_and_coerce_type(
     name: &str,
     value: &Value,
@@ -176,35 +176,39 @@ fn validate_and_coerce_type(
     }
 }
 
-/// Coerce a value to string
+/// Coerce a value to string.
+#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
 fn coerce_to_string(value: &Value) -> Value {
-    match *value {
+    match value {
         Value::String(_) => value.clone(),
-        Value::Number(ref n) => Value::String(n.to_string()),
-        Value::Bool(b) => Value::String(b.to_string()),
+        Value::Number(num) => Value::String(num.to_string()),
+        Value::Bool(flag) => Value::String(flag.to_string()),
         Value::Null | Value::Array(_) | Value::Object(_) => Value::String(value.to_string()),
     }
 }
 
-/// Coerce a value to number
+/// Coerce a value to number.
+#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
 fn coerce_to_number(name: &str, value: &Value) -> Result<Value> {
-    match *value {
+    match value {
         Value::Number(_) => Ok(value.clone()),
-        Value::String(ref s) => {
+        Value::String(str_val) => {
             // Try to parse as integer first
-            if let Ok(i) = s.parse::<i64>() {
-                return Ok(Value::Number(i.into()));
+            if let Ok(int_val) = str_val.parse::<i64>() {
+                return Ok(Value::Number(int_val.into()));
             }
             // Try to parse as float
-            if let Ok(f) = s.parse::<f64>() {
-                return Ok(serde_json::Number::from_f64(f)
+            if let Ok(float_val) = str_val.parse::<f64>() {
+                return Ok(serde_json::Number::from_f64(float_val)
                     .map(Value::Number)
                     .ok_or_else(|| {
-                        GraftError::configuration(format!("Invalid number value for '{name}': {s}"))
+                        GraftError::configuration(format!(
+                            "Invalid number value for '{name}': {str_val}"
+                        ))
                     })?);
             }
             Err(GraftError::configuration(format!(
-                "Cannot coerce '{s}' to number for property '{name}'"
+                "Cannot coerce '{str_val}' to number for property '{name}'"
             ))
             .into())
         }
@@ -217,28 +221,28 @@ fn coerce_to_number(name: &str, value: &Value) -> Result<Value> {
     }
 }
 
-/// Coerce a value to boolean
+/// Coerce a value to boolean.
+#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
 fn coerce_to_boolean(name: &str, value: &Value) -> Result<Value> {
-    match *value {
+    match value {
         Value::Bool(_) => Ok(value.clone()),
-        Value::String(ref s) => match s.to_lowercase().as_str() {
+        Value::String(str_val) => match str_val.to_lowercase().as_str() {
             "true" | "yes" | "1" => Ok(Value::Bool(true)),
             "false" | "no" | "0" => Ok(Value::Bool(false)),
             _ => Err(GraftError::configuration(format!(
-                "Cannot coerce '{s}' to boolean for property '{name}' (expected true/false/yes/no/1/0)"
+                "Cannot coerce '{str_val}' to boolean for property '{name}' (expected true/false/yes/no/1/0)"
             ))
             .into()),
         },
-        Value::Number(ref n) => {
-            if let Some(i) = n.as_i64() {
-                Ok(Value::Bool(i != 0))
-            } else {
+        Value::Number(num) => num.as_i64().map_or_else(
+            || {
                 Err(GraftError::configuration(format!(
                     "Cannot coerce number to boolean for property '{name}'"
                 ))
                 .into())
-            }
-        }
+            },
+            |int_val| Ok(Value::Bool(int_val != 0_i64)),
+        ),
         Value::Null | Value::Array(_) | Value::Object(_) => Err(GraftError::configuration(format!(
             "Cannot coerce {value:?} to boolean for property '{name}'"
         ))
@@ -246,9 +250,10 @@ fn coerce_to_boolean(name: &str, value: &Value) -> Result<Value> {
     }
 }
 
-/// Validate array type (no coercion, must be proper array)
+/// Validate array type (no coercion, must be proper array).
+#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
 fn validate_array(name: &str, value: &Value) -> Result<Value> {
-    match *value {
+    match value {
         Value::Array(_) => Ok(value.clone()),
         Value::Null | Value::Bool(_) | Value::Number(_) | Value::String(_) | Value::Object(_) => {
             Err(GraftError::configuration(format!(
@@ -259,18 +264,19 @@ fn validate_array(name: &str, value: &Value) -> Result<Value> {
     }
 }
 
-/// Convert a JSON value to a string for replacement
+/// Convert a JSON value to a string for replacement.
 ///
 /// # Errors
 ///
 /// Returns an error if:
 /// - The value cannot be serialized to a string
 #[inline]
+#[expect(clippy::pattern_type_mismatch, reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
 pub fn value_to_string(value: &Value) -> Result<String> {
-    match *value {
-        Value::String(ref s) => Ok(s.clone()),
-        Value::Number(ref n) => Ok(n.to_string()),
-        Value::Bool(b) => Ok(b.to_string()),
+    match value {
+        Value::String(str_val) => Ok(str_val.clone()),
+        Value::Number(num) => Ok(num.to_string()),
+        Value::Bool(flag) => Ok(flag.to_string()),
         Value::Array(_) | Value::Object(_) => {
             // For complex types, serialize as JSON
             serde_json::to_string(value).context("Failed to serialize context value to JSON")
@@ -279,13 +285,14 @@ pub fn value_to_string(value: &Value) -> Result<String> {
     }
 }
 
-/// Merge two context value maps (child overrides parent)
+/// Merge two context value maps (child overrides parent).
 ///
 /// # Returns
 ///
-/// Returns the merged context values
+/// Returns the merged context values.
 #[must_use]
 #[inline]
+#[expect(clippy::iter_over_hash_type, reason = "iteration order is irrelevant for merging context values by key")]
 pub fn merge_context_values(parent: ContextValues, child: ContextValues) -> ContextValues {
     let mut result = parent;
     for (key, value) in child {
@@ -300,8 +307,8 @@ pub fn merge_context_values(parent: ContextValues, child: ContextValues) -> Cont
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used)]
-#[expect(clippy::shadow_unrelated)]
+#[expect(clippy::unwrap_used, reason = "unwrap is acceptable in tests for concise assertions")]
+#[expect(clippy::shadow_unrelated, reason = "test functions reuse variable names for clarity")]
 mod tests {
     use super::*;
     use serde_json::json;
@@ -310,16 +317,16 @@ mod tests {
     fn validate_required_properties() {
         let definitions = vec![
             ContextPropertyDefinition {
-                name: "projectName".to_owned(),
-                description: "Project name".to_owned(),
                 data_type: ContextDataType::String,
                 default_value: None,
+                description: "Project name".to_owned(),
+                name: "projectName".to_owned(),
             },
             ContextPropertyDefinition {
-                name: "maxGbPerPod".to_owned(),
-                description: "Max GB per pod".to_owned(),
                 data_type: ContextDataType::Number,
-                default_value: Some(json!(10)),
+                default_value: Some(json!(10_i64)),
+                description: "Max GB per pod".to_owned(),
+                name: "maxGbPerPod".to_owned(),
             },
         ];
 
@@ -341,16 +348,16 @@ mod tests {
         assert!(result.is_ok());
         let merged = result.unwrap();
         assert_eq!(merged.get("projectName"), Some(&json!("my-app")));
-        assert_eq!(merged.get("maxGbPerPod"), Some(&json!(10))); // default applied
+        assert_eq!(merged.get("maxGbPerPod"), Some(&json!(10_i64))); // default applied
     }
 
     #[test]
     fn type_coercion_string_to_number() {
         let definitions = vec![ContextPropertyDefinition {
-            name: "port".to_owned(),
-            description: "Port number".to_owned(),
             data_type: ContextDataType::Number,
             default_value: None,
+            description: "Port number".to_owned(),
+            name: "port".to_owned(),
         }];
 
         // String "8080" should coerce to number
@@ -359,16 +366,16 @@ mod tests {
         let result = validate_and_merge_values(&definitions, values);
         assert!(result.is_ok());
         let merged = result.unwrap();
-        assert_eq!(merged.get("port"), Some(&json!(8080)));
+        assert_eq!(merged.get("port"), Some(&json!(8080_i64)));
     }
 
     #[test]
     fn type_coercion_string_to_boolean() {
         let definitions = vec![ContextPropertyDefinition {
-            name: "enabled".to_owned(),
-            description: "Enable feature".to_owned(),
             data_type: ContextDataType::Boolean,
             default_value: None,
+            description: "Enable feature".to_owned(),
+            name: "enabled".to_owned(),
         }];
 
         // String "true" should coerce to boolean
@@ -383,10 +390,10 @@ mod tests {
     #[test]
     fn empty_string_removes_property() {
         let definitions = vec![ContextPropertyDefinition {
-            name: "optional".to_owned(),
-            description: "Optional property".to_owned(),
             data_type: ContextDataType::String,
             default_value: Some(json!("default")),
+            description: "Optional property".to_owned(),
+            name: "optional".to_owned(),
         }];
 
         // Empty string should remove property
@@ -401,10 +408,10 @@ mod tests {
     #[test]
     fn array_validation() {
         let definitions = vec![ContextPropertyDefinition {
-            name: "items".to_owned(),
-            description: "List of items".to_owned(),
             data_type: ContextDataType::Array,
             default_value: None,
+            description: "List of items".to_owned(),
+            name: "items".to_owned(),
         }];
 
         // Valid array
@@ -439,7 +446,7 @@ mod tests {
     #[test]
     fn value_to_string_tst() {
         assert_eq!(value_to_string(&json!("hello")).unwrap(), "hello");
-        assert_eq!(value_to_string(&json!(42)).unwrap(), "42");
+        assert_eq!(value_to_string(&json!(42_i64)).unwrap(), "42");
         assert_eq!(value_to_string(&json!(true)).unwrap(), "true");
         assert_eq!(
             value_to_string(&json!(["a", "b"])).unwrap(),

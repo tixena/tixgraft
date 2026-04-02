@@ -1,42 +1,88 @@
-//! Git repository handling and URL parsing
+//! Git repository handling and URL parsing.
 
 use crate::error::GraftError;
 use crate::system::System;
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
-/// Represents a repository source - either Git or local filesystem
+/// Represents a repository source - either Git or local filesystem.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum RepositorySource {
-    /// Git repository with URL
+    /// Git repository with URL.
     Git {
-        /// Original URL as provided by user
-        original_url: String,
-        /// Normalized URL for Git operations
+        /// Normalized URL for Git operations.
         normalized_url: String,
+        /// Original URL as provided by user.
+        original_url: String,
     },
-    /// Local filesystem path
+    /// Local filesystem path.
     Local {
-        /// Original path string as provided by user
+        /// Original path string as provided by user.
         original_path: String,
-        /// Resolved absolute path
+        /// Resolved absolute path.
         resolved_path: PathBuf,
     },
 }
 
-/// Represents a repository with URL normalization
+/// Represents a repository with URL normalization.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Repository {
-    /// Original URL as provided by user
-    pub url: String,
-    /// Repository source
+    /// Repository source.
     pub source: RepositorySource,
+    /// Original URL as provided by user.
+    pub url: String,
 }
 
 impl Repository {
-    /// Create a new repository from a URL or local path
+    /// Get the normalized URL for Git operations (panics if called on Local source).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The repository is a local source
+    #[inline]
+    #[expect(clippy::pattern_type_mismatch, reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+    pub fn git_url(&self) -> Result<&str> {
+        match &self.source {
+            RepositorySource::Git {
+                normalized_url, ..
+            } => Ok(normalized_url),
+            RepositorySource::Local { .. } => {
+                Err(GraftError::git("git_url() called on Local repository source").into())
+            }
+        }
+    }
+
+    /// Check if this is a Git repository.
+    #[must_use]
+    #[inline]
+    pub const fn is_git(&self) -> bool {
+        matches!(self.source, RepositorySource::Git { .. })
+    }
+
+    /// Check if this is a local filesystem source.
+    #[must_use]
+    #[inline]
+    pub const fn is_local(&self) -> bool {
+        matches!(self.source, RepositorySource::Local { .. })
+    }
+
+    /// Get the local path (returns None if this is a Git source).
+    #[must_use]
+    #[inline]
+    #[expect(clippy::pattern_type_mismatch, reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
+    pub const fn local_path(&self) -> Option<&PathBuf> {
+        match &self.source {
+            RepositorySource::Local {
+                resolved_path, ..
+            } => Some(resolved_path),
+            RepositorySource::Git { .. } => None,
+        }
+    }
+
+    /// Create a new repository from a URL or local path.
     ///
     /// # Errors
     ///
@@ -52,59 +98,15 @@ impl Repository {
         })
     }
 
-    /// Get the normalized URL for Git operations (panics if called on Local source)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - The repository is a local source
-    #[inline]
-    pub fn git_url(&self) -> Result<&str> {
-        match self.source {
-            RepositorySource::Git {
-                ref normalized_url, ..
-            } => Ok(normalized_url),
-            RepositorySource::Local { .. } => {
-                Err(GraftError::git("git_url() called on Local repository source").into())
-            }
-        }
-    }
-
-    /// Get the original URL as provided
+    /// Get the original URL as provided.
     #[must_use]
     #[inline]
     pub fn original_url(&self) -> &str {
         &self.url
     }
-
-    /// Check if this is a Git repository
-    #[must_use]
-    #[inline]
-    pub const fn is_git(&self) -> bool {
-        matches!(self.source, RepositorySource::Git { .. })
-    }
-
-    /// Check if this is a local filesystem source
-    #[must_use]
-    #[inline]
-    pub const fn is_local(&self) -> bool {
-        matches!(self.source, RepositorySource::Local { .. })
-    }
-
-    /// Get the local path (returns None if this is a Git source)
-    #[must_use]
-    #[inline]
-    pub const fn local_path(&self) -> Option<&PathBuf> {
-        match self.source {
-            RepositorySource::Local {
-                ref resolved_path, ..
-            } => Some(resolved_path),
-            RepositorySource::Git { .. } => None,
-        }
-    }
 }
 
-/// Detect whether the source is a Git repository or local filesystem path
+/// Detect whether the source is a Git repository or local filesystem path.
 fn detect_source_type(system: &dyn System, url: &str) -> Result<RepositorySource> {
     // ONLY accept "file:" prefix for local filesystem sources
     // This is explicit and leaves room for future prefixes like s3:, gdrive:, etc.
@@ -128,7 +130,7 @@ fn detect_source_type(system: &dyn System, url: &str) -> Result<RepositorySource
     })
 }
 
-/// Create a local repository source, resolving the path
+/// Create a local repository source, resolving the path.
 fn create_local_source(
     system: &dyn System,
     original: &str,
@@ -157,7 +159,9 @@ fn create_local_source(
     } else {
         system
             .current_dir()
-            .map_err(|e| GraftError::filesystem(format!("Cannot get current directory: {e}")))?
+            .map_err(|err| {
+                GraftError::filesystem(format!("Cannot get current directory: {err}"))
+            })?
             .join(&path)
     };
 
@@ -185,7 +189,7 @@ fn create_local_source(
     })
 }
 
-/// Normalize a repository URL to a format suitable for Git operations
+/// Normalize a repository URL to a format suitable for Git operations.
 fn normalize_repository_url(url: &str) -> Result<String> {
     // Handle different URL formats
     if url.starts_with("https://") || url.starts_with("http://") {
@@ -224,7 +228,7 @@ fn normalize_repository_url(url: &str) -> Result<String> {
     }
 }
 
-/// Validate that a repository URL is accessible
+/// Validate that a repository URL is accessible.
 ///
 /// # Errors
 ///
@@ -233,6 +237,7 @@ fn normalize_repository_url(url: &str) -> Result<String> {
 /// - The Git reference (tag/branch) is empty
 /// - The repository is local
 #[inline]
+#[expect(clippy::pattern_type_mismatch, reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns")]
 pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
     // For local repositories, we've already validated the path exists in detect_source_type
     if repo.is_local() {
@@ -241,9 +246,9 @@ pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
     }
 
     // For Git repositories, validate URL and tag
-    match repo.source {
+    match &repo.source {
         RepositorySource::Git {
-            ref normalized_url, ..
+            normalized_url, ..
         } => {
             if normalized_url.is_empty() {
                 return Err(GraftError::git("Repository URL cannot be empty".to_owned()).into());

@@ -1,4 +1,4 @@
-//! Unit tests for filesystem utilities
+//! Unit tests for filesystem utilities.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
@@ -36,7 +36,7 @@ mod tests {
         assert_eq!(format_file_size(1_023), "1023 B");
         assert_eq!(format_file_size(1_024), "1.0 KB");
         assert_eq!(format_file_size(1_536), "1.5 KB");
-        assert_eq!(format_file_size(1_048_576), "1.0 MB");
+        assert_eq!(format_file_size(0x0010_0000), "1.0 MB");
     }
 
     #[test]

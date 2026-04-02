@@ -1,4 +1,4 @@
-//! Unit tests for path utilities
+//! Unit tests for path utilities.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]

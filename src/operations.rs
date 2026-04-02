@@ -1,6 +1,8 @@
-//! Operations module
+//! Operations module.
 //!
-//! Coordinates pull operations including file copying, text replacement, and command execution
+//! Coordinates pull operations including file copying, text replacement, and command execution.
+
+#![expect(clippy::pub_use, reason = "deliberate module re-export for public API")]
 
 pub mod commands;
 pub mod copy;

@@ -1,4 +1,4 @@
-//! Real system implementation using `std::env` and `std::fs`
+//! Real system implementation using `std::env` and `std::fs`.
 
 use super::{System, TempDirHandle, WalkEntry};
 use ignore::WalkBuilder;
@@ -9,7 +9,7 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-/// Production implementation of System trait
+/// Production implementation of System trait.
 ///
 /// This implementation directly delegates to the standard library's
 /// environment and filesystem functions. It's a zero-cost abstraction
@@ -19,7 +19,7 @@ use tempfile::TempDir;
 pub struct RealSystem;
 
 impl RealSystem {
-    /// Create a new `RealSystem` instance
+    /// Create a new `RealSystem` instance.
     #[must_use]
     #[inline]
     pub const fn new() -> Self {
@@ -36,8 +36,30 @@ impl Default for RealSystem {
 
 impl System for RealSystem {
     #[inline]
-    fn env_var(&self, key: &str) -> Result<String, VarError> {
-        env::var(key)
+    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+        fs::canonicalize(path)
+    }
+
+    #[inline]
+    fn copy(&self, from: &Path, to: &Path) -> io::Result<u64> {
+        fs::copy(from, to)
+    }
+
+    #[inline]
+    fn create(&self, path: &Path) -> io::Result<Box<dyn Write + '_>> {
+        let file = fs::File::create(path)?;
+        Ok(Box::new(file))
+    }
+
+    #[inline]
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        fs::create_dir_all(path)
+    }
+
+    #[inline]
+    fn create_temp_dir(&self) -> io::Result<Box<dyn TempDirHandle>> {
+        let temp_dir = TempDir::new()?;
+        Ok(Box::new(RealTempDir { inner: temp_dir }))
     }
 
     #[inline]
@@ -46,18 +68,46 @@ impl System for RealSystem {
     }
 
     #[inline]
+    fn env_var(&self, key: &str) -> Result<String, VarError> {
+        env::var(key)
+    }
+
+    #[inline]
+    fn exists(&self, path: &Path) -> io::Result<bool> {
+        Ok(path.exists())
+    }
+
+    #[inline]
+    fn is_dir(&self, path: &Path) -> io::Result<bool> {
+        Ok(path.is_dir())
+    }
+
+    #[inline]
+    fn is_file(&self, path: &Path) -> io::Result<bool> {
+        Ok(path.is_file())
+    }
+
+    #[inline]
+    fn metadata(&self, path: &Path) -> io::Result<Metadata> {
+        fs::metadata(path)
+    }
+
+    #[inline]
+    fn open(&self, path: &Path) -> io::Result<Box<dyn Read + '_>> {
+        let file = fs::File::open(path)?;
+        Ok(Box::new(file))
+    }
+
+    #[inline]
+    fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
+        fs::read_dir(path)?
+            .map(|entry| entry.map(|dir_entry| dir_entry.path()))
+            .collect()
+    }
+
+    #[inline]
     fn read_to_string(&self, path: &Path) -> io::Result<String> {
         fs::read_to_string(path)
-    }
-
-    #[inline]
-    fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
-        fs::write(path, contents)
-    }
-
-    #[inline]
-    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
-        fs::create_dir_all(path)
     }
 
     #[inline]
@@ -68,55 +118,6 @@ impl System for RealSystem {
     #[inline]
     fn remove_file(&self, path: &Path) -> io::Result<()> {
         fs::remove_file(path)
-    }
-
-    #[inline]
-    fn copy(&self, from: &Path, to: &Path) -> io::Result<u64> {
-        fs::copy(from, to)
-    }
-
-    #[inline]
-    fn exists(&self, path: &Path) -> io::Result<bool> {
-        Ok(path.exists())
-    }
-
-    #[inline]
-    fn is_file(&self, path: &Path) -> io::Result<bool> {
-        Ok(path.is_file())
-    }
-
-    #[inline]
-    fn is_dir(&self, path: &Path) -> io::Result<bool> {
-        Ok(path.is_dir())
-    }
-
-    #[inline]
-    fn metadata(&self, path: &Path) -> io::Result<Metadata> {
-        fs::metadata(path)
-    }
-
-    #[inline]
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        fs::canonicalize(path)
-    }
-
-    #[inline]
-    fn read_dir(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
-        fs::read_dir(path)?
-            .map(|entry| entry.map(|e| e.path()))
-            .collect()
-    }
-
-    #[inline]
-    fn open(&self, path: &Path) -> io::Result<Box<dyn Read + '_>> {
-        let file = fs::File::open(path)?;
-        Ok(Box::new(file))
-    }
-
-    #[inline]
-    fn create(&self, path: &Path) -> io::Result<Box<dyn Write + '_>> {
-        let file = fs::File::create(path)?;
-        Ok(Box::new(file))
     }
 
     #[inline]
@@ -140,9 +141,9 @@ impl System for RealSystem {
             let entry_path = entry.path().to_path_buf();
 
             entries.push(WalkEntry {
-                path: entry_path.clone(),
-                is_file: entry_path.is_file(),
                 is_dir: entry_path.is_dir(),
+                is_file: entry_path.is_file(),
+                path: entry_path.clone(),
             });
         }
 
@@ -150,14 +151,14 @@ impl System for RealSystem {
     }
 
     #[inline]
-    fn create_temp_dir(&self) -> io::Result<Box<dyn TempDirHandle>> {
-        let temp_dir = TempDir::new()?;
-        Ok(Box::new(RealTempDir { inner: temp_dir }))
+    fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
+        fs::write(path, contents)
     }
 }
 
-/// Real filesystem temporary directory handle
+/// Real filesystem temporary directory handle.
 pub struct RealTempDir {
+    /// The underlying `tempfile::TempDir` that manages cleanup on drop.
     inner: TempDir,
 }
 

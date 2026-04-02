@@ -1,10 +1,11 @@
-//! Unit tests for command execution
+//! Unit tests for command execution.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
+#[expect(clippy::indexing_slicing, reason = "test code uses indexing after length assertions")]
 mod tests {
     use tixgraft::operations::commands::{execute_commands, validate_commands};
-    use tixgraft::system::System;
+    use tixgraft::system::System as _;
     use tixgraft::system::real::RealSystem;
 
     #[test]

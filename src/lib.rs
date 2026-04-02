@@ -1,22 +1,9 @@
-//! `TixGraft` - A CLI tool for fetching reusable components from Git repositories
+//! `TixGraft` - A CLI tool for fetching reusable components from Git repositories.
 //!
 //! This library provides functionality to fetch specific files or directories
 //! from Git repositories using sparse checkout, apply text replacements, and
 //! execute post-processing commands.
 
-#![expect(clippy::allow_attributes_without_reason)]
-#![expect(clippy::pub_use)]
-#![expect(clippy::question_mark_used)]
-#![expect(clippy::arithmetic_side_effects)]
-#![expect(clippy::option_if_let_else)]
-#![expect(clippy::min_ident_chars)]
-#![expect(clippy::float_arithmetic)]
-#![expect(clippy::iter_over_hash_type)]
-#![expect(clippy::needless_pass_by_value)]
-#![expect(clippy::module_name_repetitions)]
-#![expect(clippy::mod_module_files)]
-#![expect(clippy::ref_patterns)]
-#![allow(clippy::missing_docs_in_private_items)]
 
 pub mod cli;
 pub mod config;
@@ -37,7 +24,7 @@ use system::System;
 
 use crate::system::real::RealSystem;
 
-/// Main entry point for the tixgraft library
+/// Main entry point for the tixgraft library.
 ///
 /// # Errors
 ///
@@ -53,7 +40,7 @@ pub fn run(args: Args) -> Result<()> {
     pull_operation.execute()
 }
 
-/// Run the to-command-line command
+/// Run the to-command-line command.
 ///
 /// # Errors
 ///
@@ -94,7 +81,7 @@ pub fn run_to_command_line(
     Ok(())
 }
 
-/// Install the tixgraft Claude Code skill
+/// Install the tixgraft Claude Code skill.
 ///
 /// # Errors
 ///
@@ -107,7 +94,7 @@ pub fn run_skill_install(global: bool) -> Result<()> {
     Ok(())
 }
 
-/// Uninstall the tixgraft Claude Code skill
+/// Uninstall the tixgraft Claude Code skill.
 ///
 /// # Errors
 ///
@@ -130,6 +117,7 @@ pub fn run_skill_uninstall(global: bool) -> Result<()> {
 /// # Errors
 ///
 /// Returns an error if filesystem operations fail.
+#[inline]
 pub fn run_skill_test(global: bool, auto_yes: bool) -> Result<i32> {
     let system = RealSystem;
     let target_dir = skill::resolve_skill_path(global)?;
@@ -162,7 +150,7 @@ pub fn run_skill_test(global: bool, auto_yes: bool) -> Result<i32> {
     }
 }
 
-/// Run the to-config command
+/// Run the to-config command.
 ///
 /// # Errors
 ///

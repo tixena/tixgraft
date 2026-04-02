@@ -1,4 +1,4 @@
-//! Convert merged configuration to command-line arguments
+//! Convert merged configuration to command-line arguments.
 
 use core::str::FromStr;
 
@@ -6,14 +6,14 @@ use crate::cli::{PullConfig, ReplacementConfig};
 use crate::config::Config;
 use anyhow::Result;
 
-/// Output format for command-line representation
+/// Output format for command-line representation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum OutputFormat {
-    /// Shell-escaped command ready to execute
-    Shell,
-    /// JSON array of arguments
+    /// JSON array of arguments.
     Json,
+    /// Shell-escaped command ready to execute.
+    Shell,
 }
 
 impl FromStr for OutputFormat {
@@ -29,7 +29,7 @@ impl FromStr for OutputFormat {
     }
 }
 
-/// Convert configuration to command-line representation
+/// Convert configuration to command-line representation.
 ///
 /// # Errors
 ///
@@ -46,7 +46,7 @@ pub fn generate_command_line(config: &Config, format: OutputFormat) -> Result<St
     }
 }
 
-/// Build argument list from configuration
+/// Build argument list from configuration.
 fn build_command_args(config: &Config) -> Vec<String> {
     let mut args = vec!["tixgraft".to_owned()];
 
@@ -70,7 +70,7 @@ fn build_command_args(config: &Config) -> Vec<String> {
     args
 }
 
-/// Add arguments for a single pull operation
+/// Add arguments for a single pull operation.
 fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Config) {
     // Source (required)
     args.push("--pull-source".to_owned());
@@ -121,19 +121,23 @@ fn add_pull_args(args: &mut Vec<String>, pull: &PullConfig, global_config: &Conf
     }
 }
 
-/// Format a replacement config as "SOURCE=TARGET" or "SOURCE=env:VAR"
+/// Format a replacement config as "SOURCE=TARGET" or "SOURCE=env:VAR".
 fn format_replacement(repl: &ReplacementConfig) -> String {
-    if let Some(env_var) = repl.value_from_env.as_ref() {
-        format!("{}=env:{}", repl.source, env_var)
-    } else if let Some(target) = repl.target.as_ref() {
-        format!("{}={}", repl.source, target)
-    } else {
-        // This shouldn't happen with valid config, but handle gracefully
-        repl.source.clone()
-    }
+    repl.value_from_env.as_ref().map_or_else(
+        || {
+            repl.target.as_ref().map_or_else(
+                || {
+                    // This shouldn't happen with valid config, but handle gracefully
+                    repl.source.clone()
+                },
+                |target| format!("{}={}", repl.source, target),
+            )
+        },
+        |env_var| format!("{}=env:{}", repl.source, env_var),
+    )
 }
 
-/// Format arguments as a shell command with proper escaping
+/// Format arguments as a shell command with proper escaping.
 fn format_as_shell(args: &[String]) -> String {
     let mut output = String::new();
 
@@ -150,25 +154,25 @@ fn format_as_shell(args: &[String]) -> String {
     output
 }
 
-/// Format arguments as JSON array
+/// Format arguments as JSON array.
 fn format_as_json(args: &[String]) -> Result<String> {
     serde_json::to_string_pretty(args)
-        .map_err(|e| anyhow::anyhow!("Failed to serialize to JSON: {e}"))
+        .map_err(|err| anyhow::anyhow!("Failed to serialize to JSON: {err}"))
 }
 
-/// Escape a string for shell execution
-/// Uses double quotes for safety, escaping special characters inside
-fn shell_escape(s: &str) -> String {
+/// Escape a string for shell execution.
+/// Uses double quotes for safety, escaping special characters inside.
+fn shell_escape(input: &str) -> String {
     // If string contains no special characters, return as-is
-    if s.chars().all(|c| {
-        c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '/' || c == '.' || c == ':'
+    if input.chars().all(|ch| {
+        ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '/' || ch == '.' || ch == ':'
     }) {
-        return s.to_owned();
+        return input.to_owned();
     }
 
     // Otherwise, wrap in double quotes and escape special chars
     let mut result = String::from('"');
-    for ch in s.chars() {
+    for ch in input.chars() {
         match ch {
             '"' => result.push_str(r#"\""#),
             '\\' => result.push_str(r"\\"),
@@ -184,6 +188,7 @@ fn shell_escape(s: &str) -> String {
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "These are unit tests")]
+#[expect(clippy::indexing_slicing, reason = "index-based assertions are acceptable in tests")]
 mod tests {
     use std::collections::HashMap;
 

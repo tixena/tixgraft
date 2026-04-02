@@ -1,4 +1,4 @@
-//! YAML configuration loading and parsing
+//! YAML configuration loading and parsing.
 
 use crate::config::schema::validate_against_schema;
 use crate::config::{Config, validation::validate_config};
@@ -6,7 +6,7 @@ use crate::system::System;
 use anyhow::{Context as _, Result, anyhow};
 use std::path::Path;
 
-/// Load and parse YAML configuration from file
+/// Load and parse YAML configuration from file.
 ///
 /// # Errors
 ///

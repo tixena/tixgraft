@@ -1,4 +1,4 @@
-//! Discovery of .graft.yaml files in target directories
+//! Discovery of .graft.yaml files in target directories.
 //!
 //! Handles recursive discovery of .graft.yaml files and builds a hierarchy
 //! to support context inheritance.
@@ -26,25 +26,25 @@ use std::{
 
 use crate::system::System;
 
-/// A discovered .graft.yaml file with its location and hierarchy information
+/// A discovered .graft.yaml file with its location and hierarchy information.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct DiscoveredGraft {
-    /// Absolute path to the .graft.yaml file
-    pub path: PathBuf,
-
-    /// Directory containing the .graft.yaml file (parent of the file)
-    pub directory: PathBuf,
-
-    /// Depth in the directory hierarchy (0 = root)
+    /// Depth in the directory hierarchy (0 = root).
     pub depth: usize,
 
-    /// Parent graft (if any) for context inheritance
+    /// Directory containing the .graft.yaml file (parent of the file).
+    pub directory: PathBuf,
+
+    /// Parent graft (if any) for context inheritance.
     pub parent: Option<Box<Self>>,
+
+    /// Absolute path to the .graft.yaml file.
+    pub path: PathBuf,
 }
 
 impl DiscoveredGraft {
-    /// Get all ancestors in order (closest parent first)
+    /// Get all ancestors in order (closest parent first).
     #[must_use]
     #[inline]
     pub fn ancestors(&self) -> Vec<&Self> {
@@ -58,7 +58,7 @@ impl DiscoveredGraft {
     }
 }
 
-/// Discover all .graft.yaml files in a target directory recursively
+/// Discover all .graft.yaml files in a target directory recursively.
 ///
 /// Returns grafts sorted by depth (root first) for proper processing order.
 ///
@@ -134,7 +134,7 @@ pub fn discover_graft_files(
             let depth = directory
                 .strip_prefix(&relative_target_dir)
                 .ok()
-                .map_or(0, |p| p.components().count());
+                .map_or(0, |relative| relative.components().count());
 
             discoveries.push((path.clone(), directory, depth));
         }
@@ -150,19 +150,19 @@ pub fn discover_graft_files(
         let parent = find_parent_graft(&grafts, &directory);
 
         grafts.push(DiscoveredGraft {
-            path,
-            directory,
             depth,
+            directory,
             parent,
+            path,
         });
     }
 
     Ok(grafts)
 }
 
-/// Find the parent graft for a given directory
+/// Find the parent graft for a given directory.
 ///
-/// The parent is the graft whose directory is an ancestor of the given directory
+/// The parent is the graft whose directory is an ancestor of the given directory.
 fn find_parent_graft(grafts: &[DiscoveredGraft], directory: &Path) -> Option<Box<DiscoveredGraft>> {
     // Look for the closest ancestor directory that has a .graft.yaml
     for graft in grafts.iter().rev() {
@@ -173,9 +173,9 @@ fn find_parent_graft(grafts: &[DiscoveredGraft], directory: &Path) -> Option<Box
     None
 }
 
-/// Delete all .graft.yaml files from a target directory
+/// Delete all .graft.yaml files from a target directory.
 ///
-/// This should be called after all graft processing is complete
+/// This should be called after all graft processing is complete.
 ///
 /// # Errors
 ///
@@ -185,7 +185,7 @@ fn find_parent_graft(grafts: &[DiscoveredGraft], directory: &Path) -> Option<Box
 #[inline]
 pub fn cleanup_graft_files(system: &dyn System, target_dir: &Path) -> Result<usize> {
     let grafts = discover_graft_files(system, target_dir)?;
-    let mut deleted_count = 0;
+    let mut deleted_count: usize = 0;
 
     for graft in grafts {
         if system.exists(&graft.path)? {
@@ -195,7 +195,7 @@ pub fn cleanup_graft_files(system: &dyn System, target_dir: &Path) -> Result<usi
                     graft.path.display()
                 )
             })?;
-            deleted_count += 1;
+            deleted_count = deleted_count.saturating_add(1);
         }
     }
 

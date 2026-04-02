@@ -1,4 +1,4 @@
-//! Unit tests for file and directory copying operations
+//! Unit tests for file and directory copying operations.
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
