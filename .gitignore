@@ -25,3 +25,4 @@ target
 
 notes/
 .claude/settings.local.json
+*.profraw

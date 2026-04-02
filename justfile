@@ -5,15 +5,6 @@
 default:
     @just --list
 
-# Install dependencies and check environment
-setup:
-    @echo "Setting up tixgraft development environment..."
-    @echo "Checking Rust installation..."
-    cargo --version
-    @echo "Checking Git installation..."
-    git --version
-    @echo "Environment setup complete!"
-
 # Run code formatting
 fmt:
     @echo "Formatting code..."
@@ -24,44 +15,10 @@ fmt-check:
     @echo "Checking code formatting..."
     cargo fmt --all -- --check
 
-# Run linting with clippy (optionally fix issues with fix=true)
-lint fix='false':
-    #!/usr/bin/env bash
-    set -e
-
-    # Define lint flags once to avoid duplication
-    LINT_FLAGS="\
-        -W clippy::all \
-        -W clippy::pedantic \
-        -W clippy::nursery \
-        -W clippy::as_conversions \
-        -W clippy::panic \
-        -W clippy::unwrap_used \
-        -W clippy::print_stdout \
-        -W clippy::missing_docs_in_private_items \
-        -W clippy::missing_inline_in_public_items \
-        -W clippy::allow_attributes_without_reason \
-        -W clippy::arithmetic_side_effects \
-        -W clippy::float_arithmetic \
-        -W clippy::min_ident_chars \
-        -W clippy::mod_module_files \
-        -W clippy::question_mark_used \
-        -W clippy::std_instead_of_alloc \
-        -W clippy::std_instead_of_core \
-        -W clippy::shadow_unrelated \
-        -D warnings"
-
-    if [ "{{fix}}" = "true" ]; then
-        echo "Running cargo fix..."
-        cargo fix --allow-dirty
-        echo "Running clippy with fixes..."
-        cargo clippy --all-targets --fix --allow-dirty -- $LINT_FLAGS
-        echo "Formatting code..."
-        cargo fmt
-    else
-        echo "Running clippy lints..."
-        cargo clippy --all-targets -- $LINT_FLAGS
-    fi 
+# Run linting with clippy (lint config lives in Cargo.toml [lints.clippy])
+lint:
+    @echo "Running clippy lints..."
+    cargo clippy --all-targets --all-features
 
 # Run all tests
 test:
@@ -77,11 +34,6 @@ test-verbose:
 test-filter FILTER:
     @echo "Running tests matching: {{FILTER}}"
     cargo test --all-features {{FILTER}}
-
-# Check that the code compiles
-check:
-    @echo "Checking compilation..."
-    cargo check --all-targets --all-features
 
 # Build in debug mode
 build:
@@ -121,26 +73,10 @@ install-release:
     cargo install tixgraft
     @echo "TixGraft installed successfully!"
 
-# Install from GitHub repository
-install-git:
-    @echo "Installing tixgraft from GitHub..."
-    cargo install --git https://github.com/tixena/tixgraft
-    @echo "TixGraft installed successfully!"
-
 # Run the binary with example arguments
 run *ARGS:
     @echo "Running tixgraft with args: {{ARGS}}"
     cargo run -- {{ARGS}}
-
-# Run the release binary with example arguments
-run-release *ARGS:
-    @echo "Running release tixgraft with args: {{ARGS}}"
-    ./target/release/tixgraft {{ARGS}}
-
-# Run with dry-run flag for testing
-dry-run:
-    @echo "Running tixgraft dry-run with example config..."
-    cargo run -- --dry-run --config docs/examples/basic-usage.yaml
 
 # Generate documentation
 docs:
@@ -171,27 +107,6 @@ release VERSION:
     @echo "Run 'just ci' to verify everything works"
     @echo "Then run 'git tag v{{VERSION}}' to create release tag"
 
-# Benchmark performance (if benchmarks exist)
-bench:
-    @echo "Running benchmarks..."
-    cargo bench
-
-# Watch for changes and run tests
-watch:
-    @echo "Watching for changes and running tests..."
-    cargo watch -x test
-
-# Watch for changes and run specific command
-watch-run COMMAND:
-    @echo "Watching for changes and running: {{COMMAND}}"
-    cargo watch -x "{{COMMAND}}"
-
-# Profile the application (requires cargo-profiler)
-profile:
-    @echo "Profiling application..."
-    cargo build --release
-    @echo "Run profiling tools on: target/release/tixgraft"
-
 # Check binary size and dependencies
 bloat:
     @echo "Analyzing binary size..."
@@ -203,29 +118,16 @@ validate-examples:
     @find docs/examples -name "*.yaml" -exec sh -c 'echo "Validating: $$1"; cargo run -- --config "$$1" --dry-run' sh {} \;
     @echo "All examples validated successfully!"
 
-# Check for TODO items and fixme in code
-todos:
-    @echo "Searching for TODO and FIXME items..."
-    @rg -i "todo|fixme|hack|bug" --type rust src/ || echo "No TODOs found!"
-
-# Generate code coverage report
-coverage:
+# Generate code coverage report (requires cargo-llvm-cov)
+test-coverage:
     @echo "Generating code coverage report..."
-    cargo tarpaulin --all-features --out Html --output-dir coverage
-    @echo "Coverage report generated in coverage/"
+    cargo llvm-cov --all-features
 
-# Show project statistics
-stats:
-    @echo "Project Statistics"
-    @echo "===================="
-    @echo "Lines of Rust code:"
-    @find src -name "*.rs" -exec wc -l {} + | tail -1 | awk '{print $1}'
-    @echo "Total files:"
-    @find src -name "*.rs" | wc -l
-    @echo "Dependencies:"
-    @cargo tree --depth 1 | wc -l
-    @echo "Test files:"
-    @find . -name "*test*.rs" -o -path "*/tests/*" | wc -l
+# Generate code coverage HTML report (requires cargo-llvm-cov)
+test-coverage-html:
+    @echo "Generating code coverage HTML report..."
+    cargo llvm-cov --all-features --html
+    @echo "Coverage report generated in target/llvm-cov/html/"
 
 # Show binary information (private recipe)
 _show-binary-info:
