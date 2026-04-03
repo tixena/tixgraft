@@ -66,6 +66,11 @@
             },
             "default": []
           },
+          "context": {
+            "type": "object",
+            "description": "Per-pull context values (merged with global context, pull overrides global)",
+            "additionalProperties": true
+          },
           "replacements": {
             "type": "array",
             "description": "Text replacements to apply after copying",
@@ -119,6 +124,11 @@
       "type": "boolean",
       "description": "If true, execute children before parent pulls (default: false)",
       "default": false
+    },
+    "context": {
+      "type": "object",
+      "description": "Global context values available to all pulls for .graft.yaml processing",
+      "additionalProperties": true
     }
   },
   "additionalProperties": false

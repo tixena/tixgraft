@@ -53,7 +53,7 @@ fn result_to_exit_code(result: Result<()>) -> i32 {
     match result {
         Ok(()) => 0_i32,
         Err(err) => {
-            error!("{}", err);
+            error!("{:#}", err);
             error_to_exit_code(&err)
         }
     }
