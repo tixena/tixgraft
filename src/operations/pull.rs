@@ -4,6 +4,7 @@ use crate::cli::{Args, PullArgs, PullConfig, ReplacementConfig};
 use crate::config::Config;
 use crate::config::context::{ContextValues, ValidatedContext, merge_context_values};
 use crate::config::graft_yaml::GraftConfig;
+use crate::config::validation::validate_config_with_base_dir;
 use crate::error::GraftError;
 use crate::git::{Repository, SparseCheckout, check_git_availability};
 use crate::operations::discovery::{DiscoveredGraft, cleanup_graft_files, discover_graft_files};
@@ -118,8 +119,11 @@ impl<'src> PullOperation<'src> {
         // Merge CLI arguments into config
         merge_cli_args(&mut config, &args)?;
 
-        // Validate merged configuration
-        config.validate(system)?;
+        // Validate merged configuration.
+        // Use the config file's parent directory as base_dir so that children
+        // paths are resolved relative to the config file, not the process CWD.
+        let base_dir = Path::new(&args.config).parent();
+        validate_config_with_base_dir(system, &config, base_dir)?;
 
         // Check if any pull operations require Git (i.e., not all are local)
         let needs_git = Self::requires_git(&config);
@@ -204,6 +208,23 @@ struct PullResult {
     replacements_applied: usize,
 }
 
+/// Resolve relative pull target paths against the config file's directory.
+///
+/// Absolute targets are left unchanged.  Relative targets (e.g. `./foo` or
+/// `bar`) are joined onto `config_dir` so that the same config file produces
+/// the same result regardless of the process working directory.
+fn resolve_pull_targets(config: &Config, config_dir: &Path) -> Config {
+    let mut resolved = config.clone();
+    for pull in &mut resolved.pulls {
+        let target_path = Path::new(&pull.target);
+        if !target_path.is_absolute() {
+            let resolved_target = config_dir.join(target_path);
+            pull.target = resolved_target.to_string_lossy().to_string();
+        }
+    }
+    resolved
+}
+
 /// Execute a config recursively, processing pulls and children.
 fn execute_config_recursive(
     system: &dyn System,
@@ -229,12 +250,17 @@ fn execute_config_recursive(
         .into());
     }
 
-    if config.process_children_first {
-        execute_children(system, config, config_dir, visited, depth)?;
-        execute_pulls(system, config)?;
+    // Resolve relative pull targets against the config file's directory so
+    // that the same config file produces the same result regardless of the
+    // process working directory.
+    let resolved_config = resolve_pull_targets(config, config_dir);
+
+    if resolved_config.process_children_first {
+        execute_children(system, &resolved_config, config_dir, visited, depth)?;
+        execute_pulls(system, &resolved_config)?;
     } else {
-        execute_pulls(system, config)?;
-        execute_children(system, config, config_dir, visited, depth)?;
+        execute_pulls(system, &resolved_config)?;
+        execute_children(system, &resolved_config, config_dir, visited, depth)?;
     }
 
     // Remove from visited after processing to allow diamond-pattern
@@ -345,14 +371,9 @@ fn execute_children(
         let child_config = Config::load_from_file(system, &child_config_path_str)
             .with_context(|| format!("Error in child '{child_path_str}': failed to load config"))?;
 
-        // Resolve child pull targets relative to child config directory
-        let mut resolved_config = child_config;
-        for pull in &mut resolved_config.pulls {
-            let resolved_target = child_dir.join(&pull.target);
-            pull.target = resolved_target.to_string_lossy().to_string();
-        }
-
-        execute_config_recursive(system, &resolved_config, child_dir, visited, depth + 1)
+        // Target resolution is handled inside execute_config_recursive via
+        // resolve_pull_targets, so we pass the raw child config here.
+        execute_config_recursive(system, &child_config, child_dir, visited, depth + 1)
             .with_context(|| format!("Error in child '{child_path_str}'"))?;
     }
 
@@ -385,12 +406,15 @@ fn preview_config_recursive(
         .into());
     }
 
-    if config.process_children_first {
-        preview_children(system, config, config_dir, visited, depth, indent)?;
-        preview_pulls(config, indent)?;
+    // Resolve relative pull targets against the config file's directory.
+    let resolved_config = resolve_pull_targets(config, config_dir);
+
+    if resolved_config.process_children_first {
+        preview_children(system, &resolved_config, config_dir, visited, depth, indent)?;
+        preview_pulls(&resolved_config, indent)?;
     } else {
-        preview_pulls(config, indent)?;
-        preview_children(system, config, config_dir, visited, depth, indent)?;
+        preview_pulls(&resolved_config, indent)?;
+        preview_children(system, &resolved_config, config_dir, visited, depth, indent)?;
     }
 
     // Remove from visited after processing to allow diamond-pattern
@@ -486,17 +510,12 @@ fn preview_children(
         let child_config = Config::load_from_file(system, &child_config_path_str)
             .with_context(|| format!("Error in child '{child_path_str}': failed to load config"))?;
 
-        // Resolve child pull targets relative to child config directory
-        let mut resolved_config = child_config;
-        for pull in &mut resolved_config.pulls {
-            let resolved_target = child_dir.join(&pull.target);
-            pull.target = resolved_target.to_string_lossy().to_string();
-        }
-
+        // Target resolution is handled inside preview_config_recursive via
+        // resolve_pull_targets, so we pass the raw child config here.
         let child_indent = format!("{indent}  ");
         preview_config_recursive(
             system,
-            &resolved_config,
+            &child_config,
             child_dir,
             visited,
             depth + 1,
