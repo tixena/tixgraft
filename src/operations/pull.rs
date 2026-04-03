@@ -455,7 +455,9 @@ fn preview_pulls(config: &Config, indent: &str) -> Result<()> {
             info!("{indent}      - Would reset target directory (reset: true)");
         }
 
-        if !pull.require_clean_target {
+        if pull.require_clean_target {
+            check_target_is_clean(&pull.target)?;
+        } else {
             info!("{indent}      - Skipping clean-target check (requireCleanTarget: false)");
         }
 
@@ -1051,8 +1053,20 @@ fn check_target_is_clean(target: &str) -> Result<()> {
         return Ok(());
     }
 
-    // Run git status scoped to the target path
+    // Run git status scoped to the target path.
+    // Use -C to run git from the target's parent directory so that it
+    // finds the correct repository when the target is outside process cwd.
+    let git_dir = if target_path.is_dir() {
+        target_path.to_path_buf()
+    } else {
+        target_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .to_path_buf()
+    };
     let Ok(output) = Command::new("git")
+        .arg("-C")
+        .arg(&git_dir)
         .args(["status", "--porcelain", "--", target])
         .output()
     else {
