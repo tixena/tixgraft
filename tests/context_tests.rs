@@ -9,6 +9,7 @@
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
 
+    use os_shim::{System as _, mock::MockSystem};
     use serde_json::json;
     use std::collections::HashMap;
     use std::path::Path;
@@ -17,7 +18,6 @@ mod tests {
     };
     use tixgraft::config::graft_yaml::GraftConfig;
     use tixgraft::operations::{apply_graft_replacements, copy_files};
-    use tixgraft::system::{System as _, mock::MockSystem};
 
     #[test]
     fn context_basic_flow() {

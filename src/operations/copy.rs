@@ -1,9 +1,9 @@
 //! File and directory copying operations.
 
 use crate::error::GraftError;
-use crate::system::System;
 use crate::utils::fs::create_parent_directories;
 use anyhow::{Context as _, Result};
+use os_shim::System;
 use std::path::{Path, PathBuf};
 use tracing::debug;
 

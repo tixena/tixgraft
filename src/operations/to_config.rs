@@ -5,8 +5,8 @@ use std::path::Path;
 use crate::cli::Args;
 use crate::config::Config;
 use crate::operations::pull::{build_config_from_args, build_merged_config};
-use crate::system::System;
 use anyhow::Result;
+use os_shim::System;
 
 /// Convert arguments to YAML configuration.
 ///

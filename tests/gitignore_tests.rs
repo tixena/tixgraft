@@ -12,9 +12,9 @@
 )]
 mod tests {
 
+    use os_shim::mock::MockSystem;
     use std::path::Path;
     use tixgraft::operations::discovery::discover_graft_files;
-    use tixgraft::system::mock::MockSystem;
 
     #[test]
     fn gitignore_excludes_directories() {

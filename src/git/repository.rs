@@ -1,8 +1,8 @@
 //! Git repository handling and URL parsing.
 
 use crate::error::GraftError;
-use crate::system::System;
 use anyhow::Result;
+use os_shim::System;
 use std::path::{Path, PathBuf};
 
 /// Represents a repository source - either Git or local filesystem.

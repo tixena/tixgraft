@@ -24,7 +24,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::system::System;
+use os_shim::System;
 
 /// A discovered .graft.yaml file with its location and hierarchy information.
 #[derive(Debug, Clone)]

@@ -4,8 +4,8 @@
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
 
+    use os_shim::mock::MockSystem;
     use tixgraft::config::yaml::load_config;
-    use tixgraft::system::mock::MockSystem;
 
     #[test]
     fn load_valid_config() {

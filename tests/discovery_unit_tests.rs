@@ -8,9 +8,9 @@
 )]
 mod tests {
 
+    use os_shim::{System as _, mock::MockSystem};
     use std::path::Path;
     use tixgraft::operations::discovery::{cleanup_graft_files, discover_graft_files};
-    use tixgraft::system::{System as _, mock::MockSystem};
 
     #[test]
     fn discover_single_graft() {

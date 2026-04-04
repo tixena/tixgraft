@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use include_dir::{Dir, include_dir};
 
 use crate::error::GraftError;
-use crate::system::System;
+use os_shim::System;
 
 /// Embedded skill directory included at compile time.
 static SKILL_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skill");

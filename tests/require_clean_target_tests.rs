@@ -3,12 +3,12 @@
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
+    use os_shim::System as _;
+    use os_shim::real::RealSystem;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use tixgraft::cli::PullConfig;
-    use tixgraft::system::System as _;
-    use tixgraft::system::real::RealSystem;
 
     /// Initialize a git repo in the given directory with an initial commit.
     fn git_init(dir: &Path) {

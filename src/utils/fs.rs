@@ -1,7 +1,7 @@
 //! File system utilities.
 
-use crate::system::System;
 use anyhow::{Context as _, Result};
+use os_shim::System;
 use std::io::{self, Read as _, Write as _};
 use std::path::Path;
 use tracing::debug;

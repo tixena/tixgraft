@@ -34,11 +34,11 @@
 
 use anyhow::Result;
 use clap::Parser as _;
+use os_shim::real::RealSystem;
 use std::process::exit;
 use tixgraft::cli::Args;
 use tixgraft::error::GraftError;
 use tixgraft::operations::to_command_line::OutputFormat;
-use tixgraft::system::real::RealSystem;
 use tracing::error;
 use tracing_subscriber::{EnvFilter, fmt};
 

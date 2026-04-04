@@ -4,8 +4,8 @@
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
 
+    use os_shim::{System as _, mock::MockSystem};
     use std::path::Path;
-    use tixgraft::system::{System as _, mock::MockSystem};
     use tixgraft::utils::fs::{
         copy_file_with_progress, create_parent_directories, ensure_dir_exists, format_file_size,
         get_file_size, is_binary_file, is_directory_empty, remove_dir_safe,

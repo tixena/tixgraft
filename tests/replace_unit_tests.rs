@@ -7,6 +7,8 @@
     reason = "test code uses indexing after length assertions"
 )]
 mod tests {
+    use os_shim::System as _;
+    use os_shim::mock::MockSystem;
     use serde_json::json;
     use std::collections::HashMap;
     use std::path::Path;
@@ -17,8 +19,6 @@ mod tests {
         apply_single_replacement, get_graft_replacement_value, get_replacement_value,
         preview_replacements,
     };
-    use tixgraft::system::System as _;
-    use tixgraft::system::mock::MockSystem;
 
     #[test]
     fn apply_simple_replacement() {

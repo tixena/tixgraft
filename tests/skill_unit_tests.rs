@@ -4,10 +4,10 @@
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
 
+    use os_shim::System as _;
+    use os_shim::mock::MockSystem;
     use std::path::Path;
     use tixgraft::operations::skill::{SkillStatus, skill_check, skill_install, skill_uninstall};
-    use tixgraft::system::System as _;
-    use tixgraft::system::mock::MockSystem;
 
     fn skill_dir() -> &'static Path {
         Path::new("/project/.claude/skills/tixgraft")

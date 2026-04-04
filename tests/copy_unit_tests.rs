@@ -4,12 +4,12 @@
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
 
+    use os_shim::System as _;
+    use os_shim::mock::MockSystem;
     use std::path::Path;
     use tixgraft::operations::copy::{
         calculate_copy_size, copy_directory, copy_file, copy_files, count_files_to_copy,
     };
-    use tixgraft::system::System as _;
-    use tixgraft::system::mock::MockSystem;
 
     #[test]
     fn copy_file_tst() {

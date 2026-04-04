@@ -12,8 +12,8 @@
 )]
 mod tests {
 
+    use os_shim::mock::MockSystem;
     use tixgraft::config::Config;
-    use tixgraft::system::mock::MockSystem;
 
     #[test]
     fn valid_basic_config() {

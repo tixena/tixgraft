@@ -9,7 +9,6 @@ pub mod config;
 pub mod error;
 pub mod git;
 pub mod operations;
-pub mod system;
 pub mod utils;
 
 use anyhow::Result;
@@ -19,9 +18,8 @@ use operations::pull::PullOperation;
 use operations::skill::{self, SkillStatus};
 use operations::to_command_line::{OutputFormat, generate_command_line};
 use operations::to_config::generate_yaml_config;
-use system::System;
-
-use crate::system::real::RealSystem;
+use os_shim::System;
+use os_shim::real::RealSystem;
 
 /// Main entry point for the tixgraft library.
 ///
@@ -34,7 +32,7 @@ use crate::system::real::RealSystem;
 /// - Post-processing commands fail
 #[inline]
 pub fn run(args: Args) -> Result<()> {
-    let system = RealSystem;
+    let system = RealSystem::new();
     let pull_operation = PullOperation::new(args, &system)?;
     pull_operation.execute()
 }
@@ -55,7 +53,7 @@ pub fn run_to_command_line(
     repo_override: Option<String>,
     tag_override: Option<String>,
 ) -> Result<()> {
-    let system = RealSystem;
+    let system = RealSystem::new();
 
     // Load config (with overrides if provided)
     let mut config = Config::load_from_file(&system, config_path)?;
@@ -87,7 +85,7 @@ pub fn run_to_command_line(
 /// Returns an error if directory creation or file writing fails.
 #[inline]
 pub fn run_skill_install(global: bool) -> Result<()> {
-    let system = RealSystem;
+    let system = RealSystem::new();
     let target_dir = skill::resolve_skill_path(global)?;
     skill::skill_install(&system, &target_dir)?;
     Ok(())
@@ -100,7 +98,7 @@ pub fn run_skill_install(global: bool) -> Result<()> {
 /// Returns an error if the directory exists but cannot be removed.
 #[inline]
 pub fn run_skill_uninstall(global: bool) -> Result<()> {
-    let system = RealSystem;
+    let system = RealSystem::new();
     let target_dir = skill::resolve_skill_path(global)?;
     skill::skill_uninstall(&system, &target_dir)?;
     Ok(())
@@ -118,7 +116,7 @@ pub fn run_skill_uninstall(global: bool) -> Result<()> {
 /// Returns an error if filesystem operations fail.
 #[inline]
 pub fn run_skill_test(global: bool, auto_yes: bool) -> Result<i32> {
-    let system = RealSystem;
+    let system = RealSystem::new();
     let target_dir = skill::resolve_skill_path(global)?;
 
     match skill::skill_check(&system, &target_dir)? {

@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 
 use crate::cli::{PullConfig, ReplacementConfig};
 use crate::config::Config;
-use crate::system::System;
 use anyhow::{Result, anyhow};
+use os_shim::System;
 use regex::Regex;
 
 /// Validate a complete configuration.

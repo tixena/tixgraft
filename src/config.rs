@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::cli::PullConfig;
-use crate::system::System;
+use os_shim::System;
 
 /// Main configuration structure.
 #[derive(Debug, Clone, Serialize, Deserialize)]

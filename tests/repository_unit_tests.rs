@@ -5,10 +5,10 @@
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
+    use os_shim::System as _;
+    use os_shim::real::RealSystem;
     use tempfile::TempDir;
     use tixgraft::git::Repository;
-    use tixgraft::system::System as _;
-    use tixgraft::system::real::RealSystem;
 
     #[test]
     fn detect_git_source() {

@@ -4,10 +4,10 @@
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
 
+    use os_shim::System as _;
+    use os_shim::mock::MockSystem;
+    use os_shim::real::RealSystem;
     use std::fs;
-    use tixgraft::system::System as _;
-    use tixgraft::system::mock::MockSystem;
-    use tixgraft::system::real::RealSystem;
 
     #[test]
     fn mock_temp_dir_creation() {

@@ -7,9 +7,9 @@
     reason = "Index-based assertions are acceptable in tests"
 )]
 mod tests {
+    use os_shim::mock::MockSystem;
     use tixgraft::config::Config;
     use tixgraft::config::validation::validate_config;
-    use tixgraft::system::mock::MockSystem;
 
     /// Helper to parse a YAML string into a Config.
     fn parse_config(yaml: &str) -> Config {

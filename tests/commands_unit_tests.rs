@@ -11,11 +11,11 @@
     reason = "test functions reuse variable names for clarity"
 )]
 mod tests {
+    use os_shim::System as _;
+    use os_shim::real::RealSystem;
     use tixgraft::operations::commands::{
         execute_commands, execute_commands_interactive, validate_commands,
     };
-    use tixgraft::system::System as _;
-    use tixgraft::system::real::RealSystem;
 
     #[test]
     fn execute_simple_command() {

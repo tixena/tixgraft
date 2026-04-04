@@ -9,14 +9,14 @@
     reason = "test code uses indexing after length assertions"
 )]
 mod tests {
+    use os_shim::mock::MockSystem;
+    use os_shim::real::RealSystem;
     use std::io::Write as _;
     use std::path::Path;
     use tempfile::NamedTempFile;
     use tixgraft::config::graft_yaml::{
         ChoiceOption, GraftConfig, GraftReplacement, PostCommand, TestCommand,
     };
-    use tixgraft::system::mock::MockSystem;
-    use tixgraft::system::real::RealSystem;
 
     #[test]
     fn load_valid_graft_config() {

@@ -3,6 +3,7 @@
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "This is a test module")]
 mod tests {
+    use os_shim::mock::MockSystem;
     use std::path::Path;
     use tixgraft::cli::{PullConfig, ReplacementConfig};
     use tixgraft::config::Config;
@@ -10,7 +11,6 @@ mod tests {
         validate_config, validate_config_with_base_dir, validate_path_safety,
         validate_repository_url,
     };
-    use tixgraft::system::mock::MockSystem;
 
     #[test]
     fn validate_repository_url_tst() {

@@ -12,8 +12,8 @@ use crate::operations::post_commands::execute_post_commands;
 use crate::operations::{
     apply_graft_replacements, apply_replacements, copy_files, execute_commands,
 };
-use crate::system::System;
 use anyhow::{Context as _, Result};
+use os_shim::System;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};

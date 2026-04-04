@@ -5,8 +5,8 @@
 
 use crate::config::context::{ContextDataType, ContextPropertyDefinition};
 use crate::error::GraftError;
-use crate::system::System;
 use anyhow::{Context as _, Result};
+use os_shim::System;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
