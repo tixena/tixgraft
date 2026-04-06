@@ -10,20 +10,14 @@
 )]
 mod tests {
     use os_shim::mock::MockSystem;
-    use os_shim::real::RealSystem;
-    use std::io::Write as _;
     use std::path::Path;
-    use tempfile::NamedTempFile;
     use tixgraft::config::graft_yaml::{
         ChoiceOption, GraftConfig, GraftReplacement, PostCommand, TestCommand,
     };
 
     #[test]
     fn load_valid_graft_config() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        writeln!(
-            temp_file,
-            r#"
+        let yaml = r#"
 context:
   - name: projectName
     description: The project name
@@ -44,13 +38,13 @@ replacements:
 postCommands:
   - command: echo
     args: ["Hello"]
-"#
-        )
-        .unwrap();
+"#;
 
-        let system = RealSystem::new();
-        let result = GraftConfig::load_from_file(&system, temp_file.path());
-        let config = result.unwrap();
+        let system = MockSystem::new()
+            .with_file("/test/.graft.yaml", yaml.as_bytes())
+            .unwrap();
+
+        let config = GraftConfig::load_from_file(&system, Path::new("/test/.graft.yaml")).unwrap();
         assert_eq!(config.context.len(), 2);
         assert_eq!(config.replacements.len(), 2);
         assert_eq!(config.post_commands.len(), 1);
@@ -58,21 +52,20 @@ postCommands:
 
     #[test]
     fn validate_replacement_exclusivity() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        writeln!(
-            temp_file,
-            r#"
+        let yaml = r#"
 replacements:
   - source: "{{VAR}}"
     target: "value"
     valueFromEnv: "ENV_VAR"
-"#
-        )
-        .unwrap();
+"#;
 
-        let system = RealSystem::new();
-        let result = GraftConfig::load_from_file(&system, temp_file.path());
-        let err = result.unwrap_err().to_string();
+        let system = MockSystem::new()
+            .with_file("/test/.graft.yaml", yaml.as_bytes())
+            .unwrap();
+
+        let err = GraftConfig::load_from_file(&system, Path::new("/test/.graft.yaml"))
+            .unwrap_err()
+            .to_string();
         assert!(err.contains("must specify exactly one of"));
     }
 
