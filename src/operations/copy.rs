@@ -190,7 +190,7 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
     match pull_type {
         "file" => {
             if system.is_file(source)? {
-                Ok(system.metadata(source)?.len())
+                Ok(system.metadata(source)?.len)
             } else {
                 Ok(0)
             }
@@ -201,7 +201,7 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
                 let entries = system.walk_dir(source, false, false)?;
                 for entry in entries {
                     if entry.is_file {
-                        total_size = total_size.saturating_add(system.metadata(&entry.path)?.len());
+                        total_size = total_size.saturating_add(system.metadata(&entry.path)?.len);
                     }
                 }
             }

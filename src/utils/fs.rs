@@ -159,7 +159,7 @@ pub fn get_file_size(system: &dyn System, file_path: &Path) -> Result<u64> {
     let metadata = system
         .metadata(file_path)
         .with_context(|| format!("Failed to get metadata for: {}", file_path.display()))?;
-    Ok(metadata.len())
+    Ok(metadata.len)
 }
 
 /// Check if directory is empty.

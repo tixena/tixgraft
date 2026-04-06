@@ -157,9 +157,8 @@ mod tests {
             .with_file("/test/file.txt", b"12345")
             .unwrap();
 
-        // MockSystem metadata returns 0 for size, just verify it runs
         let size = calculate_copy_size(&system, Path::new("/test/file.txt"), "file").unwrap();
-        assert_eq!(size, 0); // MockSystem limitation
+        assert_eq!(size, 5);
     }
 
     #[test]
@@ -172,9 +171,8 @@ mod tests {
             .with_file("/test/dir/b.txt", b"bbbbb")
             .unwrap();
 
-        // MockSystem metadata returns 0 for size, just verify it runs
         let size = calculate_copy_size(&system, Path::new("/test/dir"), "directory").unwrap();
-        assert_eq!(size, 0); // MockSystem limitation
+        assert_eq!(size, 8); // 3 ("aaa") + 5 ("bbbbb")
     }
 
     #[test]

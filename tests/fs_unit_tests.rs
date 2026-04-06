@@ -92,9 +92,8 @@ mod tests {
             .with_file("/test/file.txt", b"hello world")
             .unwrap();
 
-        // MockSystem metadata returns 0 for size, just verify it runs without error
         let size = get_file_size(&system, Path::new("/test/file.txt")).unwrap();
-        assert_eq!(size, 0); // MockSystem limitation
+        assert_eq!(size, 11);
 
         // Non-existent file should error
         get_file_size(&system, Path::new("/test/missing.txt")).unwrap_err();
