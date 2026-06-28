@@ -145,7 +145,7 @@ jobs:
             TITLE="🚨 TixGraft CI — Failure"
             DESC="Build, tests, or the security audit failed!"
             COLOR=16711680
-            BTN_STYLE=4; BTN_LABEL="View Failed Build"
+            BTN_STYLE=5; BTN_LABEL="View Failed Build"
             CONTENT="@here"
           fi
 
