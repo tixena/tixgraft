@@ -47,6 +47,10 @@ build-release:
     @echo "Binary available at: target/release/tixgraft"
     @just _show-binary-info
 
+# Full pipeline (standardized `all` entry point across tixena repos).
+all: fmt-check lint test build
+    @echo "All checks completed successfully!"
+
 # Full build pipeline - format, lint, test, and build
 ci: fmt-check lint test build-release
     @echo "CI pipeline completed successfully!"
