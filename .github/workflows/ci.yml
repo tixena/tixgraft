@@ -96,125 +96,122 @@ jobs:
     if: always()
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Prepare Discord Message
-        id: prepare-message
+      - name: Send Discord notification
+        # All GitHub context is passed via env (NOT interpolated into the script
+        # body) so attacker-controllable strings like commit messages cannot
+        # break the JSON or inject shell. The payload is assembled with jq,
+        # which escapes everything safely.
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          PUSH_MSG: ${{ github.event.head_commit.message }}
+          PUSH_AUTHOR: ${{ github.event.head_commit.author.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          ACTOR: ${{ github.actor }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TIMESTAMP: ${{ github.event.head_commit.timestamp }}
+          TEST_RESULT: ${{ needs.test.result }}
+          AUDIT_RESULT: ${{ needs.security-audit.result }}
         run: |
-          # Get branch name
-          BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
-
-          # Special emoji for master/main branch
-          if [[ "$BRANCH_NAME" == "master" || "$BRANCH_NAME" == "main" ]]; then
-            BRANCH_EMOJI="✅"
-          else
-            BRANCH_EMOJI="🔧"
+          # Skip if webhook is not configured, or on forks
+          if [[ -z "$DISCORD_WEBHOOK" ]]; then
+            echo "⏭️ Discord webhook not configured, skipping notification"
+            exit 0
           fi
-
-          # Get commit author and message
-          COMMIT_AUTHOR="${{ github.event.head_commit.author.name || github.actor }}"
-          COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
-
-          # Check if it's a PR
-          if [[ "${{ github.event.pull_request.number }}" != "" ]]; then
-            PR_INFO="📋 **Pull Request:** #${{ github.event.pull_request.number }}"
-          else
-            PR_INFO="📝 **Direct push to branch**"
-          fi
-
-          # Get build status
-          TEST_STATUS="${{ needs.test.result }}"
-          AUDIT_STATUS="${{ needs.security-audit.result }}"
-
-          if [[ "$TEST_STATUS" == "success" && "$AUDIT_STATUS" == "success" ]]; then
-            STATUS_EMOJI="🎉"
-            STATUS_TEXT="**SUCCESS**"
-            COLOR="3066993"  # Green
-            TITLE_PREFIX=""
-            FAILURE_MENTION=""
-          else
-            STATUS_EMOJI="🚨🔥💥"
-            STATUS_TEXT="**🚨 CRITICAL FAILURE 🚨**"
-            COLOR="16711680"  # Bright Red
-            TITLE_PREFIX="⚠️ **URGENT** ⚠️ "
-            FAILURE_MENTION="@here "
-          fi
-
-          # Save variables for next step
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-          echo "BRANCH_EMOJI=$BRANCH_EMOJI" >> $GITHUB_ENV
-          echo "COMMIT_AUTHOR=$COMMIT_AUTHOR" >> $GITHUB_ENV
-          echo "COMMIT_MESSAGE=$COMMIT_MESSAGE" >> $GITHUB_ENV
-          echo "PR_INFO=$PR_INFO" >> $GITHUB_ENV
-          echo "STATUS_EMOJI=$STATUS_EMOJI" >> $GITHUB_ENV
-          echo "STATUS_TEXT=$STATUS_TEXT" >> $GITHUB_ENV
-          echo "COLOR=$COLOR" >> $GITHUB_ENV
-          echo "TEST_STATUS=$TEST_STATUS" >> $GITHUB_ENV
-          echo "AUDIT_STATUS=$AUDIT_STATUS" >> $GITHUB_ENV
-          echo "TITLE_PREFIX=$TITLE_PREFIX" >> $GITHUB_ENV
-          echo "FAILURE_MENTION=$FAILURE_MENTION" >> $GITHUB_ENV
-
-      - name: Send Discord Notification
-        run: |
-          # Use webhook from GitHub secrets
-          WEBHOOK_URL="${{ secrets.DISCORD_WEBHOOK_URL }}"
-
-          # Skip if webhook URL is not configured
-          if [[ -z "$WEBHOOK_URL" ]]; then
-            echo "Discord webhook URL not configured, skipping notification"
+          if [[ "$REPO" != "tixena/tixgraft" ]]; then
+            echo "⏭️ Skipping Discord notification (repository is $REPO, not tixena/tixgraft)"
             exit 0
           fi
 
-          # Create JSON payload with failure-specific content
-          if [[ "${{ env.STATUS_TEXT }}" == "**SUCCESS**" ]]; then
-            DESCRIPTION="**Repository:** ${{ github.repository }}\n${{ env.PR_INFO }}\n\n**Branch:** ${{ env.BRANCH_EMOJI }} \`${{ env.BRANCH_NAME }}\`\n**Author:** 👤 ${{ env.COMMIT_AUTHOR }}\n**Commit:** \`${{ github.sha }}\`\n\n**Message:**\n\`\`\`\n${{ env.COMMIT_MESSAGE }}\n\`\`\`"
+          icon() { case "$1" in success) printf '✅';; failure) printf '❌';; *) printf '⏭️';; esac; }
+
+          # Overall status (job-level results from `needs`)
+          if [[ "$TEST_RESULT" == "success" && "$AUDIT_RESULT" == "success" ]]; then
+            JOB_STATUS="success"
+            TITLE="🎉 TixGraft CI — Success"
+            DESC="All checks passed successfully!"
+            COLOR=3066993
+            BTN_STYLE=5; BTN_LABEL="View Build"
+            CONTENT=""
           else
-            DESCRIPTION="🚨 **BUILD FAILURE DETECTED** 🚨\n\n**Repository:** ${{ github.repository }}\n${{ env.PR_INFO }}\n\n**Failed Branch:** ${{ env.BRANCH_EMOJI }} \`${{ env.BRANCH_NAME }}\`\n**Responsible Author:** 👤 ${{ env.COMMIT_AUTHOR }}\n**Failing Commit:** \`${{ github.sha }}\`\n\n**Commit Message:**\n\`\`\`\n${{ env.COMMIT_MESSAGE }}\n\`\`\`\n\n🔧 **Action Required:** Please check the GitHub Actions logs and fix the issues immediately!\n📋 **Workflow:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            JOB_STATUS="failure"
+            TITLE="🚨 TixGraft CI — Failure"
+            DESC="Build, tests, or the security audit failed!"
+            COLOR=16711680
+            BTN_STYLE=4; BTN_LABEL="View Failed Build"
+            CONTENT="@here"
           fi
 
-          cat << EOF > discord_payload.json
-          {
-            "content": "${{ env.FAILURE_MENTION }}${{ env.TITLE_PREFIX }}",
-            "embeds": [
-              {
-                "title": "${{ env.STATUS_EMOJI }} TixGraft - ${{ env.STATUS_TEXT }}",
-                "description": "$DESCRIPTION",
-                "color": ${{ env.COLOR }},
-                "fields": [
-                  {
-                    "name": "🧪 Tests & Build",
-                    "value": "${{ env.TEST_STATUS }}",
-                    "inline": true
-                  },
-                  {
-                    "name": "🛡️ Security Audit",
-                    "value": "${{ env.AUDIT_STATUS }}",
-                    "inline": true
-                  }
-                ],
-                "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)",
-                "footer": {
-                  "text": "GitHub Actions",
-                  "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
-                }
-              }
-            ]
-          }
-          EOF
-
-          # Send to Discord
-          curl -H "Content-Type: application/json" \
-               -d @discord_payload.json \
-               "$WEBHOOK_URL"
-
-          echo "Discord notification sent!"
-
-      - name: Console Output
-        run: |
-          if [[ "${{ env.STATUS_TEXT }}" == "**SUCCESS**" ]]; then
-            echo "🎉 Build and tests successful!"
+          # Branch emoji (master/main vs feature branch)
+          if [[ "$BRANCH" == "master" || "$BRANCH" == "main" ]]; then
+            BRANCH_DISP="✅ $BRANCH"
           else
-            echo "❌ Build or tests failed"
-            echo "📋 Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            BRANCH_DISP="🔧 $BRANCH"
+          fi
+
+          # Per-event details: commit message / author / PR link
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            COMMIT_MSG="$PR_TITLE"
+            AUTHOR="${PR_AUTHOR:-$ACTOR}"
+            PR_MD="[#${PR_NUMBER}: ${PR_TITLE}](${PR_URL})"
+          else
+            COMMIT_MSG=$(printf '%s' "$PUSH_MSG" | head -n1)
+            AUTHOR="${PUSH_AUTHOR:-$ACTOR}"
+            PR_MD=""
+          fi
+          [[ -z "$COMMIT_MSG" ]] && COMMIT_MSG="(no message)"
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          COMMIT_MD="[\`${SHORT_SHA}\`](${SERVER_URL}/${REPO}/commit/${COMMIT_SHA})"
+
+          # Assemble the payload with jq (safe escaping of all dynamic strings)
+          PAYLOAD=$(jq -n \
+            --arg content "$CONTENT" \
+            --arg title "$TITLE" --arg desc "$DESC" --argjson color "$COLOR" \
+            --arg repo "$REPO" --arg branch "$BRANCH_DISP" --arg author "$AUTHOR" \
+            --arg commit "$COMMIT_MD" --arg msg "$COMMIT_MSG" --arg pr "$PR_MD" \
+            --arg test "$(icon "$TEST_RESULT")" --arg audit "$(icon "$AUDIT_RESULT")" \
+            --arg ts "$TIMESTAMP" \
+            --arg run_url "$RUN_URL" --argjson btn_style "$BTN_STYLE" --arg btn_label "$BTN_LABEL" \
+            '{
+              content: $content,
+              embeds: [
+                ({
+                  title: $title,
+                  description: $desc,
+                  color: $color,
+                  fields: (
+                    [ {name: "Repository", value: $repo, inline: true},
+                      {name: "Branch", value: $branch, inline: true},
+                      {name: "Author", value: $author, inline: true},
+                      {name: "Commit", value: ($commit + "  " + $msg), inline: false} ]
+                    + (if $pr != "" then [ {name: "Pull Request", value: $pr, inline: false} ] else [] end)
+                    + [ {name: "🧪 Tests & Build", value: $test, inline: true},
+                        {name: "🛡️ Security Audit", value: $audit, inline: true} ]
+                  ),
+                  footer: {text: "TixGraft CI"}
+                } + (if $ts != "" then {timestamp: $ts} else {} end))
+              ],
+              components: [
+                {type: 1, components: [ {type: 2, style: $btn_style, label: $btn_label, url: $run_url} ]}
+              ]
+            }')
+
+          echo "Sending Discord notification..."
+          echo "Job Status: $JOB_STATUS"
+
+          RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK")
+          HTTP_STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTPSTATUS://')
+
+          if [[ $HTTP_STATUS -eq 200 || $HTTP_STATUS -eq 204 ]]; then
+            echo "✅ Discord notification sent successfully (HTTP $HTTP_STATUS)"
+          else
+            echo "❌ Discord notification failed (HTTP $HTTP_STATUS)"
+            echo "Response: $RESPONSE"
           fi
