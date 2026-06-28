@@ -34,7 +34,10 @@ pub enum GraftError {
 impl GraftError {
     /// Create a command error.
     #[inline]
-    pub fn command<S: Into<String>>(message: S) -> Self {
+    pub fn command<S>(message: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Command {
             message: message.into(),
         }
@@ -42,7 +45,10 @@ impl GraftError {
 
     /// Create a configuration error.
     #[inline]
-    pub fn configuration<S: Into<String>>(message: S) -> Self {
+    pub fn configuration<S>(message: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Configuration {
             message: message.into(),
         }
@@ -64,7 +70,10 @@ impl GraftError {
 
     /// Create a filesystem error.
     #[inline]
-    pub fn filesystem<S: Into<String>>(message: S) -> Self {
+    pub fn filesystem<S>(message: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Filesystem {
             message: message.into(),
         }
@@ -72,7 +81,10 @@ impl GraftError {
 
     /// Create a source error.
     #[inline]
-    pub fn from_source<S: Into<String>>(message: S) -> Self {
+    pub fn from_source<S>(message: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Source {
             message: message.into(),
         }
@@ -80,7 +92,10 @@ impl GraftError {
 
     /// Create a git error.
     #[inline]
-    pub fn git<S: Into<String>>(message: S) -> Self {
+    pub fn git<S>(message: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Git {
             message: message.into(),
         }
@@ -88,7 +103,10 @@ impl GraftError {
 
     /// Create a skill error.
     #[inline]
-    pub fn skill<S: Into<String>>(message: S) -> Self {
+    pub fn skill<S>(message: S) -> Self
+    where
+        S: Into<String>,
+    {
         Self::Skill {
             message: message.into(),
         }

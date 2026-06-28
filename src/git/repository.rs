@@ -272,34 +272,4 @@ pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
 
 /// Tests for private functions only. Public API tests are in `tests/repository_unit_tests.rs`.
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "These are unit tests")]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn normalize_repository_url_tst() {
-        assert_eq!(
-            normalize_repository_url("my_organization/repo").unwrap(),
-            "https://github.com/my_organization/repo.git"
-        );
-        assert_eq!(
-            normalize_repository_url("https://github.com/my_organization/repo").unwrap(),
-            "https://github.com/my_organization/repo.git"
-        );
-        assert_eq!(
-            normalize_repository_url("https://github.com/my_organization/repo.git").unwrap(),
-            "https://github.com/my_organization/repo.git"
-        );
-        assert_eq!(
-            normalize_repository_url("git@github.com:my_organization/repo.git").unwrap(),
-            "git@github.com:my_organization/repo.git"
-        );
-    }
-
-    #[test]
-    fn invalid_repository_urls() {
-        normalize_repository_url("invalid").unwrap_err();
-        normalize_repository_url("").unwrap_err();
-        normalize_repository_url("too/many/slashes").unwrap_err();
-    }
-}
+mod tests;
