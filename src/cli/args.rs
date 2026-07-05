@@ -7,7 +7,9 @@ use serde_json::Value;
 /// Command-line arguments for tixgraft.
 #[derive(Parser, Debug, Clone)]
 #[command(name = "tixgraft")]
-#[command(about = "A CLI tool for fetching reusable components from Git repositories or local paths")]
+#[command(
+    about = "A CLI tool for fetching reusable components from Git repositories or local paths"
+)]
 #[command(long_about = None)]
 #[command(version)]
 #[non_exhaustive]
