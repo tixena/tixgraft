@@ -1,17 +1,17 @@
 ---
 name: tixgraft
-description: Guide for using tixgraft (also called "graft") to pull or graft reusable components from Git repositories via sparse checkout, YAML config, CLI arguments, text replacements, and context-driven templating.
+description: Guide for using tixgraft (also called "graft") to pull or graft reusable components from Git repositories (via sparse checkout) or local filesystem paths, using YAML config, CLI arguments, text replacements, and context-driven templating.
 user-invocable: true
 ---
 
 # tixgraft (graft)
 
-tixgraft is a CLI tool for fetching reusable components from Git repositories using sparse checkout. When users say "graft" they mean tixgraft — e.g., "graft a component from github", "I want to graft this into my project", "pull this scaffold using graft".
+tixgraft is a CLI tool for fetching reusable components from Git repositories (using sparse checkout) or from local filesystem paths (a `file:` source). When users say "graft" they mean tixgraft — e.g., "graft a component from github", "I want to graft this into my project", "pull this scaffold using graft".
 
 ## When to Use
 
 Use tixgraft when the user wants to:
-- Pull specific files or directories from a remote Git repository into their project
+- Pull specific files or directories from a remote Git repository (or a local folder) into their project
 - Scaffold or template new components from a shared repository
 - Apply text replacements (placeholders) on pulled content
 - Run post-processing commands after pulling files
@@ -38,7 +38,7 @@ tixgraft --output-format <fmt>        # "shell" (default) or "json" for --to-com
 Each `--pull-*` flag at index N pairs with other `--pull-*` flags at the same index:
 
 ```
---pull-source <path>              # Source path in the Git repository (required)
+--pull-source <path>              # Source path within the repository or local folder (required)
 --pull-target <path>              # Target path in local workspace (required)
 --pull-type <type>                # "file" or "directory" (default: "directory")
 --pull-repository <repo>          # Override repository for this pull
@@ -49,6 +49,8 @@ Each `--pull-*` flag at index N pairs with other `--pull-*` flags at the same in
 --pull-commands <cmds>            # Post-copy commands (comma-separated)
 --pull-replacement <SRC=TGT>      # Text replacement: "{{PLACEHOLDER}}=value" or "{{VAR}}=env:ENV_NAME"
 ```
+
+**Note on `--pull-replacement`:** unlike the other `--pull-*` flags, replacements are **not** index-aligned. Every `--pull-replacement` given on the command line is applied to **all** CLI pulls (a known CLI limitation). Use a YAML config when you need per-pull replacements.
 
 ### Context Flags
 
@@ -71,15 +73,56 @@ Each `--pull-*` flag at index N pairs with other `--pull-*` flags at the same in
 
 ## Repository URL Formats
 
-tixgraft accepts three repository formats:
+tixgraft accepts these repository formats:
 
 | Format | Example | Expands To |
 |--------|---------|------------|
 | Short | `my_org/repo` | `https://github.com/my_org/repo.git` |
 | HTTPS | `https://github.com/my_org/repo.git` | (used as-is) |
 | SSH | `git@github.com:my_org/repo.git` | (used as-is) |
+| Local | `file:///abs/path`, `file:~/rel/to/home` | local folder (no Git — see below) |
 
 Enterprise Git hosts work with full HTTPS/SSH URLs.
+
+## Local (Filesystem) Sources
+
+Besides Git, tixgraft can pull from a **local folder** on the same machine. A repository given with a `file:` prefix is treated as a local source: tixgraft **skips Git entirely** (no clone, no sparse checkout) and copies straight from the local path.
+
+### Accepted forms
+
+| Form | Meaning |
+|------|---------|
+| `file:///abs/path` | Absolute path (`file://` stripped → `/abs/path`) |
+| `file:/abs/path` | Absolute path (`file:` stripped → `/abs/path`) |
+| `file:~/rel/to/home` | Leading `~` expands to `$HOME` (or `$USERPROFILE`) |
+| `file:relative/path` | Resolved against the current working directory |
+
+Only the `file:` prefix triggers local mode. A bare path like `~/foo` or `/abs/foo` (without `file:`) is treated as a **Git** URL, not a local source.
+
+### Semantics
+
+- **No Git**: local sources never clone or sparse-checkout. The `tag` / `--tag` value is ignored for a local source.
+- **Validation**: the resolved path must **exist** and be a **directory**, otherwise tixgraft fails with a source error (exit code 2). The per-pull `type` (`file` or `directory`) is still checked against the resolved `source` inside that folder.
+- **`~` expansion**: a leading `~` in the `file:` path expands to the home directory before resolving.
+- **Copy is ignore-aware**: directory copies walk the source with the Rust `ignore` crate (the same traversal ripgrep uses). Files matched by `.gitignore` rules (applied when the source lives inside a Git repository) or by `.ignore` files are **skipped**, not copied. Dotfiles are copied; symlinks are not followed. This is the **same** copy path used for Git sources, so there is no ignore-behavior difference between local and Git sources.
+
+### Example
+
+```yaml
+# tixgraft.yaml — pull from a local scaffold folder instead of a remote repo
+repository: "file:~/src/tixena/scaffold"
+pulls:
+  - source: "vigil/templates/developer"
+    target: "./dev-template"
+```
+
+```bash
+# Same idea, entirely from the CLI
+tixgraft \
+  --repository file:~/src/tixena/scaffold \
+  --pull-source vigil/templates/developer \
+  --pull-target ./dev-template
+```
 
 ## YAML Configuration
 
@@ -119,6 +162,8 @@ pulls:
 ```
 
 **Config hierarchy**: CLI arguments > per-pull config > global config.
+
+**Target paths** must be relative (no leading `/`, no `..`); they resolve against the config file's directory, so the same config produces the same result regardless of the working directory.
 
 ### Children (Cascading Execution)
 
@@ -209,6 +254,14 @@ postCommands:
     args: ["Service configured"]
 ```
 
+Each `.graft.yaml` replacement must specify **exactly one** value source:
+
+- `target:` — a static literal value
+- `valueFromEnv:` — read from an environment variable
+- `valueFromContext:` — read from a context property (shown above)
+
+`postCommands` entries also accept an optional `cwd:` (working directory relative to the graft) and support a conditional `choice` form (`type: choice` with `options`, each running a `test` command and executing `onMatch` when the output matches `expectedOutput`). A `postCommand` with no `type` defaults to `type: command`.
+
 ### Providing Context
 
 Context values can come from three sources (in priority order):
@@ -225,14 +278,16 @@ For complex values use `--context-json`:
 ### Type Coercion
 
 String values are automatically coerced to the declared type:
-- `"true"`, `"yes"`, `"1"` -> boolean `true`
+- `"true"`, `"yes"`, `"1"` -> boolean `true`; `"false"`, `"no"`, `"0"` -> boolean `false`
 - `"8080"` -> number `8080`
+
+An **empty-string** context value removes that property from the context (used to unset a value inherited from global/per-pull context).
 
 ### Validation
 
 - Missing required properties (no default) -> exit code 1
 - Invalid types that can't be coerced -> exit code 1
-- Extra properties not in context definition -> warning, continues
+- Extra properties not in the context definition -> ignored
 
 ### Processing Flow
 

@@ -1,8 +1,10 @@
-//! `TixGraft` - A CLI tool for fetching reusable components from Git repositories.
+//! `TixGraft` - A CLI tool for fetching reusable components from Git
+//! repositories or local filesystem paths.
 //!
 //! This library provides functionality to fetch specific files or directories
-//! from Git repositories using sparse checkout, apply text replacements, and
-//! execute post-processing commands.
+//! from Git repositories (using sparse checkout) or from a local folder (a
+//! `file:` source), apply text replacements, and execute post-processing
+//! commands.
 
 pub mod cli;
 pub mod config;

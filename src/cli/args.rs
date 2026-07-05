@@ -7,7 +7,7 @@ use serde_json::Value;
 /// Command-line arguments for tixgraft.
 #[derive(Parser, Debug, Clone)]
 #[command(name = "tixgraft")]
-#[command(about = "A CLI tool for fetching reusable components from Git repositories")]
+#[command(about = "A CLI tool for fetching reusable components from Git repositories or local paths")]
 #[command(long_about = None)]
 #[command(version)]
 #[non_exhaustive]
@@ -20,7 +20,7 @@ use serde_json::Value;
     reason = "field order defines CLI help output order"
 )]
 pub struct Args {
-    /// Git repository URL or account/repo format.
+    /// Source repository: Git URL, account/repo, or local path (file:...).
     #[arg(long, value_name = "REPO")]
     pub repository: Option<String>,
 
@@ -97,7 +97,7 @@ impl Args {
     reason = "field order defines CLI help output order"
 )]
 pub struct PullArgs {
-    /// Repository for specific pull.
+    /// Repository for this pull: Git URL, account/repo, or local path (file:...).
     #[arg(long = "pull-repository", value_name = "REPO")]
     pub repositories: Vec<String>,
 
@@ -109,7 +109,7 @@ pub struct PullArgs {
     #[arg(long = "pull-type", value_name = "TYPE", value_parser = ["file", "directory"])]
     pub types: Vec<String>,
 
-    /// Source path in Git repository.
+    /// Source path within the repository or local folder.
     #[arg(long = "pull-source", value_name = "PATH")]
     pub sources: Vec<String>,
 
