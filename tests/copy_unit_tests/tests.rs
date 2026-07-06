@@ -74,7 +74,10 @@ fn copy_directory_includes_dotfiles() {
     assert!(system.exists(&target_dir.join("visible.txt")).unwrap());
     assert!(system.exists(&target_dir.join(".graft.yaml")).unwrap());
     assert!(system.exists(&target_dir.join(".gitignore")).unwrap());
-    assert_eq!(count_files_to_copy(&system, source_dir, "directory").unwrap(), 3);
+    assert_eq!(
+        count_files_to_copy(&system, source_dir, "directory").unwrap(),
+        3
+    );
 }
 
 #[test]
