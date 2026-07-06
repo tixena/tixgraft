@@ -80,13 +80,13 @@ tixgraft accepts these repository formats:
 | Short | `my_org/repo` | `https://github.com/my_org/repo.git` |
 | HTTPS | `https://github.com/my_org/repo.git` | (used as-is) |
 | SSH | `git@github.com:my_org/repo.git` | (used as-is) |
-| Local | `file:///abs/path`, `file:~/rel/to/home` | local folder (no Git — see below) |
+| Local | `file:///abs/path`, `file:~/rel/to/home`, `~/rel/to/home`, `/abs/path`, `./rel`, `../rel` | local folder (no Git — see below) |
 
 Enterprise Git hosts work with full HTTPS/SSH URLs.
 
 ## Local (Filesystem) Sources
 
-Besides Git, tixgraft can pull from a **local folder** on the same machine. A repository given with a `file:` prefix is treated as a local source: tixgraft **skips Git entirely** (no clone, no sparse checkout) and copies straight from the local path.
+Besides Git, tixgraft can pull from a **local folder** on the same machine. A repository given as a `file:` URL **or a plain filesystem path** is treated as a local source: tixgraft **skips Git entirely** (no clone, no sparse checkout) and copies straight from the local path.
 
 ### Accepted forms
 
@@ -96,14 +96,17 @@ Besides Git, tixgraft can pull from a **local folder** on the same machine. A re
 | `file:/abs/path` | Absolute path (`file:` stripped → `/abs/path`) |
 | `file:~/rel/to/home` | Leading `~` expands to `$HOME` (or `$USERPROFILE`) |
 | `file:relative/path` | Resolved against the current working directory |
+| `~/rel/to/home` | Bare tilde path (`~` expands to `$HOME` / `$USERPROFILE`) |
+| `/abs/path` | Bare absolute path |
+| `./rel`, `../rel` | Bare relative path, resolved against the current working directory |
 
-Only the `file:` prefix triggers local mode. A bare path like `~/foo` or `/abs/foo` (without `file:`) is treated as a **Git** URL, not a local source.
+A source is treated as **local** when it starts with `file:`, `~`, `/`, `./`, or `../`. Everything else — the short `org/repo` form and HTTP(S)/SSH URLs — is treated as **Git**. (A plain relative path with no leading `./` — e.g. `foo/bar` — is the short Git form, not a local path; prefix it with `./` to force local.)
 
 ### Semantics
 
 - **No Git**: local sources never clone or sparse-checkout. The `tag` / `--tag` value is ignored for a local source.
 - **Validation**: the resolved path must **exist** and be a **directory**, otherwise tixgraft fails with a source error (exit code 2). The per-pull `type` (`file` or `directory`) is still checked against the resolved `source` inside that folder.
-- **`~` expansion**: a leading `~` in the `file:` path expands to the home directory before resolving.
+- **`~` expansion**: a leading `~` (with or without the `file:` prefix) expands to the home directory before resolving.
 - **Copy is ignore-aware**: directory copies walk the source with the Rust `ignore` crate (the same traversal ripgrep uses). Files matched by `.gitignore` rules (applied when the source lives inside a Git repository) or by `.ignore` files are **skipped**, not copied. Dotfiles are copied; symlinks are not followed. This is the **same** copy path used for Git sources, so there is no ignore-behavior difference between local and Git sources.
 
 ### Example

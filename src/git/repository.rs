@@ -108,19 +108,26 @@ impl Repository {
     }
 }
 
+/// A source is local when it starts with `file:`, `~`, `/`, `./`, or `../`;
+/// everything else (short `org/repo`, HTTP(S), SSH) is Git. Single source of
+/// truth for local detection — the Git-availability check and config validation
+/// defer to it so they can't drift apart.
+pub(crate) fn is_local_source(url: &str) -> bool {
+    url.starts_with("file:")
+        || url.starts_with('~')
+        || url.starts_with('/')
+        || url.starts_with("./")
+        || url.starts_with("../")
+}
+
 /// Detect whether the source is a Git repository or local filesystem path.
 fn detect_source_type(system: &dyn System, url: &str) -> Result<RepositorySource> {
-    // ONLY accept "file:" prefix for local filesystem sources
-    // This is explicit and leaves room for future prefixes like s3:, gdrive:, etc.
-    if url.starts_with("file:") {
-        // Support both file:// and file:/ formats
-        let path_str = if url.starts_with("file://") {
-            url.strip_prefix("file://")
-                .ok_or_else(|| anyhow::anyhow!("Failed to strip prefix from URL"))?
-        } else {
-            url.strip_prefix("file:")
-                .ok_or_else(|| anyhow::anyhow!("Failed to strip prefix from URL"))?
-        };
+    if is_local_source(url) {
+        // Strip the file: scheme when present; bare paths are used as-is.
+        let path_str = url
+            .strip_prefix("file://")
+            .or_else(|| url.strip_prefix("file:"))
+            .unwrap_or(url);
         return create_local_source(system, url, path_str);
     }
 
@@ -222,7 +229,7 @@ fn normalize_repository_url(url: &str) -> Result<String> {
             - Short: my_organization/repo\n\
             - HTTPS: https://github.com/my_organization/repo.git\n\
             - SSH: git@github.com:my_organization/repo.git\n\
-            - Local: file:///path/to/repo or ~/path/to/repo"
+            - Local: file:/path/to/repo, file:///path/to/repo, ~/path/to/repo, ./relative/path, or /absolute/path"
         ))
         .into())
     }

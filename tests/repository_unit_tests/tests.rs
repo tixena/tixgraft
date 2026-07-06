@@ -66,6 +66,60 @@ fn detect_local_source_with_relative_path() {
 }
 
 #[test]
+fn detect_local_source_bare_absolute_path() {
+    let system = MockSystem::new().with_dir("/test/abs_repo").unwrap();
+
+    let repo = Repository::new(&system, "/test/abs_repo").unwrap();
+
+    assert!(repo.is_local());
+    assert!(!repo.is_git());
+    assert_eq!(
+        repo.local_path().unwrap().to_str().unwrap(),
+        "/test/abs_repo"
+    );
+}
+
+#[test]
+fn detect_local_source_bare_tilde_path() {
+    let system = MockSystem::new()
+        .with_env("HOME", "/home/user")
+        .unwrap()
+        .with_dir("/home/user/my_repo")
+        .unwrap();
+
+    let repo = Repository::new(&system, "~/my_repo").unwrap();
+
+    assert!(repo.is_local());
+    assert!(!repo.is_git());
+    assert_eq!(
+        repo.local_path().unwrap().to_str().unwrap(),
+        "/home/user/my_repo"
+    );
+}
+
+#[test]
+fn detect_local_source_bare_relative_path() {
+    let system = MockSystem::new()
+        .with_current_dir("/work")
+        .unwrap()
+        .with_dir("/work/my_repo")
+        .unwrap();
+
+    let repo_dot = Repository::new(&system, "./my_repo").unwrap();
+    assert!(repo_dot.is_local());
+    assert!(!repo_dot.is_git());
+}
+
+#[test]
+fn short_form_is_not_treated_as_local() {
+    let system = MockSystem::new();
+
+    let repo = Repository::new(&system, "my_organization/repo").unwrap();
+    assert!(repo.is_git());
+    assert!(!repo.is_local());
+}
+
+#[test]
 fn local_source_nonexistent_path() {
     let system = MockSystem::new();
     let err = Repository::new(&system, "file:///nonexistent/path/that/does/not/exist").unwrap_err();

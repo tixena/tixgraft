@@ -15,20 +15,18 @@ fn validate_repository_url_tst() {
     validate_repository_url("https://github.com/my_organization/repo.git").unwrap();
     validate_repository_url("git@github.com:my_organization/repo.git").unwrap();
 
-    // Valid local paths (ONLY file: prefix)
+    // Valid local paths: file: scheme and bare filesystem paths
     validate_repository_url("file:///path/to/repo").unwrap();
     validate_repository_url("file:/path/to/repo").unwrap();
     validate_repository_url("file:~/src/repo").unwrap();
+    validate_repository_url("~/src/repo").unwrap();
+    validate_repository_url("./local/repo").unwrap();
+    validate_repository_url("../local/repo").unwrap();
+    validate_repository_url("/absolute/path/to/repo").unwrap();
 
     // Invalid URLs
     assert!(validate_repository_url("invalid-url").is_err());
     assert!(validate_repository_url("").is_err());
-
-    // Paths without file: prefix should now be rejected
-    assert!(validate_repository_url("~/src/repo").is_err());
-    assert!(validate_repository_url("./local/repo").is_err());
-    assert!(validate_repository_url("../local/repo").is_err());
-    assert!(validate_repository_url("/absolute/path/to/repo").is_err());
 }
 
 #[test]

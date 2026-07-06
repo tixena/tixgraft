@@ -22,7 +22,7 @@ use serde_json::Value;
     reason = "field order defines CLI help output order"
 )]
 pub struct Args {
-    /// Source repository: Git URL, account/repo, or local path (file:...).
+    /// Source repository: Git URL, account/repo, or local path (file:..., ~/..., /abs, ./rel).
     #[arg(long, value_name = "REPO")]
     pub repository: Option<String>,
 
@@ -99,7 +99,7 @@ impl Args {
     reason = "field order defines CLI help output order"
 )]
 pub struct PullArgs {
-    /// Repository for this pull: Git URL, account/repo, or local path (file:...).
+    /// Repository for this pull: Git URL, account/repo, or local path (file:..., ~/..., /abs, ./rel).
     #[arg(long = "pull-repository", value_name = "REPO")]
     pub repositories: Vec<String>,
 

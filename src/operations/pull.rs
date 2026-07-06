@@ -6,7 +6,7 @@ use crate::config::context::{ContextValues, ValidatedContext, merge_context_valu
 use crate::config::graft_yaml::GraftConfig;
 use crate::config::validation::validate_config_with_base_dir;
 use crate::error::GraftError;
-use crate::git::{Repository, SparseCheckout, check_git_availability};
+use crate::git::{Repository, SparseCheckout, check_git_availability, is_local_source};
 use crate::operations::discovery::{DiscoveredGraft, cleanup_graft_files, discover_graft_files};
 use crate::operations::post_commands::execute_post_commands;
 use crate::operations::{
@@ -64,13 +64,10 @@ impl<'src> PullOperation<'src> {
         execute_config_recursive(self.system, &self.config, config_dir, &mut visited, 0)
     }
 
-    /// Quick check if a URL is a local filesystem path.
+    /// Delegates to the shared detector so the Git-availability check can't
+    /// drift from the router.
     fn is_local_url(url: &str) -> bool {
-        url.starts_with("file://")
-            || url.starts_with('~')
-            || url.starts_with("./")
-            || url.starts_with("../")
-            || (url.starts_with('/') && !url.starts_with("git@") && !url.starts_with("http"))
+        is_local_source(url)
     }
 
     /// Create a new pull operation from CLI arguments.

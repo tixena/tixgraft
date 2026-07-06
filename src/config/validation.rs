@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use crate::cli::{PullConfig, ReplacementConfig};
 use crate::config::Config;
+use crate::git::is_local_source;
 use anyhow::{Result, anyhow};
 use os_shim::System;
 use regex::Regex;
@@ -167,9 +168,9 @@ fn validate_child_path(
 /// - The repository URL is invalid
 #[inline]
 pub fn validate_repository_url(url: &str) -> Result<()> {
-    // ONLY accept "file:" prefix for local filesystem paths
-    if url.starts_with("file:") {
-        // Local path - detailed validation will be done in Repository::new()
+    // Detailed local-path validation happens in Repository::new(); accept any
+    // local source here so bare paths aren't rejected before the router runs.
+    if is_local_source(url) {
         return Ok(());
     }
 
@@ -193,7 +194,7 @@ pub fn validate_repository_url(url: &str) -> Result<()> {
         - Short format: my_organization/repo\n\
         - HTTPS: https://github.com/my_organization/repo.git\n\
         - SSH: git@github.com:my_organization/repo.git\n\
-        - Local: file:/path/to/repo or file:///path/to/repo"
+        - Local: file:/path/to/repo, file:///path/to/repo, ~/path/to/repo, ./relative/path, or /absolute/path"
     ))
 }
 

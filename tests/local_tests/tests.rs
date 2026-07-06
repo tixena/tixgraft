@@ -3,6 +3,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 #[test]
@@ -541,4 +542,71 @@ pulls:
         fs::read_to_string(temp_dir.path().join("target/output2.txt")).unwrap(),
         "From source 2"
     );
+}
+
+fn write_extends_template(root: &Path) -> PathBuf {
+    let tmpl = root.join("tmpl/product_manager");
+    fs::create_dir_all(&tmpl).unwrap();
+    fs::write(
+        tmpl.join(".graft.yaml"),
+        r#"context:
+  - name: extends
+    description: "TOML array of parent templates"
+    dataType: string
+    defaultValue: '["document_reviewer"]'
+replacements:
+  - source: "{{EXTENDS}}"
+    valueFromContext: extends
+"#,
+    )
+    .unwrap();
+    fs::write(tmpl.join("vigil.toml"), "extends = {{EXTENDS}}\n").unwrap();
+    root.join("tmpl").canonicalize().unwrap()
+}
+
+#[test]
+fn local_graft_yaml_value_from_context_cli() {
+    let temp_dir = TempDir::new().unwrap();
+    let tmpl_root = write_extends_template(temp_dir.path());
+
+    let mut cmd = Command::cargo_bin("tixgraft").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("--repository")
+        .arg(format!("file:{}", tmpl_root.display()))
+        .arg("--pull-source")
+        .arg("product_manager")
+        .arg("--pull-target")
+        .arg("./pm")
+        .arg("--pull-type")
+        .arg("directory")
+        .arg("--context")
+        .arg(r#"extends=["FOOBAR"]"#)
+        .assert()
+        .success();
+
+    let content = fs::read_to_string(temp_dir.path().join("pm/vigil.toml")).unwrap();
+    assert_eq!(content.trim(), r#"extends = ["FOOBAR"]"#);
+    assert!(!temp_dir.path().join("pm/.graft.yaml").exists());
+}
+
+#[test]
+fn local_graft_yaml_value_from_context_default() {
+    let temp_dir = TempDir::new().unwrap();
+    let tmpl_root = write_extends_template(temp_dir.path());
+
+    let mut cmd = Command::cargo_bin("tixgraft").unwrap();
+    cmd.current_dir(temp_dir.path())
+        .arg("--repository")
+        .arg(format!("file:{}", tmpl_root.display()))
+        .arg("--pull-source")
+        .arg("product_manager")
+        .arg("--pull-target")
+        .arg("./pm")
+        .arg("--pull-type")
+        .arg("directory")
+        .assert()
+        .success();
+
+    let content = fs::read_to_string(temp_dir.path().join("pm/vigil.toml")).unwrap();
+    assert_eq!(content.trim(), r#"extends = ["document_reviewer"]"#);
 }
