@@ -120,7 +120,7 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
 
     // Walk through source directory using System abstraction
     let entries = system
-        .walk_dir(source, false, false)
+        .walk_dir(source, false, true)
         .with_context(|| format!("Failed to walk directory: {}", source.display()))?;
 
     for entry in entries {
@@ -198,7 +198,7 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
         "directory" => {
             let mut total_size: u64 = 0;
             if system.is_dir(source)? {
-                let entries = system.walk_dir(source, false, false)?;
+                let entries = system.walk_dir(source, false, true)?;
                 for entry in entries {
                     if entry.is_file {
                         total_size = total_size.saturating_add(system.metadata(&entry.path)?.len);
@@ -231,7 +231,7 @@ pub fn count_files_to_copy(system: &dyn System, source: &Path, pull_type: &str) 
         "directory" => {
             let mut file_count: usize = 0;
             if system.is_dir(source)? {
-                let entries = system.walk_dir(source, false, false)?;
+                let entries = system.walk_dir(source, false, true)?;
                 for entry in entries {
                     if entry.is_file {
                         file_count = file_count.saturating_add(1);

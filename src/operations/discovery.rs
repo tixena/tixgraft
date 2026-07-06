@@ -112,7 +112,7 @@ pub fn discover_graft_files(
 
     // Walk directory tree and find all .graft.yaml files using System abstraction
     let entries = system
-        .walk_dir(&relative_target_dir, false, false)
+        .walk_dir(&relative_target_dir, false, true)
         .with_context(|| {
             format!(
                 "Failed to walk directory: {}",

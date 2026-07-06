@@ -55,6 +55,29 @@ fn copy_directory_tst() {
 }
 
 #[test]
+fn copy_directory_includes_dotfiles() {
+    let system = MockSystem::new()
+        .with_dir("/test/source")
+        .unwrap()
+        .with_file("/test/source/visible.txt", b"visible\n")
+        .unwrap()
+        .with_file("/test/source/.graft.yaml", b"# graft\n")
+        .unwrap()
+        .with_file("/test/source/.gitignore", b"target\n")
+        .unwrap();
+
+    let source_dir = Path::new("/test/source");
+    let target_dir = Path::new("/test/target");
+
+    let result = copy_directory(&system, source_dir, target_dir);
+    assert_eq!(result.unwrap(), 3);
+    assert!(system.exists(&target_dir.join("visible.txt")).unwrap());
+    assert!(system.exists(&target_dir.join(".graft.yaml")).unwrap());
+    assert!(system.exists(&target_dir.join(".gitignore")).unwrap());
+    assert_eq!(count_files_to_copy(&system, source_dir, "directory").unwrap(), 3);
+}
+
+#[test]
 fn copy_files_source_not_found() {
     let system = MockSystem::new();
 
