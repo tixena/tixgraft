@@ -141,7 +141,7 @@ cargo run -- <args>
 
 ## Bundled Skill
 
-This project includes a Claude Code skill at `skill/SKILL.md` that is embedded into the binary at compile time via `include_dir!`. **Any feature addition or behavioral change must also update `skill/SKILL.md`** to keep the bundled skill documentation in sync with the actual CLI capabilities.
+This project includes a Claude Code skill at `skills/tixgraft/SKILL.md` that is embedded into the binary at compile time via `include_dir!`. **Any feature addition or behavioral change must also update `skills/tixgraft/SKILL.md`** to keep the bundled skill documentation in sync with the actual CLI capabilities.
 
 ## Architecture
 

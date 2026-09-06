@@ -1,7 +1,7 @@
 //! Skill management operations.
 //!
 //! Handles installing, uninstalling, and testing the tixgraft Claude Code skill.
-//! The skill content is embedded in the binary at compile time from the `skill/` directory.
+//! The skill content is embedded in the binary at compile time from the `skills/tixgraft/` directory.
 
 use std::collections::HashSet;
 use std::env;
@@ -14,7 +14,7 @@ use crate::error::GraftError;
 use os_shim::System;
 
 /// Embedded skill directory included at compile time.
-static SKILL_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skill");
+static SKILL_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skills/tixgraft");
 
 /// Relative subdirectory path where the skill is installed.
 const SKILL_SUBDIR: &str = ".claude/skills/tixgraft";
