@@ -1,7 +1,7 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::System as _;
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use std::path::Path;
 use tixgraft::operations::skill::{SkillStatus, skill_check, skill_install, skill_uninstall};
 
@@ -11,7 +11,7 @@ fn skill_dir() -> &'static Path {
 
 #[test]
 fn install_creates_files() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     skill_install(&system, skill_dir()).unwrap();
 
@@ -26,7 +26,7 @@ fn install_creates_files() {
 
 #[test]
 fn install_overwrites_existing() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/project/.claude/skills/tixgraft")
         .unwrap()
         .with_file("/project/.claude/skills/tixgraft/SKILL.md", b"old content")
@@ -43,7 +43,7 @@ fn install_overwrites_existing() {
 
 #[test]
 fn uninstall_removes_directory() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     skill_install(&system, skill_dir()).unwrap();
 
     assert!(system.exists(skill_dir()).unwrap());
@@ -55,7 +55,7 @@ fn uninstall_removes_directory() {
 
 #[test]
 fn uninstall_idempotent() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     // Should not error even if nothing is installed
     let result = skill_uninstall(&system, skill_dir());
@@ -64,7 +64,7 @@ fn uninstall_idempotent() {
 
 #[test]
 fn check_not_installed() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     let status = skill_check(&system, skill_dir()).unwrap();
     assert_eq!(status, SkillStatus::NotInstalled);
@@ -72,7 +72,7 @@ fn check_not_installed() {
 
 #[test]
 fn check_up_to_date() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     skill_install(&system, skill_dir()).unwrap();
 
@@ -82,7 +82,7 @@ fn check_up_to_date() {
 
 #[test]
 fn check_outdated_content_differs() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     skill_install(&system, skill_dir()).unwrap();
 
@@ -97,7 +97,7 @@ fn check_outdated_content_differs() {
 
 #[test]
 fn check_outdated_extra_file() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     skill_install(&system, skill_dir()).unwrap();
 
@@ -112,7 +112,7 @@ fn check_outdated_extra_file() {
 
 #[test]
 fn check_outdated_missing_file() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/project/.claude/skills/tixgraft")
         .unwrap();
 

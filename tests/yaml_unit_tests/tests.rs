@@ -1,6 +1,6 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use tixgraft::config::yaml::load_config;
 
 #[test]
@@ -14,7 +14,7 @@ pulls:
     type: "directory"
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/config.yaml", config_content.as_bytes())
         .unwrap();
 
@@ -24,7 +24,7 @@ pulls:
 
 #[test]
 fn load_nonexistent_file() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let result = load_config(&system, "/nonexistent/file.yaml");
     assert!(result.is_err());
     assert!(

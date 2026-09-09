@@ -8,7 +8,7 @@
     reason = "test code unwraps Result into same variable name for readability"
 )]
 
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use tixgraft::config::Config;
 
 #[test]
@@ -22,7 +22,7 @@ pulls:
     type: "directory"
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/valid.yaml", config_content.as_bytes())
         .unwrap();
 
@@ -52,7 +52,7 @@ pulls:
         valueFromEnv: "TEST_ENV_VAR"
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_env("TEST_ENV_VAR", "test_value")
         .unwrap()
         .with_file("/test/replacements.yaml", config_content.as_bytes())
@@ -87,7 +87,7 @@ pulls:
     type: "invalid_type"  # Should be "file" or "directory"
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/invalid_schema.yaml", config_content.as_bytes())
         .unwrap();
 
@@ -110,7 +110,7 @@ pulls:
         valueFromEnv: "NONEXISTENT_VAR"
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/missing_env.yaml", config_content.as_bytes())
         .unwrap();
 
@@ -129,7 +129,7 @@ pulls:
     target: "./dest"
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/minimal.yaml", config_content.as_bytes())
         .unwrap();
 
@@ -151,7 +151,7 @@ pulls:
     target: "../../etc/passwd"  # Path traversal attempt
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/unsafe.yaml", config_content.as_bytes())
         .unwrap();
 

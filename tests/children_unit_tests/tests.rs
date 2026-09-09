@@ -4,7 +4,7 @@
     reason = "Index-based assertions are acceptable in tests"
 )]
 
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use tixgraft::config::Config;
 use tixgraft::config::validation::validate_config;
 
@@ -162,7 +162,7 @@ children:
 
 #[test]
 fn validate_pulls_only() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = parse_config(
         r#"
 repository: "my_org/repo"
@@ -177,7 +177,7 @@ pulls:
 
 #[test]
 fn validate_children_only() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file(
             "./sub/tixgraft.yaml",
             b"pulls:\n  - source: x\n    target: y\n",
@@ -196,7 +196,7 @@ children:
 
 #[test]
 fn validate_both_pulls_and_children() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file(
             "./sub/tixgraft.yaml",
             b"pulls:\n  - source: x\n    target: y\n",
@@ -219,7 +219,7 @@ pulls:
 
 #[test]
 fn validate_neither_fails() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = parse_config("{}");
 
     let err = validate_config(&system, &config).unwrap_err();
@@ -231,7 +231,7 @@ fn validate_neither_fails() {
 
 #[test]
 fn validate_child_path_dotdot() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = parse_config(
         r#"
 children:
@@ -248,7 +248,7 @@ children:
 
 #[test]
 fn validate_child_path_absolute() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = parse_config(
         r#"
 children:
@@ -265,7 +265,7 @@ children:
 
 #[test]
 fn validate_child_path_missing() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = parse_config(
         r#"
 children:
@@ -282,7 +282,7 @@ children:
 
 #[test]
 fn validate_child_path_empty() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = parse_config(
         r#"
 children:
@@ -299,7 +299,7 @@ children:
 
 #[test]
 fn validate_child_path_whitespace_only() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = parse_config(
         r#"
 children:
@@ -316,7 +316,7 @@ children:
 
 #[test]
 fn validate_child_path_valid() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file(
             "./sub/tixgraft.yaml",
             b"children:\n  - ./nested/tixgraft.yaml\n",
@@ -335,7 +335,7 @@ children:
 
 #[test]
 fn validate_child_error_includes_index() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file(
             "./good/tixgraft.yaml",
             b"pulls:\n  - source: x\n    target: y\n",

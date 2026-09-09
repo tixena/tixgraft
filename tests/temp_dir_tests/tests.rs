@@ -1,11 +1,11 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::System as _;
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 
 #[test]
 fn mock_temp_dir_creation() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     let temp_dir = system.create_temp_dir().unwrap();
     let temp_path = temp_dir.path();
@@ -22,7 +22,7 @@ fn mock_temp_dir_creation() {
 
 #[test]
 fn mock_temp_dir_cleanup_on_drop() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let temp_path = {
         let temp_dir = system.create_temp_dir().unwrap();
         let path = temp_dir.path().to_path_buf();
@@ -47,7 +47,7 @@ fn mock_temp_dir_cleanup_on_drop() {
 
 #[test]
 fn mock_multiple_temp_dirs() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     let temp1 = system.create_temp_dir().unwrap();
     let temp2 = system.create_temp_dir().unwrap();
@@ -66,7 +66,7 @@ fn mock_multiple_temp_dirs() {
 
 #[test]
 fn temp_dir_with_subdirectories() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let temp_dir = system.create_temp_dir().unwrap();
     let temp_path = temp_dir.path();
 

@@ -4,13 +4,13 @@
     reason = "test code uses indexing after length assertions"
 )]
 
-use os_shim::{System as _, mock::MockSystem};
+use os_shim::{System as _, mock::MemorySystem};
 use std::path::Path;
 use tixgraft::operations::discovery::{cleanup_graft_files, discover_graft_files};
 
 #[test]
 fn discover_single_graft() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_file("/test/.graft.yaml", b"# Test graft file\n")
@@ -24,7 +24,7 @@ fn discover_single_graft() {
 
 #[test]
 fn discover_nested_grafts() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_dir("/test/nested")
@@ -59,7 +59,7 @@ fn discover_nested_grafts() {
 
 #[test]
 fn cleanup_graft_files_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_dir("/test/nested")
@@ -92,7 +92,7 @@ fn cleanup_graft_files_tst() {
 
 #[test]
 fn discover_no_grafts() {
-    let system = MockSystem::new().with_dir("/test").unwrap();
+    let system = MemorySystem::new().with_dir("/test").unwrap();
 
     let grafts = discover_graft_files(&system, Path::new("/test")).unwrap();
     assert_eq!(grafts.len(), 0);
@@ -100,14 +100,14 @@ fn discover_no_grafts() {
 
 #[test]
 fn discover_nonexistent_directory() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let result = discover_graft_files(&system, Path::new("/nonexistent/path"));
     result.unwrap_err();
 }
 
 #[test]
 fn discover_not_a_directory() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/file.txt", b"data")
         .unwrap();
 
@@ -119,7 +119,7 @@ fn discover_not_a_directory() {
 #[test]
 fn discover_graft_with_non_graft_files() {
     // Ensure non-.graft.yaml files are ignored
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_file("/test/.graft.yaml", b"# Graft\n")
@@ -135,7 +135,7 @@ fn discover_graft_with_non_graft_files() {
 
 #[test]
 fn cleanup_empty_directory() {
-    let system = MockSystem::new().with_dir("/test").unwrap();
+    let system = MemorySystem::new().with_dir("/test").unwrap();
 
     let deleted = cleanup_graft_files(&system, Path::new("/test")).unwrap();
     assert_eq!(deleted, 0);

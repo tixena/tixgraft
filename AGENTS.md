@@ -269,10 +269,10 @@ Then use `mcp__beads__*` functions instead of CLI commands.
 
 This project uses the **System abstraction** to enable fast, isolated unit tests. Follow these patterns:
 
-### Unit Tests - MUST Use MockSystem
+### Unit Tests - MUST Use MemorySystem
 
 **Critical Rules:**
-- ✅ **ALWAYS** use `MockSystem::new()` for unit tests
+- ✅ **ALWAYS** use `MemorySystem::new()` for unit tests
 - ✅ Use `system.create_temp_dir()` for temporary directories
 - ✅ Set up test data with `.with_file()` and `.with_dir()`
 - ❌ **NEVER** instantiate `RealSystem` in unit tests
@@ -281,11 +281,11 @@ This project uses the **System abstraction** to enable fast, isolated unit tests
 
 **Example:**
 ```rust
-use tixgraft::system::{MockSystem, System};
+use tixgraft::system::{MemorySystem, System};
 
 #[test]
 fn feature() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .with_file("/test/input.txt", b"data");
 
@@ -317,7 +317,7 @@ fn git_operation() {
 
 ### Why This Matters
 
-- **Speed**: MockSystem tests are ~100x faster (no disk I/O)
+- **Speed**: MemorySystem tests are ~100x faster (no disk I/O)
 - **Isolation**: No temp directory conflicts or cleanup issues
 - **Determinism**: Consistent in-memory state every run
 - **Parallelism**: Tests run concurrently without conflicts

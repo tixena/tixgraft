@@ -1,6 +1,6 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use std::path::Path;
 use tixgraft::cli::{PullConfig, ReplacementConfig};
 use tixgraft::config::Config;
@@ -68,7 +68,7 @@ fn make_pull(source: &str, target: &str) -> PullConfig {
 
 #[test]
 fn validate_config_empty_pulls_and_children() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = make_config(vec![], vec![]);
     let result = validate_config(&system, &config);
     assert!(result.is_err());
@@ -77,14 +77,14 @@ fn validate_config_empty_pulls_and_children() {
 
 #[test]
 fn validate_config_valid_with_pulls() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = make_config(vec![make_pull("src", "./target")], vec![]);
     validate_config(&system, &config).unwrap();
 }
 
 #[test]
 fn validate_config_valid_with_children() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/child/tixgraft.yaml", b"pulls: []")
         .unwrap();
 
@@ -95,7 +95,7 @@ fn validate_config_valid_with_children() {
 
 #[test]
 fn validate_config_child_path_traversal() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = make_config(vec![], vec!["../escape/tixgraft.yaml".to_owned()]);
     let result = validate_config(&system, &config);
     assert!(result.is_err());
@@ -104,7 +104,7 @@ fn validate_config_child_path_traversal() {
 
 #[test]
 fn validate_config_child_path_absolute() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = make_config(vec![], vec!["/etc/tixgraft.yaml".to_owned()]);
     let result = validate_config(&system, &config);
     assert!(result.is_err());
@@ -113,7 +113,7 @@ fn validate_config_child_path_absolute() {
 
 #[test]
 fn validate_config_child_path_empty() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = make_config(vec![], vec!["  ".to_owned()]);
     let result = validate_config(&system, &config);
     assert!(result.is_err());
@@ -122,7 +122,7 @@ fn validate_config_child_path_empty() {
 
 #[test]
 fn validate_config_child_path_not_found() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let config = make_config(vec![], vec!["missing/tixgraft.yaml".to_owned()]);
     let result = validate_config(&system, &config);
     assert!(result.is_err());
@@ -131,7 +131,7 @@ fn validate_config_child_path_not_found() {
 
 #[test]
 fn validate_pull_empty_source() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut pull = make_pull("src", "./target");
     pull.source = "  ".to_owned();
     let config = make_config(vec![pull], vec![]);
@@ -142,7 +142,7 @@ fn validate_pull_empty_source() {
 
 #[test]
 fn validate_pull_empty_target() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut pull = make_pull("src", "./target");
     pull.target = "  ".to_owned();
     let config = make_config(vec![pull], vec![]);
@@ -153,7 +153,7 @@ fn validate_pull_empty_target() {
 
 #[test]
 fn validate_pull_invalid_type() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut pull = make_pull("src", "./target");
     pull.pull_type = "invalid".to_owned();
     let config = make_config(vec![pull], vec![]);
@@ -169,7 +169,7 @@ fn validate_pull_invalid_type() {
 
 #[test]
 fn validate_pull_unsafe_target() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let pull = make_pull("src", "../../escape");
     let config = make_config(vec![pull], vec![]);
     let result = validate_config(&system, &config);
@@ -179,7 +179,7 @@ fn validate_pull_unsafe_target() {
 
 #[test]
 fn validate_pull_empty_command() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut pull = make_pull("src", "./target");
     pull.commands = vec!["  ".to_owned()];
     let config = make_config(vec![pull], vec![]);
@@ -190,7 +190,7 @@ fn validate_pull_empty_command() {
 
 #[test]
 fn validate_replacement_empty_source() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut pull = make_pull("src", "./target");
     pull.replacements = vec![ReplacementConfig::new(
         "  ".to_owned(),
@@ -210,7 +210,7 @@ fn validate_replacement_empty_source() {
 
 #[test]
 fn validate_replacement_both_target_and_env() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut pull = make_pull("src", "./target");
     pull.replacements = vec![ReplacementConfig::new(
         "{{X}}".to_owned(),
@@ -230,7 +230,7 @@ fn validate_replacement_both_target_and_env() {
 
 #[test]
 fn validate_replacement_neither_target_nor_env() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut pull = make_pull("src", "./target");
     pull.replacements = vec![ReplacementConfig::new("{{X}}".to_owned(), None, None)];
     let config = make_config(vec![pull], vec![]);
@@ -246,7 +246,7 @@ fn validate_replacement_neither_target_nor_env() {
 
 #[test]
 fn validate_config_invalid_global_repo() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut config = make_config(vec![make_pull("src", "./target")], vec![]);
     config.repository = Some("invalid-url".to_owned());
     let result = validate_config(&system, &config);
@@ -255,7 +255,7 @@ fn validate_config_invalid_global_repo() {
 
 #[test]
 fn validate_config_invalid_pull_repo() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut pull = make_pull("src", "./target");
     pull.repository = Some("bad-url".to_owned());
     let config = make_config(vec![pull], vec![]);

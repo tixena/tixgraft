@@ -4,7 +4,7 @@
     reason = "test code uses indexing after length assertions"
 )]
 
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use std::path::Path;
 use tixgraft::config::graft_yaml::{
     ChoiceOption, GraftConfig, GraftReplacement, PostCommand, TestCommand,
@@ -35,7 +35,7 @@ postCommands:
     args: ["Hello"]
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/.graft.yaml", yaml.as_bytes())
         .unwrap();
 
@@ -54,7 +54,7 @@ replacements:
     valueFromEnv: "ENV_VAR"
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/.graft.yaml", yaml.as_bytes())
         .unwrap();
 
@@ -125,7 +125,7 @@ postCommands:
 
 #[test]
 fn load_from_file_not_found() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let err = GraftConfig::load_from_file(&system, Path::new("/nonexistent/.graft.yaml"))
         .unwrap_err()
         .to_string();
@@ -144,7 +144,7 @@ replacements:
     target: "value"
 "#;
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/.graft.yaml", yaml_content.as_bytes())
         .unwrap();
 

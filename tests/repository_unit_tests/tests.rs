@@ -1,11 +1,11 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use tixgraft::git::Repository;
 
 #[test]
 fn detect_git_source() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     let repo = Repository::new(&system, "my_organization/repo").unwrap();
     assert!(repo.is_git());
@@ -26,7 +26,7 @@ fn detect_git_source() {
 
 #[test]
 fn detect_local_source_with_file_prefix() {
-    let system = MockSystem::new().with_dir("/test/local_repo").unwrap();
+    let system = MemorySystem::new().with_dir("/test/local_repo").unwrap();
 
     let repo = Repository::new(&system, "file:///test/local_repo").unwrap();
 
@@ -41,7 +41,7 @@ fn detect_local_source_with_file_prefix() {
 
 #[test]
 fn detect_local_source_with_absolute_path() {
-    let system = MockSystem::new().with_dir("/test/abs_repo").unwrap();
+    let system = MemorySystem::new().with_dir("/test/abs_repo").unwrap();
 
     let repo = Repository::new(&system, "file:/test/abs_repo").unwrap();
 
@@ -52,7 +52,7 @@ fn detect_local_source_with_absolute_path() {
 
 #[test]
 fn detect_local_source_with_relative_path() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_current_dir("/work")
         .unwrap()
         .with_dir("/work/my_repo")
@@ -67,7 +67,7 @@ fn detect_local_source_with_relative_path() {
 
 #[test]
 fn detect_local_source_bare_absolute_path() {
-    let system = MockSystem::new().with_dir("/test/abs_repo").unwrap();
+    let system = MemorySystem::new().with_dir("/test/abs_repo").unwrap();
 
     let repo = Repository::new(&system, "/test/abs_repo").unwrap();
 
@@ -81,7 +81,7 @@ fn detect_local_source_bare_absolute_path() {
 
 #[test]
 fn detect_local_source_bare_tilde_path() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_env("HOME", "/home/user")
         .unwrap()
         .with_dir("/home/user/my_repo")
@@ -99,7 +99,7 @@ fn detect_local_source_bare_tilde_path() {
 
 #[test]
 fn detect_local_source_bare_relative_path() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_current_dir("/work")
         .unwrap()
         .with_dir("/work/my_repo")
@@ -112,7 +112,7 @@ fn detect_local_source_bare_relative_path() {
 
 #[test]
 fn short_form_is_not_treated_as_local() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     let repo = Repository::new(&system, "my_organization/repo").unwrap();
     assert!(repo.is_git());
@@ -121,14 +121,14 @@ fn short_form_is_not_treated_as_local() {
 
 #[test]
 fn local_source_nonexistent_path() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let err = Repository::new(&system, "file:///nonexistent/path/that/does/not/exist").unwrap_err();
     assert!(err.to_string().contains("does not exist"));
 }
 
 #[test]
 fn local_source_file_not_directory() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/test.txt", b"test")
         .unwrap();
 
@@ -138,7 +138,7 @@ fn local_source_file_not_directory() {
 
 #[test]
 fn repository_methods() {
-    let system = MockSystem::new().with_dir("/test/local_repo").unwrap();
+    let system = MemorySystem::new().with_dir("/test/local_repo").unwrap();
 
     let repo = Repository::new(&system, "my_organization/repo").unwrap();
     assert_eq!(repo.original_url(), "my_organization/repo");

@@ -1,6 +1,6 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
-use os_shim::{System as _, mock::MockSystem};
+use os_shim::{System as _, mock::MemorySystem};
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
@@ -31,7 +31,7 @@ replacements:
 
     let template_content = "Project: {{PROJECT_NAME}}\nVersion: {{VERSION}}";
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/source")
         .unwrap()
         .with_file("/source/config.txt", template_content.as_bytes())
@@ -123,7 +123,7 @@ replacements:
 
     let template_content = "Port: {{PORT}}\nEnabled: {{ENABLED}}";
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/source")
         .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
@@ -172,7 +172,7 @@ replacements:
 
     let template_content = "Services: {{SERVICES}}";
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/source")
         .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
@@ -232,7 +232,7 @@ replacements:
 
     let template_content = "Name: {{NAME}}\nVersion: {{VERSION}}";
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/source")
         .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
@@ -340,7 +340,7 @@ replacements:
 
     let template_content = "{{VAR}}";
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/source")
         .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())
@@ -389,7 +389,7 @@ replacements:
 
     let template_content = "Context: {{CTX}}\nStatic: {{STATIC}}";
 
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/source")
         .unwrap()
         .with_file("/source/file.txt", template_content.as_bytes())

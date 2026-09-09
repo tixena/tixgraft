@@ -4,14 +4,14 @@
     reason = "test code uses indexing after length assertions"
 )]
 
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use std::path::Path;
 use tixgraft::operations::discovery::discover_graft_files;
 
 #[test]
 fn gitignore_excludes_directories() {
     // Simplified test - just verify we can discover grafts in multiple directories
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_dir("/test/ignored_dir")
@@ -27,14 +27,14 @@ fn gitignore_excludes_directories() {
 
     let grafts = discover_graft_files(&system, Path::new("/test")).unwrap();
 
-    // MockSystem finds all grafts (no gitignore filtering)
+    // MemorySystem finds all grafts (no gitignore filtering)
     assert_eq!(grafts.len(), 3);
 }
 
 #[test]
 fn gitignore_excludes_files() {
     // Simplified test - verify nested directory discovery
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_dir("/test/nested")
@@ -54,7 +54,7 @@ fn gitignore_excludes_files() {
 #[test]
 fn nested_gitignore_files() {
     // Simplified test - verify multi-level directory discovery
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_dir("/test/level1")
@@ -78,14 +78,14 @@ fn nested_gitignore_files() {
 
     let grafts = discover_graft_files(&system, Path::new("/test")).unwrap();
 
-    // MockSystem finds all 5 grafts (no gitignore filtering)
+    // MemorySystem finds all 5 grafts (no gitignore filtering)
     assert_eq!(grafts.len(), 5);
 }
 
 #[test]
 fn ignore_file_support() {
     // Simplified test - verify directory structure discovery
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_dir("/test/ignored_by_ignore")
@@ -101,14 +101,14 @@ fn ignore_file_support() {
 
     let grafts = discover_graft_files(&system, Path::new("/test")).unwrap();
 
-    // MockSystem finds all 3 grafts (no .ignore file filtering)
+    // MemorySystem finds all 3 grafts (no .ignore file filtering)
     assert_eq!(grafts.len(), 3);
 }
 
 #[test]
 fn gitignore_patterns() {
     // Simplified test - verify we can discover in different directories
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_dir("/test/temp")
@@ -128,6 +128,6 @@ fn gitignore_patterns() {
 
     let grafts = discover_graft_files(&system, Path::new("/test")).unwrap();
 
-    // MockSystem finds all 4 grafts (no pattern filtering)
+    // MemorySystem finds all 4 grafts (no pattern filtering)
     assert_eq!(grafts.len(), 4);
 }

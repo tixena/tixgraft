@@ -204,12 +204,12 @@ The codebase follows a modular architecture with clear separation of concerns:
 
 - **System Abstraction**: All filesystem and environment operations go through the `System` trait
   - **RealSystem**: Production implementation that delegates to `std::fs` and `std::env` (zero-cost abstraction)
-  - **MockSystem**: In-memory implementation for testing (no disk I/O, perfect isolation)
+  - **MemorySystem**: In-memory implementation for testing (no disk I/O, perfect isolation)
   - Key capabilities:
     - `create_temp_dir()` - System-agnostic temporary directories with automatic cleanup
-    - `walk_dir()` - Recursive directory traversal (respects .gitignore in RealSystem, in-memory in MockSystem)
+    - `walk_dir()` - Recursive directory traversal (respects .gitignore in RealSystem, in-memory in MemorySystem)
     - `read/write/copy/exists/is_dir/is_file` - All filesystem operations abstracted
-  - **Critical**: Unit tests MUST use MockSystem, never RealSystem (see Testing Guidelines below)
+  - **Critical**: Unit tests MUST use MemorySystem, never RealSystem (see Testing Guidelines below)
 
 - **Error Handling**: Custom `GraftError` enum with specific exit codes for different error types (configuration=1, source=2, command=3, git=4, filesystem=5, skill=6)
 
@@ -252,7 +252,7 @@ pulls:                         # Required, minimum 1
 ### Test Structure
 
 Tests are organized in `tests/`:
-- `*_unit_tests.rs` - Unit tests (MUST use MockSystem)
+- `*_unit_tests.rs` - Unit tests (MUST use MemorySystem)
 - `*_tests.rs` - Integration tests (may use RealSystem when necessary)
 
 ### Unit Tests (Critical Rules)
@@ -260,7 +260,7 @@ Tests are organized in `tests/`:
 **Unit tests MUST follow these rules:**
 
 ✅ **DO:**
-- Use `MockSystem::new()` for all filesystem operations
+- Use `MemorySystem::new()` for all filesystem operations
 - Use `system.create_temp_dir()` for temporary directories
 - Use `.with_file()` and `.with_dir()` to set up test data
 - Use mock paths like `/test/...` for clarity
@@ -274,11 +274,11 @@ Tests are organized in `tests/`:
 
 **Example Unit Test:**
 ```rust
-use tixgraft::system::{MockSystem, System};
+use tixgraft::system::{MemorySystem, System};
 
 #[test]
 fn my_feature() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .with_file("/test/input.txt", b"test data");
 
@@ -313,11 +313,11 @@ fn integration() {
 
 ### Test Files
 
-**Unit Tests (MockSystem only):**
+**Unit Tests (MemorySystem only):**
 - `copy_unit_tests.rs` - File and directory copying
 - `discovery_unit_tests.rs` - Graft file discovery
 - `fs_unit_tests.rs` - Filesystem utilities
-- `gitignore_tests.rs` - Directory traversal (simplified for MockSystem)
+- `gitignore_tests.rs` - Directory traversal (simplified for MemorySystem)
 - `replace_unit_tests.rs` - Text replacement
 - `yaml_unit_tests.rs` - YAML config loading
 - `temp_dir_tests.rs` - TempDir abstraction
@@ -334,7 +334,7 @@ fn integration() {
 
 ### Benefits of System Abstraction
 
-- **Fast**: MockSystem tests run ~100x faster (no disk I/O)
+- **Fast**: MemorySystem tests run ~100x faster (no disk I/O)
 - **Isolated**: No temp directory cleanup issues or race conditions
 - **Deterministic**: Same in-memory state every time
 - **Parallel**: Tests can run concurrently without conflicts

@@ -1,6 +1,6 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
-use os_shim::{System as _, mock::MockSystem};
+use os_shim::{System as _, mock::MemorySystem};
 use std::path::Path;
 use tixgraft::utils::fs::{
     copy_file_with_progress, create_parent_directories, ensure_dir_exists, format_file_size,
@@ -9,7 +9,7 @@ use tixgraft::utils::fs::{
 
 #[test]
 fn is_binary_file_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test").unwrap()
         .with_file("/test/text.txt", b"Hello, world!").unwrap()
         .with_file(
@@ -38,7 +38,7 @@ fn format_file_size_tst() {
 
 #[test]
 fn create_parent_directories_tst() {
-    let system = MockSystem::new().with_dir("/test").unwrap();
+    let system = MemorySystem::new().with_dir("/test").unwrap();
 
     let nested_file = Path::new("/test/a/b/c/file.txt");
 
@@ -48,7 +48,7 @@ fn create_parent_directories_tst() {
 
 #[test]
 fn is_directory_empty_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test/empty")
         .unwrap()
         .with_dir("/test/non_empty")
@@ -68,7 +68,7 @@ fn is_directory_empty_tst() {
 
 #[test]
 fn remove_dir_safe_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test/mydir")
         .unwrap()
         .with_file("/test/mydir/file.txt", b"data")
@@ -84,7 +84,7 @@ fn remove_dir_safe_tst() {
 
 #[test]
 fn get_file_size_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/file.txt", b"hello world")
         .unwrap();
 
@@ -97,7 +97,7 @@ fn get_file_size_tst() {
 
 #[test]
 fn ensure_dir_exists_tst() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     // Creates new directory
     ensure_dir_exists(&system, Path::new("/test/newdir")).unwrap();
@@ -107,7 +107,7 @@ fn ensure_dir_exists_tst() {
     ensure_dir_exists(&system, Path::new("/test/newdir")).unwrap();
 
     // Exists as file — error
-    let system2 = MockSystem::new()
+    let system2 = MemorySystem::new()
         .with_file("/test/file.txt", b"data")
         .unwrap();
     let result = ensure_dir_exists(&system2, Path::new("/test/file.txt"));
@@ -117,7 +117,7 @@ fn ensure_dir_exists_tst() {
 
 #[test]
 fn copy_file_with_progress_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/src/file.txt", b"hello world, this is test data")
         .unwrap();
 
@@ -135,7 +135,7 @@ fn copy_file_with_progress_tst() {
 
 #[test]
 fn is_binary_file_known_text_extension() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/code.rs", b"\x80\x81\x82")
         .unwrap();
 
@@ -145,7 +145,7 @@ fn is_binary_file_known_text_extension() {
 
 #[test]
 fn is_binary_file_directory() {
-    let system = MockSystem::new().with_dir("/test/mydir").unwrap();
+    let system = MemorySystem::new().with_dir("/test/mydir").unwrap();
 
     // Directory should return false
     assert!(!is_binary_file(&system, Path::new("/test/mydir")).unwrap());
@@ -153,7 +153,9 @@ fn is_binary_file_directory() {
 
 #[test]
 fn is_binary_file_empty_file() {
-    let system = MockSystem::new().with_file("/test/empty.bin", b"").unwrap();
+    let system = MemorySystem::new()
+        .with_file("/test/empty.bin", b"")
+        .unwrap();
 
     // Empty file should be treated as text
     assert!(!is_binary_file(&system, Path::new("/test/empty.bin")).unwrap());
@@ -167,7 +169,7 @@ fn format_file_size_large_values() {
 
 #[test]
 fn create_parent_directories_already_exists() {
-    let system = MockSystem::new().with_dir("/test/existing").unwrap();
+    let system = MemorySystem::new().with_dir("/test/existing").unwrap();
 
     // Should be a no-op when parent already exists
     create_parent_directories(&system, Path::new("/test/existing/file.txt")).unwrap();

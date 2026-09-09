@@ -5,7 +5,7 @@
 )]
 
 use os_shim::System as _;
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
@@ -19,7 +19,7 @@ use tixgraft::operations::replace::{
 
 #[test]
 fn apply_simple_replacement() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test.txt", b"Hello {{NAME}}, welcome to {{PLACE}}!\n")
         .unwrap();
 
@@ -44,7 +44,9 @@ fn apply_simple_replacement() {
 
 #[test]
 fn replacement_with_env_var() {
-    let system = MockSystem::new().with_env("TEST_ENV", "TestValue").unwrap();
+    let system = MemorySystem::new()
+        .with_env("TEST_ENV", "TestValue")
+        .unwrap();
 
     let replacement =
         ReplacementConfig::new("{{TEST}}".to_owned(), None, Some("TEST_ENV".to_owned()));
@@ -56,7 +58,7 @@ fn replacement_with_env_var() {
 
 #[test]
 fn graft_replacement_with_context() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let mut context = HashMap::new();
     context.insert("projectName".to_owned(), json!("my-app"));
     context.insert("maxGb".to_owned(), json!(16_i32));
@@ -88,7 +90,7 @@ fn graft_replacement_with_context() {
 
 #[test]
 fn graft_replacement_missing_context() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let context = HashMap::new();
 
     let replacement =
@@ -106,7 +108,7 @@ fn graft_replacement_missing_context() {
 
 #[test]
 fn apply_graft_replacements_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_file("/test/test.txt", b"Hello {{NAME}}, value is {{VALUE}}!")
@@ -130,14 +132,14 @@ fn apply_graft_replacements_tst() {
 
 #[test]
 fn apply_replacements_empty_list() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let result = apply_replacements(&system, "/test", &[]);
     assert_eq!(result.unwrap(), 0);
 }
 
 #[test]
 fn apply_replacements_target_not_found() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let replacements = vec![ReplacementConfig::new(
         "{{X}}".to_owned(),
         Some("val".to_owned()),
@@ -150,7 +152,7 @@ fn apply_replacements_target_not_found() {
 
 #[test]
 fn apply_replacements_multiple() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_file("/test/file.txt", b"Hello {{NAME}} from {{PLACE}}")
@@ -170,7 +172,7 @@ fn apply_replacements_multiple() {
 
 #[test]
 fn apply_regex_replacement_on_file() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/file.txt", b"version = 1.2.3")
         .unwrap();
 
@@ -189,7 +191,7 @@ fn apply_regex_replacement_on_file() {
 
 #[test]
 fn apply_regex_replacement_on_directory() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_file("/test/a.txt", b"foo-123")
@@ -212,7 +214,7 @@ fn apply_regex_replacement_on_directory() {
 
 #[test]
 fn apply_regex_replacement_invalid_regex() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/file.txt", b"data")
         .unwrap();
 
@@ -221,7 +223,7 @@ fn apply_regex_replacement_invalid_regex() {
 
 #[test]
 fn preview_replacements_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_file("/test/a.txt", b"Hello {{NAME}}")
@@ -244,7 +246,7 @@ fn preview_replacements_tst() {
 
 #[test]
 fn preview_replacements_empty() {
-    let system = MockSystem::new().with_dir("/test").unwrap();
+    let system = MemorySystem::new().with_dir("/test").unwrap();
 
     let previews = preview_replacements(&system, "/test", &[]).unwrap();
     assert!(previews.is_empty());
@@ -252,7 +254,7 @@ fn preview_replacements_empty() {
 
 #[test]
 fn replacement_no_target_no_env() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let replacement = ReplacementConfig::new("{{X}}".to_owned(), None, None);
     let result = get_replacement_value(&system, &replacement);
     assert!(result.is_err());
@@ -261,7 +263,7 @@ fn replacement_no_target_no_env() {
 
 #[test]
 fn replacement_both_target_and_env() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let replacement = ReplacementConfig::new(
         "{{X}}".to_owned(),
         Some("val".to_owned()),
@@ -272,7 +274,7 @@ fn replacement_both_target_and_env() {
 
 #[test]
 fn replacement_env_var_not_set() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let replacement =
         ReplacementConfig::new("{{X}}".to_owned(), None, Some("MISSING_VAR".to_owned()));
     let result = get_replacement_value(&system, &replacement);
@@ -282,7 +284,7 @@ fn replacement_env_var_not_set() {
 
 #[test]
 fn graft_replacement_multiple_sources_error() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
     let context = HashMap::new();
 
     // Both target and valueFromContext
@@ -299,7 +301,7 @@ fn graft_replacement_multiple_sources_error() {
 
 #[test]
 fn apply_single_replacement_no_match() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/file.txt", b"no placeholders here")
         .unwrap();
 
@@ -312,7 +314,7 @@ fn apply_single_replacement_no_match() {
 
 #[test]
 fn apply_single_replacement_skips_binary() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/binary.bin", &[0x00, 0x01, 0x02, 0xFF])
         .unwrap();
 
@@ -329,7 +331,7 @@ fn apply_single_replacement_skips_binary() {
 
 #[test]
 fn apply_replacements_in_subdirectories() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_dir("/test/sub")

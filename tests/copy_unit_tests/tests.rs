@@ -1,7 +1,7 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::System as _;
-use os_shim::mock::MockSystem;
+use os_shim::mock::MemorySystem;
 use std::path::Path;
 use tixgraft::operations::copy::{
     calculate_copy_size, copy_directory, copy_file, copy_files, count_files_to_copy,
@@ -9,7 +9,7 @@ use tixgraft::operations::copy::{
 
 #[test]
 fn copy_file_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()
         .with_file("/test/source.txt", b"test content\n")
@@ -31,7 +31,7 @@ fn copy_file_tst() {
 
 #[test]
 fn copy_directory_tst() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test/source")
         .unwrap()
         .with_dir("/test/source/subdir")
@@ -56,7 +56,7 @@ fn copy_directory_tst() {
 
 #[test]
 fn copy_directory_includes_dotfiles() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test/source")
         .unwrap()
         .with_file("/test/source/visible.txt", b"visible\n")
@@ -82,7 +82,7 @@ fn copy_directory_includes_dotfiles() {
 
 #[test]
 fn copy_files_source_not_found() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     let result = copy_files(
         &system,
@@ -97,7 +97,7 @@ fn copy_files_source_not_found() {
 
 #[test]
 fn copy_files_invalid_type() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/source.txt", b"content")
         .unwrap();
 
@@ -119,7 +119,7 @@ fn copy_files_invalid_type() {
 
 #[test]
 fn copy_files_file_type() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/source.txt", b"hello")
         .unwrap();
 
@@ -137,7 +137,7 @@ fn copy_files_file_type() {
 
 #[test]
 fn copy_files_directory_with_reset() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/source")
         .unwrap()
         .with_file("/source/a.txt", b"new content")
@@ -155,7 +155,7 @@ fn copy_files_directory_with_reset() {
 
 #[test]
 fn copy_file_source_not_file() {
-    let system = MockSystem::new().with_dir("/test/source").unwrap();
+    let system = MemorySystem::new().with_dir("/test/source").unwrap();
 
     let result = copy_file(&system, Path::new("/test/source"), Path::new("/target"));
     assert!(result.is_err());
@@ -164,7 +164,7 @@ fn copy_file_source_not_file() {
 
 #[test]
 fn copy_directory_source_not_dir() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/source.txt", b"data")
         .unwrap();
 
@@ -175,7 +175,7 @@ fn copy_directory_source_not_dir() {
 
 #[test]
 fn calculate_copy_size_file() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/file.txt", b"12345")
         .unwrap();
 
@@ -185,7 +185,7 @@ fn calculate_copy_size_file() {
 
 #[test]
 fn calculate_copy_size_directory() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test/dir")
         .unwrap()
         .with_file("/test/dir/a.txt", b"aaa")
@@ -199,7 +199,7 @@ fn calculate_copy_size_directory() {
 
 #[test]
 fn calculate_copy_size_invalid_type() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/file.txt", b"data")
         .unwrap();
 
@@ -209,7 +209,7 @@ fn calculate_copy_size_invalid_type() {
 
 #[test]
 fn count_files_to_copy_file() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_file("/test/file.txt", b"data")
         .unwrap();
 
@@ -221,7 +221,7 @@ fn count_files_to_copy_file() {
 
 #[test]
 fn count_files_to_copy_directory() {
-    let system = MockSystem::new()
+    let system = MemorySystem::new()
         .with_dir("/test/dir")
         .unwrap()
         .with_file("/test/dir/a.txt", b"a")
@@ -239,7 +239,7 @@ fn count_files_to_copy_directory() {
 
 #[test]
 fn count_files_to_copy_invalid_type() {
-    let system = MockSystem::new();
+    let system = MemorySystem::new();
 
     assert_eq!(
         count_files_to_copy(&system, Path::new("/whatever"), "invalid").unwrap(),
