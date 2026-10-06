@@ -3,27 +3,27 @@ use tixgraft::error::GraftError;
 #[test]
 fn constructors_produce_correct_variants() {
     let cmd = GraftError::command("cmd fail");
-    assert!(matches!(cmd, GraftError::Command { .. }));
+    assert!(matches!(cmd, GraftError::Command { message: _ }));
     assert_eq!(cmd.to_string(), "Command error: cmd fail");
 
     let cfg = GraftError::configuration("bad config");
-    assert!(matches!(cfg, GraftError::Configuration { .. }));
+    assert!(matches!(cfg, GraftError::Configuration { message: _ }));
     assert_eq!(cfg.to_string(), "Configuration error: bad config");
 
     let fs = GraftError::filesystem("io fail");
-    assert!(matches!(fs, GraftError::Filesystem { .. }));
+    assert!(matches!(fs, GraftError::Filesystem { message: _ }));
     assert_eq!(fs.to_string(), "Filesystem error: io fail");
 
     let src = GraftError::from_source("not found");
-    assert!(matches!(src, GraftError::Source { .. }));
+    assert!(matches!(src, GraftError::Source { message: _ }));
     assert_eq!(src.to_string(), "Source error: not found");
 
     let git = GraftError::git("clone fail");
-    assert!(matches!(git, GraftError::Git { .. }));
+    assert!(matches!(git, GraftError::Git { message: _ }));
     assert_eq!(git.to_string(), "Git error: clone fail");
 
     let skill = GraftError::skill("install fail");
-    assert!(matches!(skill, GraftError::Skill { .. }));
+    assert!(matches!(skill, GraftError::Skill { message: _ }));
     assert_eq!(skill.to_string(), "Skill error: install fail");
 }
 

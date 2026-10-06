@@ -200,11 +200,16 @@ postCommands:
 
 **Processing Flow:**
 1. Files are copied to target directory
-2. `.graft.yaml` files are discovered recursively
+2. `.graft.yaml` files are discovered recursively within the copied target
 3. Context is validated against requirements
 4. Text replacements are applied using context values
 5. Post-commands are executed
 6. `.graft.yaml` files are cleaned up
+
+Discovery covers only what the pull fetched. A sparse checkout downloads just `source`, so a
+`.graft.yaml` sitting above `source` in the repository is never on disk and never applied: its
+context goes unvalidated and its replacements are skipped. Pull a component at the root where its
+`.graft.yaml` lives, not at a subfolder beneath it.
 
 ### Repository URL Formats
 

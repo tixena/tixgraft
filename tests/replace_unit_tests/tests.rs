@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use tixgraft::cli::ReplacementConfig;
 use tixgraft::config::graft_yaml::GraftReplacement;
+use tixgraft::operations::ReplacementPreview;
 use tixgraft::operations::replace::{
     apply_graft_replacements, apply_regex_replacement, apply_replacements,
     apply_single_replacement, get_graft_replacement_value, get_replacement_value,
@@ -249,7 +250,7 @@ fn preview_replacements_empty() {
     let system = MemorySystem::new().with_dir("/test").unwrap();
 
     let previews = preview_replacements(&system, "/test", &[]).unwrap();
-    assert!(previews.is_empty());
+    assert_eq!(previews, Vec::<ReplacementPreview>::new());
 }
 
 #[test]

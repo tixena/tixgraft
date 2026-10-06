@@ -43,13 +43,13 @@ fn command_validation() {
 
     assert_eq!(validations.len(), 3);
     assert!(validations[0].is_valid);
-    assert!(validations[0].potential_issues.is_empty());
+    assert_eq!(validations[0].potential_issues, Vec::<String>::new());
 
     assert!(validations[1].is_valid); // Valid syntax but dangerous
-    assert!(!validations[1].potential_issues.is_empty());
+    assert_ne!(validations[1].potential_issues, Vec::<String>::new());
 
     assert!(validations[2].is_valid);
-    assert!(!validations[2].potential_issues.is_empty());
+    assert_ne!(validations[2].potential_issues, Vec::<String>::new());
 }
 
 #[test]
@@ -118,11 +118,11 @@ fn validate_commands_empty_command() {
 fn validate_commands_destructive_patterns() {
     // sudo rm
     let validations = validate_commands(&["sudo rm -rf /important".to_owned()]).unwrap();
-    assert!(!validations[0].potential_issues.is_empty());
+    assert_ne!(validations[0].potential_issues, Vec::<String>::new());
 
     // dd
     let validations = validate_commands(&["dd if=/dev/zero of=/dev/sda".to_owned()]).unwrap();
-    assert!(!validations[0].potential_issues.is_empty());
+    assert_ne!(validations[0].potential_issues, Vec::<String>::new());
 }
 
 #[test]
@@ -151,7 +151,7 @@ fn validate_commands_eval_exec() {
 fn validate_commands_safe_command() {
     let validations = validate_commands(&["ls -la".to_owned()]).unwrap();
     assert!(validations[0].is_valid);
-    assert!(validations[0].potential_issues.is_empty());
+    assert_eq!(validations[0].potential_issues, Vec::<String>::new());
 }
 
 #[test]

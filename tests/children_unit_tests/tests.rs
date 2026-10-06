@@ -137,7 +137,7 @@ pulls:
     );
     assert_eq!(config.tag.as_deref(), Some("main"));
     assert_eq!(config.pulls.len(), 1);
-    assert!(config.children.is_empty());
+    assert_eq!(config.children, Vec::<String>::new());
     assert!(!config.process_children_first);
 }
 

@@ -74,6 +74,8 @@ self_named_module_files = "allow"
 separated_literal_suffix = "allow"
 single_call_fn = "allow"
 print_stderr = "allow"
+# Contradicts rest_pattern_accessible_field; only one of the pair can be enforced.
+unneeded_field_pattern = "allow"
 
 [profile.release]
 lto = true

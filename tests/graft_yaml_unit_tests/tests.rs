@@ -82,10 +82,14 @@ postCommands:
     let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
     assert_eq!(config.post_commands.len(), 1);
     match &config.post_commands[0] {
-        PostCommand::Command { command, .. } => {
+        PostCommand::Command {
+            command,
+            args: _,
+            cwd: _,
+        } => {
             assert_eq!(command, "npm");
         }
-        PostCommand::Choice { .. } | _ => panic!("Expected Command type"),
+        PostCommand::Choice { options: _ } | _ => panic!("Expected Command type"),
     }
 }
 
@@ -119,7 +123,12 @@ postCommands:
             assert_eq!(options[0].test.command, "node");
             assert_eq!(options[0].expected_output, "v");
         }
-        PostCommand::Command { .. } | _ => panic!("Expected Choice type"),
+        PostCommand::Command {
+            command: _,
+            args: _,
+            cwd: _,
+        }
+        | _ => panic!("Expected Choice type"),
     }
 }
 
@@ -167,14 +176,12 @@ fn load_from_string_invalid_yaml() {
 fn post_command_default_impl() {
     let cmd = PostCommand::default();
     match cmd {
-        PostCommand::Command {
-            command, args, cwd, ..
-        } => {
-            assert!(command.is_empty());
-            assert!(args.is_empty());
+        PostCommand::Command { command, args, cwd } => {
+            assert_eq!(command, "");
+            assert_eq!(args, Vec::<String>::new());
             assert!(cwd.is_none());
         }
-        PostCommand::Choice { .. } | _ => panic!("Expected Command default"),
+        PostCommand::Choice { options: _ } | _ => panic!("Expected Command default"),
     }
 }
 
@@ -190,14 +197,12 @@ fn post_command_new_tst() {
         Some("/tmp".to_owned()),
     );
     match cmd {
-        PostCommand::Command {
-            command, args, cwd, ..
-        } => {
+        PostCommand::Command { command, args, cwd } => {
             assert_eq!(command, "echo");
             assert_eq!(args, vec!["hello"]);
             assert_eq!(cwd, Some("/tmp".to_owned()));
         }
-        PostCommand::Choice { .. } | _ => panic!("Expected Command"),
+        PostCommand::Choice { options: _ } | _ => panic!("Expected Command"),
     }
 }
 
@@ -215,14 +220,12 @@ fn post_command_explicit_command_type() {
     let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
     assert_eq!(config.post_commands.len(), 1);
     match &config.post_commands[0] {
-        PostCommand::Command {
-            command, args, cwd, ..
-        } => {
+        PostCommand::Command { command, args, cwd } => {
             assert_eq!(command, "npm");
             assert_eq!(args, &vec!["install".to_owned()]);
             assert_eq!(cwd, &Some("/app".to_owned()));
         }
-        PostCommand::Choice { .. } | _ => panic!("Expected Command type"),
+        PostCommand::Choice { options: _ } | _ => panic!("Expected Command type"),
     }
 }
 

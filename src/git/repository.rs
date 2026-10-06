@@ -49,10 +49,14 @@ impl Repository {
     )]
     pub fn git_url(&self) -> Result<&str> {
         match &self.source {
-            RepositorySource::Git { normalized_url, .. } => Ok(normalized_url),
-            RepositorySource::Local { .. } => {
-                Err(GraftError::git("git_url() called on Local repository source").into())
-            }
+            RepositorySource::Git {
+                normalized_url,
+                original_url: _,
+            } => Ok(normalized_url),
+            RepositorySource::Local {
+                original_path: _,
+                resolved_path: _,
+            } => Err(GraftError::git("git_url() called on Local repository source").into()),
         }
     }
 
@@ -60,14 +64,26 @@ impl Repository {
     #[must_use]
     #[inline]
     pub const fn is_git(&self) -> bool {
-        matches!(self.source, RepositorySource::Git { .. })
+        matches!(
+            self.source,
+            RepositorySource::Git {
+                normalized_url: _,
+                original_url: _
+            }
+        )
     }
 
     /// Check if this is a local filesystem source.
     #[must_use]
     #[inline]
     pub const fn is_local(&self) -> bool {
-        matches!(self.source, RepositorySource::Local { .. })
+        matches!(
+            self.source,
+            RepositorySource::Local {
+                original_path: _,
+                resolved_path: _
+            }
+        )
     }
 
     /// Get the local path (returns None if this is a Git source).
@@ -79,8 +95,14 @@ impl Repository {
     )]
     pub const fn local_path(&self) -> Option<&PathBuf> {
         match &self.source {
-            RepositorySource::Local { resolved_path, .. } => Some(resolved_path),
-            RepositorySource::Git { .. } => None,
+            RepositorySource::Local {
+                original_path: _,
+                resolved_path,
+            } => Some(resolved_path),
+            RepositorySource::Git {
+                normalized_url: _,
+                original_url: _,
+            } => None,
         }
     }
 
@@ -257,7 +279,10 @@ pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
 
     // For Git repositories, validate URL and tag
     match &repo.source {
-        RepositorySource::Git { normalized_url, .. } => {
+        RepositorySource::Git {
+            normalized_url,
+            original_url: _,
+        } => {
             if normalized_url.is_empty() {
                 return Err(GraftError::git("Repository URL cannot be empty".to_owned()).into());
             }
@@ -269,7 +294,10 @@ pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
                 .into());
             }
         }
-        RepositorySource::Local { .. } => {
+        RepositorySource::Local {
+            original_path: _,
+            resolved_path: _,
+        } => {
             // Already handled above
         }
     }

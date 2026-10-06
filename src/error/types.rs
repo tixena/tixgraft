@@ -59,12 +59,12 @@ impl GraftError {
     #[inline]
     pub const fn exit_code(&self) -> i32 {
         match *self {
-            Self::Configuration { .. } => 1,
-            Self::Source { .. } => 2,
-            Self::Command { .. } => 3,
-            Self::Git { .. } => 4,
-            Self::Filesystem { .. } => 5,
-            Self::Skill { .. } => 6,
+            Self::Configuration { message: _ } => 1,
+            Self::Source { message: _ } => 2,
+            Self::Command { message: _ } => 3,
+            Self::Git { message: _ } => 4,
+            Self::Filesystem { message: _ } => 5,
+            Self::Skill { message: _ } => 6,
         }
     }
 

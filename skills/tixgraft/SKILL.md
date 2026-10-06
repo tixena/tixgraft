@@ -301,6 +301,11 @@ An **empty-string** context value removes that property from the context (used t
 5. Post-commands execute
 6. `.graft.yaml` files are cleaned up (removed from target)
 
+Discovery covers only what the pull fetched. A sparse checkout downloads just `source`, so a
+`.graft.yaml` above `source` in the repository is never on disk and never applied — its context
+goes unvalidated and its replacements are skipped. Pull a component at the root where its
+`.graft.yaml` lives, not at a subfolder beneath it.
+
 ## Config-to-CLI Conversion
 
 Convert any YAML config to a shareable CLI command:
