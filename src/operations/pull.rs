@@ -629,6 +629,9 @@ fn execute_single_pull(
         source_path
     };
 
+    // Validate .graft.yaml context from the source, before reset deletes the target.
+    validate_graft_context(system, config, pull, &source_path)?;
+
     // Copy files
     let files_copied = copy_files(
         system,
@@ -686,6 +689,45 @@ fn build_graft_context(
     // A more sophisticated approach would cache parsed .graft.yaml files
     // and inherit context from parent grafts
     base_context.clone()
+}
+
+/// Validates the context every `.graft.yaml` beneath `source_path` requires, before the target is
+/// touched. Reads only, so a local source — where `source_path` is the user's own directory rather
+/// than a checkout — is left unchanged.
+fn validate_graft_context(
+    system: &dyn System,
+    config: &Config,
+    pull: &PullConfig,
+    source_path: &Path,
+) -> Result<()> {
+    if !system.is_dir(source_path)? {
+        return Ok(());
+    }
+
+    let discovered_grafts = discover_graft_files(system, source_path)
+        .context("Failed to discover .graft.yaml files")?;
+
+    let base_context = merge_context_values(config.context.clone(), pull.context.clone());
+
+    for discovered in &discovered_grafts {
+        let graft_config =
+            GraftConfig::load_from_file(system, &discovered.path).with_context(|| {
+                format!(
+                    "Failed to load .graft.yaml from: {}",
+                    discovered.path.display()
+                )
+            })?;
+
+        if graft_config.context.is_empty() {
+            continue;
+        }
+
+        let graft_context = build_graft_context(discovered, &base_context);
+        ValidatedContext::new(graft_config.context, graft_context)
+            .context("Context validation failed")?;
+    }
+
+    Ok(())
 }
 
 /// Process all .graft.yaml files in the target directory.

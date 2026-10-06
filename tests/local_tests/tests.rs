@@ -610,3 +610,57 @@ fn local_graft_yaml_value_from_context_default() {
     let content = fs::read_to_string(temp_dir.path().join("pm/vigil.toml")).unwrap();
     assert_eq!(content.trim(), r#"extends = ["document_reviewer"]"#);
 }
+
+fn write_required_context_template(root: &Path) -> PathBuf {
+    let tmpl = root.join("tmpl/component");
+    fs::create_dir_all(&tmpl).unwrap();
+    fs::write(
+        tmpl.join(".graft.yaml"),
+        r#"context:
+  - name: foo
+    description: "required value"
+    dataType: string
+replacements:
+  - source: "{{FOO}}"
+    valueFromContext: foo
+"#,
+    )
+    .unwrap();
+    fs::write(tmpl.join("file.md"), "top={{FOO}}\n").unwrap();
+    root.join("tmpl").canonicalize().unwrap()
+}
+
+#[test]
+fn reset_keeps_the_target_when_required_context_is_missing() {
+    let temp_dir = TempDir::new().unwrap();
+    let tmpl_root = write_required_context_template(temp_dir.path());
+
+    let pull = |context: Option<&str>| {
+        let mut cmd = Command::cargo_bin("tixgraft").unwrap();
+        cmd.current_dir(temp_dir.path())
+            .arg("--repository")
+            .arg(format!("file:{}", tmpl_root.display()))
+            .arg("--pull-source")
+            .arg("component")
+            .arg("--pull-target")
+            .arg("./out")
+            .arg("--pull-type")
+            .arg("directory")
+            .arg("--pull-reset")
+            .arg("true");
+        if let Some(values) = context {
+            cmd.arg("--context").arg(values);
+        }
+        cmd
+    };
+
+    pull(Some("foo=good")).assert().success();
+
+    let good = temp_dir.path().join("out/file.md");
+    assert_eq!(fs::read_to_string(&good).unwrap().trim(), "top=good");
+
+    pull(None).assert().failure();
+
+    assert_eq!(fs::read_to_string(&good).unwrap().trim(), "top=good");
+    assert!(!temp_dir.path().join("out/.graft.yaml").exists());
+}
