@@ -299,12 +299,11 @@ impl<'de> Deserialize<'de> for PostCommand {
                     let args = obj
                         .get("args")
                         .and_then(|val| val.as_array())
-                        .map(|arr| {
+                        .map_or_default(|arr| {
                             arr.iter()
                                 .filter_map(|val| val.as_str().map(ToOwned::to_owned))
                                 .collect()
-                        })
-                        .unwrap_or_default();
+                        });
 
                     let cwd = obj
                         .get("cwd")
@@ -341,12 +340,11 @@ impl<'de> Deserialize<'de> for PostCommand {
             let args = obj
                 .get("args")
                 .and_then(|val| val.as_array())
-                .map(|arr| {
+                .map_or_default(|arr| {
                     arr.iter()
                         .filter_map(|val| val.as_str().map(ToOwned::to_owned))
                         .collect()
-                })
-                .unwrap_or_default();
+                });
 
             let cwd = obj
                 .get("cwd")

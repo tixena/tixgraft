@@ -798,9 +798,8 @@ fn process_graft_files(
                 total_replacements += replacements;
             }
         } else {
-            let validated =
-                ValidatedContext::new(graft_config.context.clone(), graft_context.clone())
-                    .context("Context validation failed")?;
+            let validated = ValidatedContext::new(graft_config.context.clone(), graft_context)
+                .context("Context validation failed")?;
 
             debug!(
                 "Validated context for .graft.yaml at: {}",
