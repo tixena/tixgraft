@@ -46,9 +46,6 @@ dirs = "7"
 # Regex for text replacement
 regex = "1.13.1"
 
-# Progress indicators
-indicatif = "0.18"
-
 # Logging and tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
