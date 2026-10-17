@@ -1,15 +1,26 @@
-//! Git sparse checkout implementation.
+//! Git path-scoped checkout implementation, backed by libgit2.
 
 use crate::error::GraftError;
 use crate::git::Repository;
 use anyhow::{Context as _, Result};
 use core::fmt::Write as _;
+use core::sync::atomic::{AtomicUsize, Ordering};
+use git2::build::CheckoutBuilder;
+use git2::{
+    Config as GitConfig, Cred, CredentialType, Direction, Error as GitError, FetchOptions, Oid,
+    Remote, RemoteCallbacks, RemoteHead, Repository as GitRepository, Version,
+};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use tempfile::TempDir;
 use tracing::debug;
 
-/// Performs sparse checkout of a specific path from a Git repository.
+/// Ceiling on credential callback re-entry, so a rejected key cannot spin forever.
+const MAX_CREDENTIAL_ATTEMPTS: usize = 4;
+
+/// Local ref the requested reference is fetched into, whatever its kind upstream.
+const FETCHED_REF: &str = "refs/tixgraft/fetched";
+
+/// Performs a path-scoped checkout of a specific path from a Git repository.
 #[non_exhaustive]
 pub struct SparseCheckout {
     /// Git reference (tag/branch) to checkout.
@@ -23,103 +34,152 @@ pub struct SparseCheckout {
 }
 
 impl SparseCheckout {
-    /// Checkout the specified reference.
-    fn checkout_reference(&self, repo_path: &Path) -> Result<()> {
-        debug!(
-            "checkout_reference -> Checking out reference: {}",
-            self.reference
-        );
-        let output = Command::new("git")
-            .args(["checkout", &self.reference])
-            .current_dir(repo_path)
-            .output()
-            .context("Failed to execute git checkout")?;
-
-        if !output.status.success() {
-            debug!("checkout_reference -> Failed to checkout reference");
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GraftError::git(format!(
-                "Failed to checkout reference '{}': {}",
-                self.reference,
-                stderr.trim()
-            ))
-            .into());
-        }
-
-        debug!("checkout_reference -> Reference checked out successfully");
-
-        Ok(())
-    }
-
-    /// Clone the repository with blob filter and no checkout.
-    fn clone_repository(&self, repo_path: &Path) -> Result<()> {
-        let output = Command::new("git")
-            .args([
-                "clone",
-                "--filter=blob:none",
-                "--no-checkout",
-                self.repository.git_url()?,
-                repo_path.to_str().ok_or_else(|| {
-                    anyhow::anyhow!("Failed to convert repository path to string")
-                })?,
-            ])
-            .output()
-            .context("Failed to execute git clone command")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GraftError::git(format!(
-                "Failed to clone repository '{}': {}",
+    /// Write only `source_path` out of `commit_id` into the working tree.
+    fn checkout_source_path(&self, repo: &GitRepository, commit_id: Oid) -> Result<()> {
+        let commit = repo.find_commit(commit_id).map_err(|err| {
+            GraftError::git(format!(
+                "Failed to read commit {commit_id} from '{}': {}",
                 self.repository.original_url(),
-                stderr.trim()
+                err.message()
             ))
-            .into());
-        }
+        })?;
+
+        let mut checkout = CheckoutBuilder::new();
+        checkout.force();
+        // A directory source needs the trailing glob; a file source matches on its own.
+        checkout.path(&self.source_path);
+        checkout.path(format!("{}/*", self.source_path));
+
+        repo.checkout_tree(commit.as_object(), Some(&mut checkout))
+            .map_err(|err| {
+                GraftError::git(format!(
+                    "Failed to check out '{}' at reference '{}': {}",
+                    self.source_path,
+                    self.reference,
+                    err.message()
+                ))
+            })?;
+
+        repo.set_head_detached(commit_id).map_err(|err| {
+            GraftError::git(format!(
+                "Failed to point HEAD at {commit_id}: {}",
+                err.message()
+            ))
+        })?;
 
         Ok(())
     }
 
-    /// Execute the sparse checkout operation.
+    /// Execute the path-scoped checkout operation.
     ///
     /// # Errors
     ///
     /// Returns an error if:
-    /// - The repository cannot be cloned
-    /// - The sparse checkout cannot be initialized
-    /// - The sparse checkout patterns cannot be set
-    /// - The reference cannot be checked out
+    /// - The temporary repository cannot be initialized
+    /// - The repository cannot be reached or authenticated against
+    /// - The reference cannot be resolved to a commit
+    /// - The requested path cannot be checked out
     #[inline]
     pub fn execute(&self) -> Result<PathBuf> {
         let repo_path = self.temp_dir.path();
 
-        debug!("Executing sparse checkout operation: {repo_path:?}");
-        // Step 1: Clone with filter and no checkout
-        self.clone_repository(repo_path)?;
+        debug!("Executing path-scoped checkout operation: {repo_path:?}");
 
-        debug!("Repository cloned");
-        debug!("Initializing sparse checkout");
+        let repo = GitRepository::init(repo_path).map_err(|err| {
+            GraftError::git(format!(
+                "Failed to initialize temporary repository at {}: {}",
+                repo_path.display(),
+                err.message()
+            ))
+        })?;
 
-        // Step 2: Initialize sparse checkout
-        Self::init_sparse_checkout(repo_path)?;
+        debug!("Temporary repository initialized, fetching reference");
 
-        debug!("Sparse checkout initialized");
-        debug!("Setting sparse checkout patterns");
+        let commit_id = self.fetch_commit(&repo)?;
 
-        // Step 3: Set sparse checkout patterns
-        self.set_sparse_patterns(repo_path)?;
+        debug!("Reference resolved to {commit_id}, checking out requested path");
 
-        debug!("Sparse checkout patterns set");
-        debug!("Checking out reference");
+        self.checkout_source_path(&repo, commit_id)?;
 
-        // Step 4: Checkout the specified reference
-        self.checkout_reference(repo_path)?;
-
-        debug!("Reference checked out");
         let result_path = repo_path.join(&self.source_path);
         debug!("Returning path to checked out source: {result_path:?}");
 
-        // Return the path to the checked out source
         Ok(result_path)
+    }
+
+    /// Fetch the requested reference and return the commit it points at.
+    fn fetch_commit(&self, repo: &GitRepository) -> Result<Oid> {
+        let url = self.repository.git_url()?;
+        let mut remote = repo.remote_anonymous(url).map_err(|err| {
+            GraftError::git(format!(
+                "Failed to address repository '{}': {}",
+                self.repository.original_url(),
+                err.message()
+            ))
+        })?;
+
+        let refspec = self.resolve_refspec(&mut remote)?;
+
+        let mut options = FetchOptions::new();
+        options.remote_callbacks(remote_callbacks());
+
+        if let Some(spec) = refspec {
+            // A known branch or tag needs only its own tip.
+            options.depth(1_i32);
+            remote
+                .fetch(&[spec], Some(&mut options), None)
+                .map_err(|err| self.fetch_error(&err))?;
+
+            let commit = repo
+                .find_reference(FETCHED_REF)
+                .and_then(|reference| reference.peel_to_commit())
+                .map_err(|err| {
+                    GraftError::git(format!(
+                        "Failed to resolve reference '{}' after fetch: {}",
+                        self.reference,
+                        err.message()
+                    ))
+                })?;
+
+            Ok(commit.id())
+        } else {
+            // Neither a branch nor a tag, so it may be a commit id or a revision
+            // expression; those need real history to resolve against.
+            remote
+                .fetch(
+                    &[
+                        "+refs/heads/*:refs/remotes/origin/*",
+                        "+refs/tags/*:refs/tags/*",
+                    ],
+                    Some(&mut options),
+                    None,
+                )
+                .map_err(|err| self.fetch_error(&err))?;
+
+            let commit = repo
+                .revparse_single(&self.reference)
+                .and_then(|object| object.peel_to_commit())
+                .map_err(|err| {
+                    GraftError::git(format!(
+                        "Failed to resolve reference '{}' in repository '{}': {}",
+                        self.reference,
+                        self.repository.original_url(),
+                        err.message()
+                    ))
+                })?;
+
+            Ok(commit.id())
+        }
+    }
+
+    /// Describe a failed fetch against this repository.
+    fn fetch_error(&self, err: &GitError) -> GraftError {
+        GraftError::git(format!(
+            "Failed to fetch '{}' from repository '{}': {}",
+            self.reference,
+            self.repository.original_url(),
+            err.message()
+        ))
     }
 
     /// Get diagnostic information about what was actually checked out.
@@ -137,7 +197,7 @@ impl SparseCheckout {
 
         writeln!(
             diagnostics,
-            "Sparse checkout diagnostics:\n  Repository: {}\n  Reference: {}\n  Requested path: {}\n",
+            "Checkout diagnostics:\n  Repository: {}\n  Reference: {}\n  Requested path: {}\n",
             self.repository.original_url(),
             self.reference,
             self.source_path
@@ -169,41 +229,14 @@ impl SparseCheckout {
             writeln!(diagnostics, "    (unable to read directory)")?;
         }
 
-        // Check sparse-checkout configuration
-        let sparse_config = repo_path.join(".git/info/sparse-checkout");
-        if sparse_config.exists()
-            && let Ok(config_content) = fs::read_to_string(&sparse_config)
-        {
-            diagnostics.push_str("  Sparse-checkout patterns:\n");
-            for line in config_content.lines() {
-                writeln!(diagnostics, "    {line}")?;
-            }
-        }
+        diagnostics.push_str("  Checkout path filter:\n");
+        writeln!(diagnostics, "    {}", self.source_path)?;
+        writeln!(diagnostics, "    {}/*", self.source_path)?;
 
         Ok(diagnostics)
     }
 
-    /// Initialize sparse checkout configuration.
-    fn init_sparse_checkout(repo_path: &Path) -> Result<()> {
-        let output = Command::new("git")
-            .args(["sparse-checkout", "init", "--cone"])
-            .current_dir(repo_path)
-            .output()
-            .context("Failed to execute git sparse-checkout init")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GraftError::git(format!(
-                "Failed to initialize sparse checkout: {}",
-                stderr.trim()
-            ))
-            .into());
-        }
-
-        Ok(())
-    }
-
-    /// Create a new sparse checkout operation.
+    /// Create a new path-scoped checkout operation.
     ///
     /// # Errors
     ///
@@ -222,24 +255,37 @@ impl SparseCheckout {
         })
     }
 
-    /// Set sparse checkout patterns.
-    fn set_sparse_patterns(&self, repo_path: &Path) -> Result<()> {
-        let output = Command::new("git")
-            .args(["sparse-checkout", "set", &self.source_path])
-            .current_dir(repo_path)
-            .output()
-            .context("Failed to execute git sparse-checkout set")?;
+    /// Find the refspec that fetches the requested reference, if the remote publishes
+    /// it as a branch or a tag.
+    fn resolve_refspec(&self, remote: &mut Remote<'_>) -> Result<Option<String>> {
+        let connection = remote
+            .connect_auth(Direction::Fetch, Some(remote_callbacks()), None)
+            .map_err(|err| {
+                GraftError::git(format!(
+                    "Failed to connect to repository '{}': {}",
+                    self.repository.original_url(),
+                    err.message()
+                ))
+            })?;
 
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(GraftError::git(format!(
-                "Failed to set sparse checkout patterns: {}",
-                stderr.trim()
+        let heads = connection.list().map_err(|err| {
+            GraftError::git(format!(
+                "Failed to list references of repository '{}': {}",
+                self.repository.original_url(),
+                err.message()
             ))
-            .into());
-        }
+        })?;
 
-        Ok(())
+        let branch_ref = format!("refs/heads/{}", self.reference);
+        let tag_ref = format!("refs/tags/{}", self.reference);
+
+        let refspec = heads
+            .iter()
+            .map(RemoteHead::name)
+            .find(|name| *name == branch_ref || *name == tag_ref)
+            .map(|name| format!("+{name}:{FETCHED_REF}"));
+
+        Ok(refspec)
     }
 
     /// Check if the source path exists after checkout.
@@ -257,68 +303,60 @@ impl SparseCheckout {
     }
 }
 
-/// Check if Git is available and meets minimum version requirements.
+/// Check that the linked libgit2 carries the transports remote pulls need.
 ///
 /// # Errors
 ///
 /// Returns an error if:
-/// - The Git command is not found
-/// - The Git command failed to execute properly
-/// - The Git version is too old
+/// - libgit2 was built without HTTPS support
+/// - libgit2 was built without SSH support
 #[inline]
-pub fn check_git_availability() -> Result<()> {
-    let output = Command::new("git")
-        .args(["--version"])
-        .output()
-        .context("Git command not found. Please ensure Git is installed and available in PATH")?;
+pub fn check_git_support() -> Result<()> {
+    let version = Version::get();
 
-    if !output.status.success() {
-        return Err(GraftError::git("Git command failed to execute properly".to_owned()).into());
+    if !version.https() {
+        return Err(GraftError::git(
+            "The linked libgit2 has no HTTPS support, so https:// repositories cannot be fetched"
+                .to_owned(),
+        )
+        .into());
     }
 
-    let version_output = String::from_utf8_lossy(&output.stdout);
-
-    // Extract version number and check if it meets requirements
-    // Git sparse-checkout --cone requires Git 2.25+
-    if let Some(version_part) = version_output.split_whitespace().nth(2)
-        && let Ok(version) = parse_git_version(version_part)
-        && version < (2, 25, 0)
-    {
-        return Err(GraftError::git(format!(
-                    "Git version {version_part} is too old. TixGraft requires Git 2.25.0 or later for sparse checkout support"
-                )).into());
+    if !version.ssh() {
+        return Err(GraftError::git(
+            "The linked libgit2 has no SSH support, so git@ repositories cannot be fetched"
+                .to_owned(),
+        )
+        .into());
     }
 
     Ok(())
 }
 
-/// Parse Git version string into tuple (major, minor, patch).
+/// Build the callbacks libgit2 uses to authenticate against a remote.
 ///
-/// # Errors
-///
-/// Returns an error if:
-/// - The version string is invalid
-#[inline]
-pub fn parse_git_version(version: &str) -> Result<(u32, u32, u32)> {
-    let parts: Vec<&str> = version.split('.').collect();
-    if parts.len() >= 3 {
-        let major = parts
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("Missing major version"))?
-            .parse()
-            .context("Invalid major version")?;
-        let minor = parts
-            .get(1)
-            .ok_or_else(|| anyhow::anyhow!("Missing minor version"))?
-            .parse()
-            .context("Invalid minor version")?;
-        let patch = parts
-            .get(2)
-            .ok_or_else(|| anyhow::anyhow!("Missing patch version"))?
-            .parse()
-            .context("Invalid patch version")?;
-        Ok((major, minor, patch))
-    } else {
-        Err(anyhow::anyhow!("Invalid version format"))
-    }
+/// SSH keys come from the agent and HTTPS credentials from the configured git
+/// credential helper, so tixgraft honours whatever the user already set up.
+fn remote_callbacks() -> RemoteCallbacks<'static> {
+    let attempts = AtomicUsize::new(0);
+    let mut callbacks = RemoteCallbacks::new();
+
+    callbacks.credentials(move |url, username_from_url, allowed| {
+        if attempts.fetch_add(1, Ordering::Relaxed) >= MAX_CREDENTIAL_ATTEMPTS {
+            return Err(GitError::from_str(
+                "every available credential was rejected by the remote",
+            ));
+        }
+
+        if allowed.contains(CredentialType::SSH_KEY) {
+            Cred::ssh_key_from_agent(username_from_url.unwrap_or("git"))
+        } else if allowed.contains(CredentialType::USER_PASS_PLAINTEXT) {
+            let config = GitConfig::open_default()?;
+            Cred::credential_helper(&config, url, username_from_url)
+        } else {
+            Cred::default()
+        }
+    });
+
+    callbacks
 }

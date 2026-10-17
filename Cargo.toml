@@ -27,7 +27,8 @@ jsonschema = "0.59.0"
 serde_json = "1"
 
 # Git operations
-git2 = "0.21.0"
+# ssh/https are opt-in from git2 0.21 onward; both transports are required.
+git2 = { version = "0.21.0", features = ["ssh", "https"] }
 
 # System abstraction (filesystem, env, temp dirs)
 os-shim = { git = "https://github.com/tixena/os-shim.git" }

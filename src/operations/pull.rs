@@ -6,18 +6,18 @@ use crate::config::context::{ContextValues, ValidatedContext, merge_context_valu
 use crate::config::graft_yaml::GraftConfig;
 use crate::config::validation::validate_config_with_base_dir;
 use crate::error::GraftError;
-use crate::git::{Repository, SparseCheckout, check_git_availability, is_local_source};
+use crate::git::{Repository, SparseCheckout, check_git_support, is_local_source};
 use crate::operations::discovery::{DiscoveredGraft, cleanup_graft_files, discover_graft_files};
 use crate::operations::post_commands::execute_post_commands;
 use crate::operations::{
     apply_graft_replacements, apply_replacements, copy_files, execute_commands,
 };
 use anyhow::{Context as _, Result};
+use git2::{Repository as GitRepository, Status, StatusOptions, StatusShow};
 use os_shim::System;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use tracing::{debug, info, warn};
 
 /// Max nesting depth for children configs.
@@ -127,7 +127,7 @@ impl<'src> PullOperation<'src> {
 
         if needs_git {
             // Only check Git availability if we have at least one Git-based pull
-            check_git_availability().context("Git validation failed")?;
+            check_git_support().context("Git validation failed")?;
         }
 
         Ok(PullOperation {
@@ -1073,8 +1073,8 @@ pub fn build_merged_config(args: &Args, system: &dyn System) -> Result<Config> {
 
 /// Check that the target path has no uncommitted git changes.
 ///
-/// Silently passes if the target does not exist, is not inside a git
-/// repository, or if the `git` binary is not available.
+/// Silently passes if the target does not exist or is not inside a git
+/// repository with a working tree.
 ///
 /// # Errors
 ///
@@ -1091,10 +1091,9 @@ fn check_target_is_clean(target: &str) -> Result<()> {
         return Ok(());
     }
 
-    // Run git status scoped to the target path.
-    // Use -C to run git from the target's parent directory so that it
-    // finds the correct repository when the target is outside process cwd.
-    let git_dir = if target_path.is_dir() {
+    // Discover from the target itself when it is a directory, otherwise from its
+    // parent, so the right repository is found even outside the process cwd.
+    let search_from = if target_path.is_dir() {
         target_path.to_path_buf()
     } else {
         target_path
@@ -1102,30 +1101,58 @@ fn check_target_is_clean(target: &str) -> Result<()> {
             .unwrap_or_else(|| Path::new("."))
             .to_path_buf()
     };
-    let Ok(output) = Command::new("git")
-        .arg("-C")
-        .arg(&git_dir)
-        .args(["status", "--porcelain", "--", target])
-        .output()
-    else {
+
+    let Ok(repository) = GitRepository::discover(&search_from) else {
         debug!(
-            "Could not run git status for target '{}', skipping clean check",
+            "Target '{}' is not inside a git repository, skipping clean check",
             target
         );
         return Ok(());
     };
 
-    if !output.status.success() {
-        // git status failed — likely not a git repository
+    let Some(workdir) = repository.workdir() else {
         debug!(
-            "git status failed for target '{}' (not a git repo?), skipping clean check",
+            "Repository holding '{}' has no working tree, skipping clean check",
             target
         );
         return Ok(());
+    };
+
+    let Some(pathspec) = relative_pathspec(target_path, workdir) else {
+        debug!(
+            "Could not place target '{}' inside its repository, skipping clean check",
+            target
+        );
+        return Ok(());
+    };
+
+    let mut options = StatusOptions::new();
+    options
+        .show(StatusShow::IndexAndWorkdir)
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false);
+    if !pathspec.is_empty() {
+        options.pathspec(&pathspec);
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let dirty_files: Vec<&str> = stdout.lines().filter(|line| !line.is_empty()).collect();
+    let Ok(statuses) = repository.statuses(Some(&mut options)) else {
+        debug!(
+            "Could not read git status for target '{}', skipping clean check",
+            target
+        );
+        return Ok(());
+    };
+
+    let dirty_files: Vec<String> = statuses
+        .iter()
+        .filter_map(|entry| {
+            entry
+                .path()
+                .ok()
+                .map(|path| format!("{} {path}", status_code(entry.status())))
+        })
+        .collect();
 
     if dirty_files.is_empty() {
         return Ok(());
@@ -1155,4 +1182,31 @@ fn check_target_is_clean(target: &str) -> Result<()> {
          Dirty files:\n{file_list}{extra}"
     ))
     .into())
+}
+
+/// Express `target` relative to the repository working tree, for use as a status
+/// pathspec. An empty string means the target is the working tree root.
+fn relative_pathspec(target: &Path, workdir: &Path) -> Option<String> {
+    let absolute_target = target.canonicalize().ok()?;
+    let absolute_workdir = workdir.canonicalize().ok()?;
+    let relative = absolute_target.strip_prefix(&absolute_workdir).ok()?;
+
+    relative.to_str().map(ToOwned::to_owned)
+}
+
+/// Render a status flag set the way `git status --porcelain` labels it.
+fn status_code(status: Status) -> &'static str {
+    if status.is_wt_new() {
+        "??"
+    } else if status.is_index_new() {
+        "A "
+    } else if status.is_wt_deleted() || status.is_index_deleted() {
+        " D"
+    } else if status.is_wt_renamed() || status.is_index_renamed() {
+        "R "
+    } else if status.is_index_modified() {
+        "M "
+    } else {
+        " M"
+    }
 }
