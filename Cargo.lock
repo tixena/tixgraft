@@ -1277,7 +1277,8 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "os-shim"
 version = "0.1.0"
-source = "git+https://github.com/tixena/os-shim.git#239c861a9160f3abcd4267da74217c6066f701a9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e5f5f1a1899ba7779ea2c2ef842ab787b779b17129c7bb4f319f1eb4f7d06ff"
 dependencies = [
  "ignore",
  "tempfile",
