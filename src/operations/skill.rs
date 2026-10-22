@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use include_dir::{Dir, include_dir};
 
 use crate::error::GraftError;
-use os_shim::System;
+use os_shim::{System, WriteMode};
 
 /// Embedded skill directory included at compile time.
 static SKILL_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skills/tixgraft");
@@ -163,9 +163,11 @@ fn write_embedded_files(system: &dyn System, base: &Path, dir: &Dir<'_>) -> Resu
                 .create_dir_all(parent)
                 .map_err(|err| GraftError::skill(format!("Failed to create directory: {err}")))?;
         }
-        system.write(&target_path, file.contents()).map_err(|err| {
-            GraftError::skill(format!("Failed to write {}: {err}", target_path.display()))
-        })?;
+        system
+            .write(&target_path, file.contents(), WriteMode::Replace)
+            .map_err(|err| {
+                GraftError::skill(format!("Failed to write {}: {err}", target_path.display()))
+            })?;
     }
 
     for sub_dir in dir.dirs() {

@@ -1,6 +1,7 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::System as _;
+use os_shim::WriteMode;
 use os_shim::mock::MemorySystem;
 use std::path::Path;
 use tixgraft::operations::skill::{SkillStatus, skill_check, skill_install, skill_uninstall};
@@ -88,7 +89,11 @@ fn check_outdated_content_differs() {
 
     // Modify the installed file
     system
-        .write(&skill_dir().join("SKILL.md"), b"modified content")
+        .write(
+            &skill_dir().join("SKILL.md"),
+            b"modified content",
+            WriteMode::Replace,
+        )
         .unwrap();
 
     let status = skill_check(&system, skill_dir()).unwrap();
@@ -103,7 +108,11 @@ fn check_outdated_extra_file() {
 
     // Add an extra file that is not in the embedded content
     system
-        .write(&skill_dir().join("extra.md"), b"this should not be here")
+        .write(
+            &skill_dir().join("extra.md"),
+            b"this should not be here",
+            WriteMode::Replace,
+        )
         .unwrap();
 
     let status = skill_check(&system, skill_dir()).unwrap();

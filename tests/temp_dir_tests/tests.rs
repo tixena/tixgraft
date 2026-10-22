@@ -1,6 +1,7 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::System as _;
+use os_shim::WriteMode;
 use os_shim::mock::MemorySystem;
 
 #[test]
@@ -16,7 +17,9 @@ fn mock_temp_dir_creation() {
 
     // Create a file in the temp directory
     let file_path = temp_path.join("test.txt");
-    system.write(&file_path, b"test content").unwrap();
+    system
+        .write(&file_path, b"test content", WriteMode::Replace)
+        .unwrap();
     assert!(system.exists(&file_path).unwrap());
 }
 
@@ -28,8 +31,12 @@ fn mock_temp_dir_cleanup_on_drop() {
         let path = temp_dir.path().to_path_buf();
 
         // Create files in the temp directory
-        system.write(&path.join("file1.txt"), b"content1").unwrap();
-        system.write(&path.join("file2.txt"), b"content2").unwrap();
+        system
+            .write(&path.join("file1.txt"), b"content1", WriteMode::Replace)
+            .unwrap();
+        system
+            .write(&path.join("file2.txt"), b"content2", WriteMode::Replace)
+            .unwrap();
 
         // Verify files exist
         assert!(system.exists(&path.join("file1.txt")).unwrap());
@@ -74,7 +81,11 @@ fn temp_dir_with_subdirectories() {
     let subdir = temp_path.join("subdir");
     system.create_dir_all(&subdir).unwrap();
     system
-        .write(&subdir.join("nested.txt"), b"nested content")
+        .write(
+            &subdir.join("nested.txt"),
+            b"nested content",
+            WriteMode::Replace,
+        )
         .unwrap();
 
     assert!(system.exists(&subdir).unwrap());

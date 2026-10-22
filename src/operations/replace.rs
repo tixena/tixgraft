@@ -6,7 +6,7 @@ use crate::config::graft_yaml::GraftReplacement;
 use crate::error::GraftError;
 use crate::utils::fs::is_binary_file;
 use anyhow::{Context as _, Result};
-use os_shim::System;
+use os_shim::{System, WriteMode};
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use tracing::debug;
@@ -326,7 +326,7 @@ fn apply_replacement_to_file(
     // Only write if content actually changed
     if new_content != content {
         system
-            .write(file_path, new_content.as_bytes())
+            .write(file_path, new_content.as_bytes(), WriteMode::Replace)
             .with_context(|| {
                 format!(
                     "Failed to write file after text replacement: {}",
@@ -366,7 +366,11 @@ fn apply_regex_to_file(
     // Only write if content actually changed
     if new_content != content {
         system
-            .write(file_path, new_content.as_ref().as_bytes())
+            .write(
+                file_path,
+                new_content.as_ref().as_bytes(),
+                WriteMode::Replace,
+            )
             .with_context(|| {
                 format!(
                     "Failed to write file after regex replacement: {}",
