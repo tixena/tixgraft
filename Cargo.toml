@@ -31,7 +31,11 @@ serde_json = "1"
 git2 = { version = "0.21.0", features = ["ssh", "https"] }
 
 # System abstraction (filesystem, env, temp dirs)
-os-shim = "0.1.2"
+os-shim = "0.3"
+
+# Waits on os-shim's futures and streams from synchronous code
+pollster = "1.0.1"
+futures-util = { version = "0.3.34", default-features = false, features = ["io", "std"] }
 
 # File system and path operations
 tempfile = "3"

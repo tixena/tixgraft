@@ -6,7 +6,9 @@ use crate::config::graft_yaml::GraftReplacement;
 use crate::error::GraftError;
 use crate::utils::fs::is_binary_file;
 use anyhow::{Context as _, Result};
-use os_shim::{System, WriteMode};
+use os_shim::System;
+use os_shim::bucket::Condition;
+use pollster::FutureExt as _;
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use tracing::debug;
@@ -41,7 +43,7 @@ pub fn apply_replacements(
     }
 
     let target_path = Path::new(target_dir);
-    if !system.exists(target_path)? {
+    if !system.exists(target_path).block_on()? {
         return Err(GraftError::filesystem(format!(
             "Target directory does not exist: {target_dir}"
         ))
@@ -80,7 +82,7 @@ pub fn apply_graft_replacements(
     }
 
     let target_path = Path::new(target_dir);
-    if !system.exists(target_path)? {
+    if !system.exists(target_path).block_on()? {
         return Err(GraftError::filesystem(format!(
             "Target directory does not exist: {target_dir}"
         ))
@@ -118,11 +120,11 @@ pub fn apply_regex_replacement(
 
     let mut files_processed: usize = 0;
 
-    if system.is_file(target_path)? {
+    if system.is_file(target_path).block_on()? {
         if apply_regex_to_file(system, target_path, &regex, replacement)? {
             files_processed = files_processed.saturating_add(1);
         }
-    } else if system.is_dir(target_path)? {
+    } else if system.is_dir(target_path).block_on()? {
         files_processed = files_processed.saturating_add(walk_and_apply_regex(
             system,
             target_path,
@@ -151,12 +153,12 @@ pub fn apply_single_replacement(
 ) -> Result<usize> {
     let mut files_processed: usize = 0;
 
-    if system.is_file(target_path)? {
+    if system.is_file(target_path).block_on()? {
         // Single file case
         if apply_replacement_to_file(system, target_path, search_pattern, replacement_value)? {
             files_processed = files_processed.saturating_add(1);
         }
-    } else if system.is_dir(target_path)? {
+    } else if system.is_dir(target_path).block_on()? {
         // Directory case - recursively walk all files using System trait
         files_processed = files_processed.saturating_add(walk_and_apply(
             system,
@@ -308,12 +310,15 @@ fn apply_replacement_to_file(
     }
 
     // Read file content
-    let content = system.read_to_string(file_path).with_context(|| {
-        format!(
-            "Failed to read file for text replacement: {}",
-            file_path.display()
-        )
-    })?;
+    let content = system
+        .read_to_string(file_path)
+        .block_on()
+        .with_context(|| {
+            format!(
+                "Failed to read file for text replacement: {}",
+                file_path.display()
+            )
+        })?;
 
     // Check if the search pattern exists
     if !content.contains(search_pattern) {
@@ -326,7 +331,8 @@ fn apply_replacement_to_file(
     // Only write if content actually changed
     if new_content != content {
         system
-            .write(file_path, new_content.as_bytes(), WriteMode::Replace)
+            .write(file_path, new_content.as_bytes(), Condition::None)
+            .block_on()
             .with_context(|| {
                 format!(
                     "Failed to write file after text replacement: {}",
@@ -353,12 +359,15 @@ fn apply_regex_to_file(
     }
 
     // Read file content
-    let content = system.read_to_string(file_path).with_context(|| {
-        format!(
-            "Failed to read file for regex replacement: {}",
-            file_path.display()
-        )
-    })?;
+    let content = system
+        .read_to_string(file_path)
+        .block_on()
+        .with_context(|| {
+            format!(
+                "Failed to read file for regex replacement: {}",
+                file_path.display()
+            )
+        })?;
 
     // Apply regex replacement
     let new_content = regex.replace_all(&content, replacement);
@@ -366,11 +375,8 @@ fn apply_regex_to_file(
     // Only write if content actually changed
     if new_content != content {
         system
-            .write(
-                file_path,
-                new_content.as_ref().as_bytes(),
-                WriteMode::Replace,
-            )
+            .write(file_path, new_content.as_ref().as_bytes(), Condition::None)
+            .block_on()
             .with_context(|| {
                 format!(
                     "Failed to write file after regex replacement: {}",
@@ -391,12 +397,15 @@ fn file_contains_pattern(system: &dyn System, file_path: &Path, pattern: &str) -
         return Ok(false);
     }
 
-    let content = system.read_to_string(file_path).with_context(|| {
-        format!(
-            "Failed to read file for pattern check: {}",
-            file_path.display()
-        )
-    })?;
+    let content = system
+        .read_to_string(file_path)
+        .block_on()
+        .with_context(|| {
+            format!(
+                "Failed to read file for pattern check: {}",
+                file_path.display()
+            )
+        })?;
 
     Ok(content.contains(pattern))
 }
@@ -409,11 +418,11 @@ fn find_files_with_pattern(
 ) -> Result<Vec<PathBuf>> {
     let mut matching_files = Vec::new();
 
-    if system.is_file(target_path)? {
+    if system.is_file(target_path).block_on()? {
         if file_contains_pattern(system, target_path, pattern)? {
             matching_files.push(target_path.to_path_buf());
         }
-    } else if system.is_dir(target_path)? {
+    } else if system.is_dir(target_path).block_on()? {
         find_files_recursive(system, target_path, pattern, &mut matching_files)?;
     } else {
         debug!("Skipping file: {}", target_path.display());
@@ -431,12 +440,15 @@ fn find_files_recursive(
 ) -> Result<()> {
     let entries = system
         .read_dir(dir_path)
+        .block_on()
         .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
 
     for entry_path in entries {
-        if system.is_file(&entry_path)? && file_contains_pattern(system, &entry_path, pattern)? {
+        if system.is_file(&entry_path).block_on()?
+            && file_contains_pattern(system, &entry_path, pattern)?
+        {
             matching_files.push(entry_path);
-        } else if system.is_dir(&entry_path)? {
+        } else if system.is_dir(&entry_path).block_on()? {
             find_files_recursive(system, &entry_path, pattern, matching_files)?;
         } else {
             debug!("Skipping directory: {}", entry_path.display());
@@ -457,14 +469,15 @@ fn walk_and_apply(
 
     let entries = system
         .read_dir(dir_path)
+        .block_on()
         .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
 
     for entry_path in entries {
-        if system.is_file(&entry_path)? {
+        if system.is_file(&entry_path).block_on()? {
             if apply_replacement_to_file(system, &entry_path, search_pattern, replacement_value)? {
                 files_processed = files_processed.saturating_add(1);
             }
-        } else if system.is_dir(&entry_path)? {
+        } else if system.is_dir(&entry_path).block_on()? {
             // Recursively process subdirectories
             files_processed = files_processed.saturating_add(walk_and_apply(
                 system,
@@ -491,14 +504,15 @@ fn walk_and_apply_regex(
 
     let entries = system
         .read_dir(dir_path)
+        .block_on()
         .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
 
     for entry_path in entries {
-        if system.is_file(&entry_path)? {
+        if system.is_file(&entry_path).block_on()? {
             if apply_regex_to_file(system, &entry_path, regex, replacement)? {
                 files_processed = files_processed.saturating_add(1);
             }
-        } else if system.is_dir(&entry_path)? {
+        } else if system.is_dir(&entry_path).block_on()? {
             files_processed = files_processed.saturating_add(walk_and_apply_regex(
                 system,
                 &entry_path,

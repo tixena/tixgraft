@@ -1,6 +1,7 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::{System as _, mock::MemorySystem};
+use pollster::FutureExt as _;
 use std::path::Path;
 use tixgraft::utils::fs::{
     copy_file_with_progress, create_parent_directories, ensure_dir_exists, format_file_size,
@@ -43,7 +44,12 @@ fn create_parent_directories_tst() {
     let nested_file = Path::new("/test/a/b/c/file.txt");
 
     create_parent_directories(&system, nested_file).unwrap();
-    assert!(system.exists(nested_file.parent().unwrap()).unwrap());
+    assert!(
+        system
+            .exists(nested_file.parent().unwrap())
+            .block_on()
+            .unwrap()
+    );
 }
 
 #[test]
@@ -74,9 +80,9 @@ fn remove_dir_safe_tst() {
         .with_file("/test/mydir/file.txt", b"data")
         .unwrap();
 
-    assert!(system.exists(Path::new("/test/mydir")).unwrap());
+    assert!(system.exists(Path::new("/test/mydir")).block_on().unwrap());
     remove_dir_safe(&system, Path::new("/test/mydir")).unwrap();
-    assert!(!system.exists(Path::new("/test/mydir")).unwrap());
+    assert!(!system.exists(Path::new("/test/mydir")).block_on().unwrap());
 
     // Removing non-existent dir is a no-op
     remove_dir_safe(&system, Path::new("/test/nonexistent")).unwrap();
@@ -101,7 +107,7 @@ fn ensure_dir_exists_tst() {
 
     // Creates new directory
     ensure_dir_exists(&system, Path::new("/test/newdir")).unwrap();
-    assert!(system.exists(Path::new("/test/newdir")).unwrap());
+    assert!(system.exists(Path::new("/test/newdir")).block_on().unwrap());
 
     // Already exists as dir — no error
     ensure_dir_exists(&system, Path::new("/test/newdir")).unwrap();
@@ -130,7 +136,12 @@ fn copy_file_with_progress_tst() {
 
     assert!(result.is_ok());
     assert!(result.unwrap() > 0);
-    assert!(system.exists(Path::new("/dst/file.txt")).unwrap());
+    assert!(
+        system
+            .exists(Path::new("/dst/file.txt"))
+            .block_on()
+            .unwrap()
+    );
 }
 
 #[test]
@@ -173,5 +184,10 @@ fn create_parent_directories_already_exists() {
 
     // Should be a no-op when parent already exists
     create_parent_directories(&system, Path::new("/test/existing/file.txt")).unwrap();
-    assert!(system.exists(Path::new("/test/existing")).unwrap());
+    assert!(
+        system
+            .exists(Path::new("/test/existing"))
+            .block_on()
+            .unwrap()
+    );
 }

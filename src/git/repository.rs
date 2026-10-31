@@ -3,6 +3,7 @@
 use crate::error::GraftError;
 use anyhow::Result;
 use os_shim::System;
+use pollster::FutureExt as _;
 use std::path::{Path, PathBuf};
 
 /// Represents a repository source - either Git or local filesystem.
@@ -195,7 +196,7 @@ fn create_local_source(
     };
 
     // Verify the path exists
-    if !system.exists(&resolved_path)? {
+    if !system.exists(&resolved_path).block_on()? {
         return Err(GraftError::from_source(format!(
             "Local repository path does not exist: '{}'",
             resolved_path.display()
@@ -204,7 +205,7 @@ fn create_local_source(
     }
 
     // Verify it's a directory
-    if !system.is_dir(&resolved_path)? {
+    if !system.is_dir(&resolved_path).block_on()? {
         return Err(GraftError::from_source(format!(
             "Local repository path is not a directory: '{}'",
             resolved_path.display()

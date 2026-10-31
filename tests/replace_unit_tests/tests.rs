@@ -6,6 +6,7 @@
 
 use os_shim::System as _;
 use os_shim::mock::MemorySystem;
+use pollster::FutureExt as _;
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
@@ -38,7 +39,10 @@ fn apply_simple_replacement() {
     result.unwrap();
 
     // Verify replacement was applied
-    let content = system.read_to_string(Path::new("/test.txt")).unwrap();
+    let content = system
+        .read_to_string(Path::new("/test.txt"))
+        .block_on()
+        .unwrap();
     assert!(content.contains("Hello Alice"));
     assert!(content.contains("{{PLACE}}"));
 }
@@ -127,7 +131,10 @@ fn apply_graft_replacements_tst() {
     let result = apply_graft_replacements(&system, "/test", &replacements, &context);
     result.unwrap();
 
-    let content_2 = system.read_to_string(Path::new("/test/test.txt")).unwrap();
+    let content_2 = system
+        .read_to_string(Path::new("/test/test.txt"))
+        .block_on()
+        .unwrap();
     assert_eq!(content_2, "Hello Alice, value is 42!");
 }
 
@@ -167,7 +174,10 @@ fn apply_replacements_multiple() {
     let count = apply_replacements(&system, "/test", &replacements).unwrap();
     assert_eq!(count, 2);
 
-    let content = system.read_to_string(Path::new("/test/file.txt")).unwrap();
+    let content = system
+        .read_to_string(Path::new("/test/file.txt"))
+        .block_on()
+        .unwrap();
     assert_eq!(content, "Hello Alice from Earth");
 }
 
@@ -186,7 +196,10 @@ fn apply_regex_replacement_on_file() {
     .unwrap();
 
     assert_eq!(count, 1);
-    let content = system.read_to_string(Path::new("/test/file.txt")).unwrap();
+    let content = system
+        .read_to_string(Path::new("/test/file.txt"))
+        .block_on()
+        .unwrap();
     assert_eq!(content, "version = 2.0.0");
 }
 
@@ -204,11 +217,17 @@ fn apply_regex_replacement_on_directory() {
 
     assert_eq!(count, 2);
     assert_eq!(
-        system.read_to_string(Path::new("/test/a.txt")).unwrap(),
+        system
+            .read_to_string(Path::new("/test/a.txt"))
+            .block_on()
+            .unwrap(),
         "bar"
     );
     assert_eq!(
-        system.read_to_string(Path::new("/test/b.txt")).unwrap(),
+        system
+            .read_to_string(Path::new("/test/b.txt"))
+            .block_on()
+            .unwrap(),
         "bar"
     );
 }
@@ -349,12 +368,14 @@ fn apply_replacements_in_subdirectories() {
     assert!(
         system
             .read_to_string(Path::new("/test/a.txt"))
+            .block_on()
             .unwrap()
             .contains("REPLACED")
     );
     assert!(
         system
             .read_to_string(Path::new("/test/sub/b.txt"))
+            .block_on()
             .unwrap()
             .contains("REPLACED")
     );

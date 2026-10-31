@@ -19,6 +19,7 @@
 //! of `.graft.yaml` files themselves.
 
 use anyhow::{Context as _, Result};
+use pollster::FutureExt as _;
 use std::{
     ffi::OsStr,
     path::{Path, PathBuf},
@@ -88,14 +89,14 @@ pub fn discover_graft_files(
     system: &dyn System,
     target_dir: &Path,
 ) -> Result<Vec<DiscoveredGraft>> {
-    if !system.exists(target_dir)? {
+    if !system.exists(target_dir).block_on()? {
         return Err(anyhow::anyhow!(
             "Target directory does not exist: {}",
             target_dir.display()
         ));
     }
 
-    if !system.is_dir(target_dir)? {
+    if !system.is_dir(target_dir).block_on()? {
         return Err(anyhow::anyhow!(
             "Target path is not a directory: {}",
             target_dir.display()
@@ -103,16 +104,20 @@ pub fn discover_graft_files(
     }
 
     let mut discoveries = Vec::new();
-    let relative_target_dir = system.canonicalize(target_dir).with_context(|| {
-        format!(
-            "Failed to canonicalize target directory: {}",
-            target_dir.display()
-        )
-    })?;
+    let relative_target_dir = system
+        .canonicalize(target_dir)
+        .block_on()
+        .with_context(|| {
+            format!(
+                "Failed to canonicalize target directory: {}",
+                target_dir.display()
+            )
+        })?;
 
     // Walk directory tree and find all .graft.yaml files using System abstraction
     let entries = system
         .walk_dir(&relative_target_dir, false, true)
+        .block_on()
         .with_context(|| {
             format!(
                 "Failed to walk directory: {}",
@@ -188,13 +193,16 @@ pub fn cleanup_graft_files(system: &dyn System, target_dir: &Path) -> Result<usi
     let mut deleted_count: usize = 0;
 
     for graft in grafts {
-        if system.exists(&graft.path)? {
-            system.remove_file(&graft.path).with_context(|| {
-                format!(
-                    "Failed to delete .graft.yaml file: {}",
-                    graft.path.display()
-                )
-            })?;
+        if system.exists(&graft.path).block_on()? {
+            system
+                .remove_file(&graft.path)
+                .block_on()
+                .with_context(|| {
+                    format!(
+                        "Failed to delete .graft.yaml file: {}",
+                        graft.path.display()
+                    )
+                })?;
             deleted_count = deleted_count.saturating_add(1);
         }
     }

@@ -5,6 +5,7 @@
 )]
 
 use os_shim::{System as _, mock::MemorySystem};
+use pollster::FutureExt as _;
 use std::path::Path;
 use tixgraft::operations::discovery::{cleanup_graft_files, discover_graft_files};
 
@@ -70,10 +71,16 @@ fn cleanup_graft_files_tst() {
         .unwrap();
 
     // Verify files exist
-    assert!(system.exists(Path::new("/test/.graft.yaml")).unwrap());
+    assert!(
+        system
+            .exists(Path::new("/test/.graft.yaml"))
+            .block_on()
+            .unwrap()
+    );
     assert!(
         system
             .exists(Path::new("/test/nested/.graft.yaml"))
+            .block_on()
             .unwrap()
     );
 
@@ -82,10 +89,16 @@ fn cleanup_graft_files_tst() {
     assert_eq!(deleted, 2);
 
     // Verify files are gone
-    assert!(!system.exists(Path::new("/test/.graft.yaml")).unwrap());
+    assert!(
+        !system
+            .exists(Path::new("/test/.graft.yaml"))
+            .block_on()
+            .unwrap()
+    );
     assert!(
         !system
             .exists(Path::new("/test/nested/.graft.yaml"))
+            .block_on()
             .unwrap()
     );
 }

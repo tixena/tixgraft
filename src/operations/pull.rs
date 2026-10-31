@@ -15,6 +15,7 @@ use crate::operations::{
 use anyhow::{Context as _, Result};
 use git2::{Repository as GitRepository, Status, StatusOptions, StatusShow};
 use os_shim::System;
+use pollster::FutureExt as _;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -700,7 +701,7 @@ fn validate_graft_context(
     pull: &PullConfig,
     source_path: &Path,
 ) -> Result<()> {
-    if !system.is_dir(source_path)? {
+    if !system.is_dir(source_path).block_on()? {
         return Ok(());
     }
 
@@ -743,7 +744,7 @@ fn process_graft_files(
     let target_path = Path::new(&pull.target);
 
     // Check if target exists and is a directory
-    if !system.exists(target_path)? || !system.is_dir(target_path)? {
+    if !system.exists(target_path).block_on()? || !system.is_dir(target_path).block_on()? {
         // Target doesn't exist or isn't a directory, no graft files to process
         return Ok(GraftProcessingResult::default());
     }

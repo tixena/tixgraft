@@ -4,6 +4,7 @@ use crate::error::GraftError;
 use crate::utils::fs::create_parent_directories;
 use anyhow::{Context as _, Result};
 use os_shim::System;
+use pollster::FutureExt as _;
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
@@ -29,7 +30,7 @@ pub fn copy_files(
     debug!("Copying files from {source:?} to {target_path:?}");
 
     // Validate source exists
-    if !system.exists(source)? {
+    if !system.exists(source).block_on()? {
         debug!("Source path does not exist: {source:?}");
         return Err(GraftError::from_source(format!(
             "Source path does not exist: {}",
@@ -39,9 +40,10 @@ pub fn copy_files(
     }
 
     // Reset target if requested and it's a directory operation
-    if reset && pull_type == "directory" && system.exists(&target_path)? {
+    if reset && pull_type == "directory" && system.exists(&target_path).block_on()? {
         system
             .remove_dir_all(&target_path)
+            .block_on()
             .context("Failed to reset target directory")?;
     }
 
@@ -67,7 +69,7 @@ pub fn copy_files(
 #[inline]
 pub fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<usize> {
     // Validate source is actually a file
-    if !system.is_file(source)? {
+    if !system.is_file(source).block_on()? {
         return Err(
             GraftError::from_source(format!("Source is not a file: {}", source.display())).into(),
         );
@@ -78,7 +80,7 @@ pub fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<us
         .context("Failed to create parent directories for target file")?;
 
     // Copy the file
-    system.copy(source, target).with_context(|| {
+    system.copy(source, target).block_on().with_context(|| {
         format!(
             "Failed to copy file from {} to {}",
             source.display(),
@@ -101,7 +103,7 @@ pub fn copy_file(system: &dyn System, source: &Path, target: &Path) -> Result<us
 #[inline]
 pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Result<usize> {
     // Validate source is actually a directory
-    if !system.is_dir(source)? {
+    if !system.is_dir(source).block_on()? {
         return Err(GraftError::from_source(format!(
             "Source is not a directory: {}",
             source.display()
@@ -110,17 +112,25 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
     }
 
     // Create target directory
-    if !system.exists(target)? {
+    if !system.exists(target).block_on()? {
         system
             .create_dir_all(target)
+            .block_on()
             .with_context(|| format!("Failed to create target directory: {}", target.display()))?;
     }
 
     let mut files_copied: usize = 0;
 
+    // walk_dir answers with absolute paths, whatever form `source` takes.
+    let walk_root = system
+        .current_dir()
+        .context("Failed to get current directory")?
+        .join(source);
+
     // Walk through source directory using System abstraction
     let entries = system
         .walk_dir(source, false, true)
+        .block_on()
         .with_context(|| format!("Failed to walk directory: {}", source.display()))?;
 
     for entry in entries {
@@ -128,36 +138,42 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
 
         // Calculate relative path from source root
         let relative_path = source_path
-            .strip_prefix(source)
+            .strip_prefix(&walk_root)
             .context("Failed to calculate relative path")?;
 
         let target_path = target.join(relative_path);
 
         if entry.is_dir {
             // Create directory
-            if !system.exists(&target_path)? {
-                system.create_dir_all(&target_path).with_context(|| {
-                    format!("Failed to create directory: {}", target_path.display())
-                })?;
+            if !system.exists(&target_path).block_on()? {
+                system
+                    .create_dir_all(&target_path)
+                    .block_on()
+                    .with_context(|| {
+                        format!("Failed to create directory: {}", target_path.display())
+                    })?;
             }
         } else if entry.is_file {
             // Create parent directories if needed
             if let Some(parent) = target_path.parent()
-                && !system.exists(parent)?
+                && !system.exists(parent).block_on()?
             {
-                system.create_dir_all(parent).with_context(|| {
+                system.create_dir_all(parent).block_on().with_context(|| {
                     format!("Failed to create parent directory: {}", parent.display())
                 })?;
             }
 
             // Copy file
-            system.copy(source_path, &target_path).with_context(|| {
-                format!(
-                    "Failed to copy file from {} to {}",
-                    source_path.display(),
-                    target_path.display()
-                )
-            })?;
+            system
+                .copy(source_path, &target_path)
+                .block_on()
+                .with_context(|| {
+                    format!(
+                        "Failed to copy file from {} to {}",
+                        source_path.display(),
+                        target_path.display()
+                    )
+                })?;
 
             files_copied = files_copied.saturating_add(1);
         } else {
@@ -189,19 +205,20 @@ pub fn copy_directory(system: &dyn System, source: &Path, target: &Path) -> Resu
 pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) -> Result<u64> {
     match pull_type {
         "file" => {
-            if system.is_file(source)? {
-                Ok(system.metadata(source)?.len)
+            if system.is_file(source).block_on()? {
+                Ok(system.metadata(source).block_on()?.len)
             } else {
                 Ok(0)
             }
         }
         "directory" => {
             let mut total_size: u64 = 0;
-            if system.is_dir(source)? {
-                let entries = system.walk_dir(source, false, true)?;
+            if system.is_dir(source).block_on()? {
+                let entries = system.walk_dir(source, false, true).block_on()?;
                 for entry in entries {
                     if entry.is_file {
-                        total_size = total_size.saturating_add(system.metadata(&entry.path)?.len);
+                        total_size =
+                            total_size.saturating_add(system.metadata(&entry.path).block_on()?.len);
                     }
                 }
             }
@@ -222,7 +239,7 @@ pub fn calculate_copy_size(system: &dyn System, source: &Path, pull_type: &str) 
 pub fn count_files_to_copy(system: &dyn System, source: &Path, pull_type: &str) -> Result<usize> {
     match pull_type {
         "file" => {
-            if system.is_file(source)? {
+            if system.is_file(source).block_on()? {
                 Ok(1)
             } else {
                 Ok(0)
@@ -230,8 +247,8 @@ pub fn count_files_to_copy(system: &dyn System, source: &Path, pull_type: &str) 
         }
         "directory" => {
             let mut file_count: usize = 0;
-            if system.is_dir(source)? {
-                let entries = system.walk_dir(source, false, true)?;
+            if system.is_dir(source).block_on()? {
+                let entries = system.walk_dir(source, false, true).block_on()?;
                 for entry in entries {
                     if entry.is_file {
                         file_count = file_count.saturating_add(1);

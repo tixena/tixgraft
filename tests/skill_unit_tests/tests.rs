@@ -1,8 +1,9 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::System as _;
-use os_shim::WriteMode;
+use os_shim::bucket::Condition;
 use os_shim::mock::MemorySystem;
+use pollster::FutureExt as _;
 use std::path::Path;
 use tixgraft::operations::skill::{SkillStatus, skill_check, skill_install, skill_uninstall};
 
@@ -18,10 +19,10 @@ fn install_creates_files() {
 
     // SKILL.md must exist
     let skill_md = skill_dir().join("SKILL.md");
-    assert!(system.exists(&skill_md).unwrap());
+    assert!(system.exists(&skill_md).block_on().unwrap());
 
     // Content should not be empty
-    let content = system.read_to_string(&skill_md).unwrap();
+    let content = system.read_to_string(&skill_md).block_on().unwrap();
     assert!(content.contains("tixgraft"));
 }
 
@@ -37,6 +38,7 @@ fn install_overwrites_existing() {
 
     let content = system
         .read_to_string(&skill_dir().join("SKILL.md"))
+        .block_on()
         .unwrap();
     assert_ne!(content, "old content");
     assert!(content.contains("tixgraft"));
@@ -47,11 +49,11 @@ fn uninstall_removes_directory() {
     let system = MemorySystem::new();
     skill_install(&system, skill_dir()).unwrap();
 
-    assert!(system.exists(skill_dir()).unwrap());
+    assert!(system.exists(skill_dir()).block_on().unwrap());
 
     skill_uninstall(&system, skill_dir()).unwrap();
 
-    assert!(!system.exists(skill_dir()).unwrap());
+    assert!(!system.exists(skill_dir()).block_on().unwrap());
 }
 
 #[test]
@@ -92,8 +94,9 @@ fn check_outdated_content_differs() {
         .write(
             &skill_dir().join("SKILL.md"),
             b"modified content",
-            WriteMode::Replace,
+            Condition::None,
         )
+        .block_on()
         .unwrap();
 
     let status = skill_check(&system, skill_dir()).unwrap();
@@ -111,8 +114,9 @@ fn check_outdated_extra_file() {
         .write(
             &skill_dir().join("extra.md"),
             b"this should not be here",
-            WriteMode::Replace,
+            Condition::None,
         )
+        .block_on()
         .unwrap();
 
     let status = skill_check(&system, skill_dir()).unwrap();
@@ -128,4 +132,18 @@ fn check_outdated_missing_file() {
     // Directory exists but SKILL.md is missing
     let status = skill_check(&system, skill_dir()).unwrap();
     assert_eq!(status, SkillStatus::Outdated);
+}
+
+#[test]
+fn check_up_to_date_relative_target() {
+    let system = MemorySystem::new()
+        .with_dir("/project")
+        .unwrap()
+        .with_current_dir("/project")
+        .unwrap();
+    let target = Path::new(".claude/skills/tixgraft");
+
+    skill_install(&system, target).unwrap();
+
+    assert_eq!(skill_check(&system, target).unwrap(), SkillStatus::UpToDate);
 }

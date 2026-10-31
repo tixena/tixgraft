@@ -7,6 +7,7 @@ use crate::config::context::{ContextDataType, ContextPropertyDefinition};
 use crate::error::GraftError;
 use anyhow::{Context as _, Result};
 use os_shim::System;
+use pollster::FutureExt as _;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::Path;
@@ -155,7 +156,7 @@ impl GraftConfig {
     /// - The `.graft.yaml` configuration is invalid
     #[inline]
     pub fn load_from_file(system: &dyn System, path: &Path) -> Result<Self> {
-        if !system.exists(path)? {
+        if !system.exists(path).block_on()? {
             return Err(GraftError::configuration(format!(
                 ".graft.yaml not found: {}",
                 path.display()
@@ -165,6 +166,7 @@ impl GraftConfig {
 
         let content = system
             .read_to_string(path)
+            .block_on()
             .with_context(|| format!("Failed to read .graft.yaml file: {}", path.display()))?;
 
         Self::load_from_string(&content)

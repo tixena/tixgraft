@@ -1,6 +1,7 @@
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::{System as _, mock::MemorySystem};
+use pollster::FutureExt as _;
 use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
@@ -71,6 +72,7 @@ replacements:
     // Verify result
     let result = system
         .read_to_string(Path::new("/target/config.txt"))
+        .block_on()
         .unwrap();
     assert_eq!(result, "Project: MyApp\nVersion: 1.0.0");
 }
@@ -153,6 +155,7 @@ replacements:
 
     let result = system
         .read_to_string(Path::new("/target/file.txt"))
+        .block_on()
         .unwrap();
     assert_eq!(result, "Port: 8080\nEnabled: true");
 }
@@ -204,6 +207,7 @@ replacements:
 
     let result = system
         .read_to_string(Path::new("/target/file.txt"))
+        .block_on()
         .unwrap();
     assert!(result.contains("api"));
     assert!(result.contains("8080"));
@@ -260,6 +264,7 @@ replacements:
 
     let result = system
         .read_to_string(Path::new("/target/file.txt"))
+        .block_on()
         .unwrap();
     assert_eq!(result, "Name: MyApp\nVersion: 1.0.0");
 }
@@ -416,6 +421,7 @@ replacements:
 
     let result = system
         .read_to_string(Path::new("/target/file.txt"))
+        .block_on()
         .unwrap();
     assert_eq!(result, "Context: FromContext\nStatic: StaticValue");
 }

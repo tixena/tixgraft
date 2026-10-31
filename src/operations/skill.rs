@@ -3,15 +3,18 @@
 //! Handles installing, uninstalling, and testing the tixgraft Claude Code skill.
 //! The skill content is embedded in the binary at compile time from the `skills/tixgraft/` directory.
 
+use futures_util::AsyncReadExt as _;
+use pollster::FutureExt as _;
 use std::collections::HashSet;
 use std::env;
-use std::io::{Read as _, stdin};
+use std::io::stdin;
 use std::path::{Path, PathBuf};
 
 use include_dir::{Dir, include_dir};
 
 use crate::error::GraftError;
-use os_shim::{System, WriteMode};
+use os_shim::System;
+use os_shim::bucket::Condition;
 
 /// Embedded skill directory included at compile time.
 static SKILL_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skills/tixgraft");
@@ -62,6 +65,7 @@ pub fn resolve_skill_path(global: bool) -> Result<PathBuf, GraftError> {
 pub fn skill_install(system: &dyn System, target_dir: &Path) -> Result<(), GraftError> {
     system
         .create_dir_all(target_dir)
+        .block_on()
         .map_err(|err| GraftError::skill(format!("Failed to create directory: {err}")))?;
 
     write_embedded_files(system, target_dir, &SKILL_DIR)?;
@@ -81,11 +85,13 @@ pub fn skill_install(system: &dyn System, target_dir: &Path) -> Result<(), Graft
 pub fn skill_uninstall(system: &dyn System, target_dir: &Path) -> Result<(), GraftError> {
     let exists = system
         .exists(target_dir)
+        .block_on()
         .map_err(|err| GraftError::skill(format!("Failed to check directory: {err}")))?;
 
     if exists {
         system
             .remove_dir_all(target_dir)
+            .block_on()
             .map_err(|err| GraftError::skill(format!("Failed to remove directory: {err}")))?;
         eprintln!("Skill uninstalled from {}", target_dir.display());
     } else {
@@ -107,6 +113,7 @@ pub fn skill_uninstall(system: &dyn System, target_dir: &Path) -> Result<(), Gra
 pub fn skill_check(system: &dyn System, target_dir: &Path) -> Result<SkillStatus, GraftError> {
     let exists = system
         .exists(target_dir)
+        .block_on()
         .map_err(|err| GraftError::skill(format!("Failed to check directory: {err}")))?;
 
     if !exists {
@@ -123,7 +130,12 @@ pub fn skill_check(system: &dyn System, target_dir: &Path) -> Result<SkillStatus
     }
 
     // Check for extra files in the installed directory
-    let installed_paths = collect_installed_paths(system, target_dir, target_dir)?;
+    // read_dir answers with absolute paths, whatever form `target_dir` takes.
+    let installed_root = system
+        .current_dir()
+        .map_err(|err| GraftError::skill(format!("Could not determine current directory: {err}")))?
+        .join(target_dir);
+    let installed_paths = collect_installed_paths(system, &installed_root, &installed_root)?;
     if installed_paths != embedded_paths {
         return Ok(SkillStatus::Outdated);
     }
@@ -161,10 +173,12 @@ fn write_embedded_files(system: &dyn System, base: &Path, dir: &Dir<'_>) -> Resu
         if let Some(parent) = target_path.parent() {
             system
                 .create_dir_all(parent)
+                .block_on()
                 .map_err(|err| GraftError::skill(format!("Failed to create directory: {err}")))?;
         }
         system
-            .write(&target_path, file.contents(), WriteMode::Replace)
+            .write(&target_path, file.contents(), Condition::None)
+            .block_on()
             .map_err(|err| {
                 GraftError::skill(format!("Failed to write {}: {err}", target_path.display()))
             })?;
@@ -197,6 +211,7 @@ fn embedded_files_match(
         let installed_path = base.join(file.path());
         let exists = system
             .exists(&installed_path)
+            .block_on()
             .map_err(|err| GraftError::skill(format!("Failed to check file: {err}")))?;
         if !exists {
             return Ok(false);
@@ -205,6 +220,7 @@ fn embedded_files_match(
         let mut installed_bytes = Vec::new();
         system
             .open(&installed_path)
+            .block_on()
             .map_err(|err| {
                 GraftError::skill(format!(
                     "Failed to open {}: {err}",
@@ -212,6 +228,7 @@ fn embedded_files_match(
                 ))
             })?
             .read_to_end(&mut installed_bytes)
+            .block_on()
             .map_err(|err| {
                 GraftError::skill(format!(
                     "Failed to read {}: {err}",
@@ -243,11 +260,13 @@ fn collect_installed_paths(
 
     let entries = system
         .read_dir(current)
+        .block_on()
         .map_err(|err| GraftError::skill(format!("Failed to read directory: {err}")))?;
 
     for entry in entries {
         let is_dir = system
             .is_dir(&entry)
+            .block_on()
             .map_err(|err| GraftError::skill(format!("Failed to check entry: {err}")))?;
 
         if is_dir {

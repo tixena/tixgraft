@@ -1,8 +1,10 @@
 //! File system utilities.
 
 use anyhow::{Context as _, Result};
+use futures_util::{AsyncReadExt as _, AsyncWriteExt as _};
 use os_shim::System;
-use std::io::{self, Read as _, Write as _};
+use os_shim::error::{ErrorKind, StorageError};
+use pollster::FutureExt as _;
 use std::path::Path;
 use tracing::debug;
 
@@ -79,9 +81,9 @@ const TEXT_EXTENSIONS: &[&str] = &[
 #[inline]
 pub fn create_parent_directories(system: &dyn System, file_path: &Path) -> Result<()> {
     if let Some(parent) = file_path.parent()
-        && !system.exists(parent)?
+        && !system.exists(parent).block_on()?
     {
-        system.create_dir_all(parent).with_context(|| {
+        system.create_dir_all(parent).block_on().with_context(|| {
             format!(
                 "Failed to create parent directories for: {}",
                 file_path.display()
@@ -105,7 +107,7 @@ pub fn create_parent_directories(system: &dyn System, file_path: &Path) -> Resul
 #[inline]
 pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
     // If it's a directory, it's not a binary file
-    if !system.is_file(file_path)? {
+    if !system.is_file(file_path).block_on()? {
         return Ok(false);
     }
 
@@ -120,11 +122,13 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
     // Fallback: check file content
     let mut file = system
         .open(file_path)
+        .block_on()
         .with_context(|| format!("Failed to open file: {}", file_path.display()))?;
 
     let mut buffer = vec![0; 8192];
     let bytes_read = file
         .read(&mut buffer)
+        .block_on()
         .with_context(|| format!("Failed to read from file: {}", file_path.display()))?;
 
     if bytes_read == 0 {
@@ -158,6 +162,7 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
 pub fn get_file_size(system: &dyn System, file_path: &Path) -> Result<u64> {
     let metadata = system
         .metadata(file_path)
+        .block_on()
         .with_context(|| format!("Failed to get metadata for: {}", file_path.display()))?;
     Ok(metadata.len)
 }
@@ -174,12 +179,13 @@ pub fn get_file_size(system: &dyn System, file_path: &Path) -> Result<u64> {
 /// - The directory cannot be read
 #[inline]
 pub fn is_directory_empty(system: &dyn System, dir_path: &Path) -> Result<bool> {
-    if !system.is_dir(dir_path)? {
+    if !system.is_dir(dir_path).block_on()? {
         return Ok(false);
     }
 
     let entries = system
         .read_dir(dir_path)
+        .block_on()
         .with_context(|| format!("Failed to read directory: {}", dir_path.display()))?;
 
     Ok(entries.is_empty())
@@ -193,9 +199,10 @@ pub fn is_directory_empty(system: &dyn System, dir_path: &Path) -> Result<bool> 
 /// - The directory cannot be removed
 #[inline]
 pub fn remove_dir_safe(system: &dyn System, dir_path: &Path) -> Result<()> {
-    if system.exists(dir_path)? && system.is_dir(dir_path)? {
+    if system.exists(dir_path).block_on()? && system.is_dir(dir_path).block_on()? {
         system
             .remove_dir_all(dir_path)
+            .block_on()
             .with_context(|| format!("Failed to remove directory: {}", dir_path.display()))?;
     }
     Ok(())
@@ -209,7 +216,7 @@ pub fn remove_dir_safe(system: &dyn System, dir_path: &Path) -> Result<()> {
 /// - The source file cannot be opened
 /// - The target file cannot be created
 /// - The source file cannot be read
-/// - The target file cannot be written
+/// - The target file cannot be written or closed
 #[inline]
 #[expect(clippy::as_conversions, reason = "This is usize to u64 conversion")]
 pub fn copy_file_with_progress<F>(
@@ -224,11 +231,13 @@ where
     let source_size = get_file_size(system, source)?;
     let mut source_file = system
         .open(source)
+        .block_on()
         .with_context(|| format!("Failed to open source file: {}", source.display()))?;
 
     create_parent_directories(system, target)?;
     let mut target_file = system
         .create(target)
+        .block_on()
         .with_context(|| format!("Failed to create target file: {}", target.display()))?;
 
     let mut buffer = vec![0; 64 * 1024]; // 64KB buffer
@@ -237,6 +246,7 @@ where
     loop {
         let bytes_read = source_file
             .read(&mut buffer)
+            .block_on()
             .with_context(|| "Failed to read from source file")?;
 
         if bytes_read == 0 {
@@ -246,11 +256,17 @@ where
         let write_slice = buffer.get(..bytes_read).unwrap_or(&buffer);
         target_file
             .write_all(write_slice)
+            .block_on()
             .with_context(|| "Failed to write to target file")?;
 
         total_copied = total_copied.saturating_add(bytes_read as u64);
         progress_callback(total_copied, source_size);
     }
+
+    target_file
+        .close()
+        .block_on()
+        .with_context(|| format!("Failed to close target file: {}", target.display()))?;
 
     Ok(total_copied)
 }
@@ -303,9 +319,11 @@ pub fn format_file_size(bytes: u64) -> String {
 pub fn paths_are_same(system: &dyn System, path1: &Path, path2: &Path) -> Result<bool> {
     let canonical1 = system
         .canonicalize(path1)
+        .block_on()
         .with_context(|| format!("Failed to canonicalize path: {}", path1.display()))?;
     let canonical2 = system
         .canonicalize(path2)
+        .block_on()
         .with_context(|| format!("Failed to canonicalize path: {}", path2.display()))?;
 
     Ok(canonical1 == canonical2)
@@ -334,13 +352,14 @@ pub fn create_temp_dir(prefix: &str) -> Result<tempfile::TempDir> {
 /// - The directory is not a directory
 #[inline]
 pub fn ensure_dir_exists(system: &dyn System, dir_path: &Path) -> Result<()> {
-    if !system.exists(dir_path)? {
+    if !system.exists(dir_path).block_on()? {
         system
             .create_dir_all(dir_path)
+            .block_on()
             .with_context(|| format!("Failed to create directory: {}", dir_path.display()))?;
-    } else if !system.is_dir(dir_path)? {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
+    } else if !system.is_dir(dir_path).block_on()? {
+        return Err(StorageError::new(
+            ErrorKind::AlreadyExists,
             format!("Path exists but is not a directory: {}", dir_path.display()),
         )
         .into());

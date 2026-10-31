@@ -4,6 +4,7 @@ use crate::config::schema::validate_against_schema;
 use crate::config::{Config, validation::validate_config_with_base_dir};
 use anyhow::{Context as _, Result, anyhow};
 use os_shim::System;
+use pollster::FutureExt as _;
 use std::path::Path;
 
 /// Load and parse YAML configuration from file.
@@ -20,7 +21,7 @@ pub fn load_config(system: &dyn System, path: &str) -> Result<Config> {
     let path_obj = Path::new(path);
 
     // Check if file exists using System trait
-    if !system.exists(path_obj)? {
+    if !system.exists(path_obj).block_on()? {
         return Err(anyhow!(
             "Configuration file not found: {path}\n\
             Create a tixgraft.yaml file or specify a different path with --config"
@@ -30,6 +31,7 @@ pub fn load_config(system: &dyn System, path: &str) -> Result<Config> {
     // Read file contents using System trait
     let content = system
         .read_to_string(path_obj)
+        .block_on()
         .with_context(|| format!("Failed to read configuration file: {path}"))?;
 
     // Parse YAML

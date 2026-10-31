@@ -2,6 +2,7 @@
 
 use os_shim::System as _;
 use os_shim::real::RealSystem;
+use pollster::FutureExt as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -71,7 +72,7 @@ fn serde_explicit_true() {
 #[test]
 fn clean_target_passes() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -109,7 +110,7 @@ fn clean_target_passes() {
 #[test]
 fn dirty_target_fails() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -153,7 +154,7 @@ fn dirty_target_fails() {
 #[test]
 fn dirty_target_passes_when_disabled() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -203,7 +204,7 @@ fn write_dir_config(root: &Path, source: &str, target: &str, extra: &str) -> Pat
 #[test]
 fn reset_true_with_dirty_target_should_fail() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -269,7 +270,7 @@ fn reset_true_with_dirty_target_should_fail() {
 #[test]
 fn reset_true_with_dirty_target_passes_when_clean_check_disabled() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -331,7 +332,7 @@ fn reset_true_with_dirty_target_passes_when_clean_check_disabled() {
 #[test]
 fn reset_true_with_clean_target_should_pass() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -389,7 +390,7 @@ fn reset_true_with_untracked_target_files_should_fail() {
     // 2. User does NOT commit those files
     // 3. Second tixgraft run with reset: true should fail, not silently delete
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -444,7 +445,7 @@ fn reset_true_with_untracked_target_files_should_fail() {
 fn reset_true_with_staged_target_files_should_fail() {
     // Files that are staged (git add) but not committed should also be caught
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -499,7 +500,7 @@ fn reset_true_double_run_without_commit_should_fail() {
     // Expected: error about uncommitted changes
     // Bug: silently deletes and re-pulls
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);
@@ -577,7 +578,7 @@ fn reset_true_double_run_without_commit_should_fail() {
 #[test]
 fn nonexistent_target_passes() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
     let root = temp_dir.path();
 
     git_init(root);

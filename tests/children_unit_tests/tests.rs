@@ -179,7 +179,7 @@ pulls:
 fn validate_children_only() {
     let system = MemorySystem::new()
         .with_file(
-            "./sub/tixgraft.yaml",
+            "/sub/tixgraft.yaml",
             b"pulls:\n  - source: x\n    target: y\n",
         )
         .unwrap();
@@ -198,7 +198,7 @@ children:
 fn validate_both_pulls_and_children() {
     let system = MemorySystem::new()
         .with_file(
-            "./sub/tixgraft.yaml",
+            "/sub/tixgraft.yaml",
             b"pulls:\n  - source: x\n    target: y\n",
         )
         .unwrap();
@@ -318,7 +318,7 @@ children:
 fn validate_child_path_valid() {
     let system = MemorySystem::new()
         .with_file(
-            "./sub/tixgraft.yaml",
+            "/sub/tixgraft.yaml",
             b"children:\n  - ./nested/tixgraft.yaml\n",
         )
         .unwrap();
@@ -337,7 +337,7 @@ children:
 fn validate_child_error_includes_index() {
     let system = MemorySystem::new()
         .with_file(
-            "./good/tixgraft.yaml",
+            "/good/tixgraft.yaml",
             b"pulls:\n  - source: x\n    target: y\n",
         )
         .unwrap();

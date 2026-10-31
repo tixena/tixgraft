@@ -2,6 +2,7 @@
 
 use os_shim::System as _;
 use os_shim::mock::MemorySystem;
+use pollster::FutureExt as _;
 use std::path::Path;
 use tixgraft::operations::copy::{
     calculate_copy_size, copy_directory, copy_file, copy_files, count_files_to_copy,
@@ -24,8 +25,8 @@ fn copy_file_tst() {
     assert_eq!(result.unwrap(), 1);
 
     // Verify target exists and has correct content
-    assert!(system.exists(target_path).unwrap());
-    let content = system.read_to_string(target_path).unwrap();
+    assert!(system.exists(target_path).block_on().unwrap());
+    let content = system.read_to_string(target_path).block_on().unwrap();
     assert_eq!(content.trim(), "test content");
 }
 
@@ -50,8 +51,18 @@ fn copy_directory_tst() {
     assert_eq!(result.unwrap(), 2);
 
     // Verify target structure
-    assert!(system.exists(&target_dir.join("file1.txt")).unwrap());
-    assert!(system.exists(&target_dir.join("subdir/file2.txt")).unwrap());
+    assert!(
+        system
+            .exists(&target_dir.join("file1.txt"))
+            .block_on()
+            .unwrap()
+    );
+    assert!(
+        system
+            .exists(&target_dir.join("subdir/file2.txt"))
+            .block_on()
+            .unwrap()
+    );
 }
 
 #[test]
@@ -71,9 +82,24 @@ fn copy_directory_includes_dotfiles() {
 
     let result = copy_directory(&system, source_dir, target_dir);
     assert_eq!(result.unwrap(), 3);
-    assert!(system.exists(&target_dir.join("visible.txt")).unwrap());
-    assert!(system.exists(&target_dir.join(".graft.yaml")).unwrap());
-    assert!(system.exists(&target_dir.join(".gitignore")).unwrap());
+    assert!(
+        system
+            .exists(&target_dir.join("visible.txt"))
+            .block_on()
+            .unwrap()
+    );
+    assert!(
+        system
+            .exists(&target_dir.join(".graft.yaml"))
+            .block_on()
+            .unwrap()
+    );
+    assert!(
+        system
+            .exists(&target_dir.join(".gitignore"))
+            .block_on()
+            .unwrap()
+    );
     assert_eq!(
         count_files_to_copy(&system, source_dir, "directory").unwrap(),
         3
@@ -132,7 +158,12 @@ fn copy_files_file_type() {
     );
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
-    assert!(system.exists(Path::new("/target/out.txt")).unwrap());
+    assert!(
+        system
+            .exists(Path::new("/target/out.txt"))
+            .block_on()
+            .unwrap()
+    );
 }
 
 #[test]
@@ -149,8 +180,18 @@ fn copy_files_directory_with_reset() {
 
     copy_files(&system, Path::new("/source"), "/target", "directory", true).unwrap();
     // Old file should be gone after reset
-    assert!(!system.exists(Path::new("/target/old.txt")).unwrap());
-    assert!(system.exists(Path::new("/target/a.txt")).unwrap());
+    assert!(
+        !system
+            .exists(Path::new("/target/old.txt"))
+            .block_on()
+            .unwrap()
+    );
+    assert!(
+        system
+            .exists(Path::new("/target/a.txt"))
+            .block_on()
+            .unwrap()
+    );
 }
 
 #[test]
@@ -244,5 +285,25 @@ fn count_files_to_copy_invalid_type() {
     assert_eq!(
         count_files_to_copy(&system, Path::new("/whatever"), "invalid").unwrap(),
         0
+    );
+}
+
+#[test]
+fn copy_directory_relative_source() {
+    let system = MemorySystem::new()
+        .with_file("/project/source/subdir/file.txt", b"content\n")
+        .unwrap()
+        .with_current_dir("/project")
+        .unwrap();
+
+    let copied =
+        copy_directory(&system, Path::new("source"), Path::new("/project/target")).unwrap();
+
+    assert_eq!(copied, 1);
+    assert!(
+        system
+            .exists(Path::new("/project/target/subdir/file.txt"))
+            .block_on()
+            .unwrap()
     );
 }

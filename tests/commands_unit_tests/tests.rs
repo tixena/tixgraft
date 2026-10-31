@@ -10,6 +10,7 @@
 
 use os_shim::System as _;
 use os_shim::real::RealSystem;
+use pollster::FutureExt as _;
 use tixgraft::operations::commands::{
     execute_commands, execute_commands_interactive, validate_commands,
 };
@@ -17,7 +18,7 @@ use tixgraft::operations::commands::{
 #[test]
 fn execute_simple_command() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
 
     // Test a simple echo command
     let commands = vec!["echo 'test' > output.txt".to_owned()];
@@ -67,7 +68,7 @@ fn execute_commands_nonexistent_dir() {
 #[test]
 fn execute_commands_failing_command() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
 
     let commands = vec!["exit 1".to_owned()];
     let result = execute_commands(&commands, temp_dir.path().to_str().unwrap());
@@ -90,7 +91,7 @@ fn execute_commands_interactive_nonexistent_dir() {
 #[test]
 fn execute_commands_interactive_success() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
 
     let commands = vec!["true".to_owned()];
     let result = execute_commands_interactive(&commands, temp_dir.path().to_str().unwrap());
@@ -100,7 +101,7 @@ fn execute_commands_interactive_success() {
 #[test]
 fn execute_commands_interactive_failure() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
 
     let commands = vec!["false".to_owned()];
     execute_commands_interactive(&commands, temp_dir.path().to_str().unwrap()).unwrap_err();
@@ -157,7 +158,7 @@ fn validate_commands_safe_command() {
 #[test]
 fn execute_multiple_commands() {
     let system = RealSystem::new();
-    let temp_dir = system.create_temp_dir().unwrap();
+    let temp_dir = system.create_temp_dir().block_on().unwrap();
 
     let commands = vec![
         "echo 'first' > first.txt".to_owned(),
