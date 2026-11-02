@@ -1312,9 +1312,9 @@ checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.117"
+version = "0.9.118"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b47e7e6bb2c38cd930d25a23b40fa52e068c10e85f3e03a7f5ba5aaca5713695"
+checksum = "19c413d6ec9ebaf5e1c829d355cb3e9f783778d700f135be0921d52fce3c60ae"
 dependencies = [
  "cc",
  "libc",
@@ -1330,9 +1330,9 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "os-shim"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f3a9f54dbf8c7dad7f65ec94a6b31ca852451c9b5bfbad286fb71fc688670ce"
+checksum = "ed815c47685d125278ec30a06c71ed9271d6363ed21459221d395c4ace431144"
 dependencies = [
  "futures-io",
  "ignore",
