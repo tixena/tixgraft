@@ -1,3 +1,7 @@
+//! Tests for `skill_install`, `skill_uninstall` and `skill_check` over `MemorySystem`.
+//!
+//! They cover overwriting, repeated uninstall and each status the check reports.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::System as _;
@@ -17,11 +21,9 @@ fn install_creates_files() {
 
     skill_install(&system, skill_dir()).unwrap();
 
-    // SKILL.md must exist
     let skill_md = skill_dir().join("SKILL.md");
     assert!(system.exists(&skill_md).block_on().unwrap());
 
-    // Content should not be empty
     let content = system.read_to_string(&skill_md).block_on().unwrap();
     assert!(content.contains("tixgraft"));
 }
@@ -60,7 +62,6 @@ fn uninstall_removes_directory() {
 fn uninstall_idempotent() {
     let system = MemorySystem::new();
 
-    // Should not error even if nothing is installed
     let result = skill_uninstall(&system, skill_dir());
     result.unwrap();
 }
@@ -89,7 +90,6 @@ fn check_outdated_content_differs() {
 
     skill_install(&system, skill_dir()).unwrap();
 
-    // Modify the installed file
     system
         .write(
             &skill_dir().join("SKILL.md"),
@@ -109,7 +109,6 @@ fn check_outdated_extra_file() {
 
     skill_install(&system, skill_dir()).unwrap();
 
-    // Add an extra file that is not in the embedded content
     system
         .write(
             &skill_dir().join("extra.md"),
@@ -129,7 +128,6 @@ fn check_outdated_missing_file() {
         .with_dir("/project/.claude/skills/tixgraft")
         .unwrap();
 
-    // Directory exists but SKILL.md is missing
     let status = skill_check(&system, skill_dir()).unwrap();
     assert_eq!(status, SkillStatus::Outdated);
 }

@@ -1,3 +1,7 @@
+//! Tests for `execute_commands`, `execute_commands_interactive` and `validate_commands`.
+//!
+//! They run real shell commands in a temporary directory and check what validation flags.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::indexing_slicing,
@@ -20,18 +24,17 @@ fn execute_simple_command() {
     let system = RealSystem::new();
     let temp_dir = system.create_temp_dir().block_on().unwrap();
 
-    // Test a simple echo command
     let commands = vec!["echo 'test' > output.txt".to_owned()];
 
     let result = execute_commands(&commands, temp_dir.path().to_str().unwrap());
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
 
-    // Verify the output file was created
     let output_file = temp_dir.path().join("output.txt");
     assert!(output_file.exists());
 }
 
+/// A risky command stays valid and carries its potential issues.
 #[test]
 fn command_validation() {
     let commands = vec![
@@ -46,7 +49,7 @@ fn command_validation() {
     assert!(validations[0].is_valid);
     assert_eq!(validations[0].potential_issues, Vec::<String>::new());
 
-    assert!(validations[1].is_valid); // Valid syntax but dangerous
+    assert!(validations[1].is_valid);
     assert_ne!(validations[1].potential_issues, Vec::<String>::new());
 
     assert!(validations[2].is_valid);
@@ -117,11 +120,9 @@ fn validate_commands_empty_command() {
 
 #[test]
 fn validate_commands_destructive_patterns() {
-    // sudo rm
     let validations = validate_commands(&["sudo rm -rf /important".to_owned()]).unwrap();
     assert_ne!(validations[0].potential_issues, Vec::<String>::new());
 
-    // dd
     let validations = validate_commands(&["dd if=/dev/zero of=/dev/sda".to_owned()]).unwrap();
     assert_ne!(validations[0].potential_issues, Vec::<String>::new());
 }

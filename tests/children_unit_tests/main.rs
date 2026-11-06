@@ -1,4 +1,4 @@
-//! Unit tests for children config parsing and validation.
+//! Unit tests for parsing, serializing and validating the `children` config field.
 
 #[cfg(test)]
 mod tests;

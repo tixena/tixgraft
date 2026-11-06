@@ -1,10 +1,8 @@
 //! `TixGraft` - A CLI tool for fetching reusable components from Git
 //! repositories or local filesystem paths.
 //!
-//! This library provides functionality to fetch specific files or directories
-//! from Git repositories (using sparse checkout) or from a local folder (a
-//! `file:` source), apply text replacements, and execute post-processing
-//! commands.
+//! This library fetches specific files or directories from a Git repository or a local folder,
+//! applies text replacements and runs post-processing commands.
 
 pub mod cli;
 pub mod config;
@@ -23,15 +21,11 @@ use operations::to_config::generate_yaml_config;
 use os_shim::System;
 use os_shim::real::RealSystem;
 
-/// Main entry point for the tixgraft library.
+/// Runs the pulls the arguments and their configuration file describe, on the real filesystem.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Configuration loading or validation fails
-/// - Git operations fail (clone, sparse checkout)
-/// - File operations fail (copy, read, write)
-/// - Post-processing commands fail
+/// Returns an error if the configuration is invalid or a Git, file or command step fails.
 #[inline]
 pub fn run(args: Args) -> Result<()> {
     let system = RealSystem::new();
@@ -39,14 +33,12 @@ pub fn run(args: Args) -> Result<()> {
     pull_operation.execute()
 }
 
-/// Run the to-command-line command.
+/// Prints the file at `config_path` as a command line, with the overrides applied; the output
+/// leaves out children and context values.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Configuration file cannot be loaded or parsed
-/// - Configuration validation fails
-/// - Command line generation fails
+/// Returns an error if the file cannot be loaded, fails validation or cannot be converted.
 #[expect(clippy::print_stdout, reason = "This is a CLI tool")]
 #[inline]
 pub fn run_to_command_line(
@@ -57,10 +49,8 @@ pub fn run_to_command_line(
 ) -> Result<()> {
     let system = RealSystem::new();
 
-    // Load config (with overrides if provided)
     let mut config = Config::load_from_file(&system, config_path)?;
 
-    // Apply CLI overrides
     if let Some(repo) = repo_override {
         config.repository = Some(repo);
     }
@@ -68,23 +58,20 @@ pub fn run_to_command_line(
         config.tag = Some(tag);
     }
 
-    // Validate merged config
     config.validate(&system)?;
 
-    // Generate command line
     let command_line = generate_command_line(&config, format)?;
 
-    // Output to stdout (not using logging)
     println!("{command_line}");
 
     Ok(())
 }
 
-/// Install the tixgraft Claude Code skill.
+/// Installs the embedded skill under the home directory when `global`, else the current directory.
 ///
 /// # Errors
 ///
-/// Returns an error if directory creation or file writing fails.
+/// Returns an error if the directory cannot be resolved or a file cannot be written.
 #[inline]
 pub fn run_skill_install(global: bool) -> Result<()> {
     let system = RealSystem::new();
@@ -93,7 +80,8 @@ pub fn run_skill_install(global: bool) -> Result<()> {
     Ok(())
 }
 
-/// Uninstall the tixgraft Claude Code skill.
+/// Removes the skill under the home directory when `global`, else the current directory; a skill
+/// that is not installed is not an error.
 ///
 /// # Errors
 ///
@@ -106,7 +94,8 @@ pub fn run_skill_uninstall(global: bool) -> Result<()> {
     Ok(())
 }
 
-/// Test whether the tixgraft Claude Code skill is installed and up to date.
+/// Compares the installed skill with the embedded one and offers to install or upgrade it, which
+/// `auto_yes` accepts without asking.
 ///
 /// Returns an exit code:
 /// - 0: installed and up to date (or user chose to install/upgrade)
@@ -115,7 +104,7 @@ pub fn run_skill_uninstall(global: bool) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if filesystem operations fail.
+/// Returns an error if a filesystem operation or the prompt fails.
 #[inline]
 pub fn run_skill_test(global: bool, auto_yes: bool) -> Result<i32> {
     let system = RealSystem::new();
@@ -149,20 +138,17 @@ pub fn run_skill_test(global: bool, auto_yes: bool) -> Result<i32> {
     }
 }
 
-/// Run the to-config command.
+/// Prints the YAML configuration `args` describe; with no config file, their context values are
+/// left out.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - YAML configuration generation fails
-/// - Arguments cannot be converted to valid configuration
+/// Returns an error if `args` do not form a valid configuration or YAML generation fails.
 #[expect(clippy::print_stdout, reason = "This is a CLI tool")]
 #[inline]
 pub fn run_to_config(args: &Args, system: &dyn System) -> Result<()> {
-    // Generate YAML config
     let yaml = generate_yaml_config(args, system)?;
 
-    // Output to stdout (not using logging)
     println!("{yaml}");
 
     Ok(())

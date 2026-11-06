@@ -1,4 +1,7 @@
 //! Git path-scoped checkout implementation, backed by libgit2.
+//!
+//! Fetches one reference into a temporary repository and writes only the requested path to its
+//! working tree.
 
 use crate::error::GraftError;
 use crate::git::Repository;
@@ -20,16 +23,17 @@ const MAX_CREDENTIAL_ATTEMPTS: usize = 4;
 /// Local ref the requested reference is fetched into, whatever its kind upstream.
 const FETCHED_REF: &str = "refs/tixgraft/fetched";
 
-/// Performs a path-scoped checkout of a specific path from a Git repository.
+/// One path of one reference to fetch from a Git repository, into a temporary directory that
+/// lives as long as this value.
 #[non_exhaustive]
 pub struct SparseCheckout {
-    /// Git reference (tag/branch) to checkout.
+    /// Branch, tag, commit id or revision expression to check out.
     pub reference: String,
-    /// Repository to clone from.
+    /// Source to fetch from; a local one makes `execute` fail.
     pub repository: Repository,
-    /// Path within the repository to sparse-checkout.
+    /// Repository-relative path to write to the working tree.
     pub source_path: String,
-    /// Temporary directory for the sparse checkout.
+    /// Working tree of the temporary repository, removed on drop.
     pub temp_dir: TempDir,
 }
 
@@ -70,15 +74,12 @@ impl SparseCheckout {
         Ok(())
     }
 
-    /// Execute the path-scoped checkout operation.
+    /// Fetches the reference, checks out the source path and returns where that path lands in the
+    /// temporary directory; `source_exists` tells whether the repository had it.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The temporary repository cannot be initialized
-    /// - The repository cannot be reached or authenticated against
-    /// - The reference cannot be resolved to a commit
-    /// - The requested path cannot be checked out
+    /// Returns an error if reaching the remote, resolving the reference or the checkout fails.
     #[inline]
     pub fn execute(&self) -> Result<PathBuf> {
         let repo_path = self.temp_dir.path();
@@ -107,7 +108,7 @@ impl SparseCheckout {
         Ok(result_path)
     }
 
-    /// Fetch the requested reference and return the commit it points at.
+    /// Fetches the reference, shallowly for a branch or tag, and returns the commit it points at.
     fn fetch_commit(&self, repo: &GitRepository) -> Result<Oid> {
         let url = self.repository.git_url()?;
         let mut remote = repo.remote_anonymous(url).map_err(|err| {
@@ -143,8 +144,7 @@ impl SparseCheckout {
 
             Ok(commit.id())
         } else {
-            // Neither a branch nor a tag, so it may be a commit id or a revision
-            // expression; those need real history to resolve against.
+            // A commit id or a revision expression needs real history to resolve against.
             remote
                 .fetch(
                     &[
@@ -172,7 +172,7 @@ impl SparseCheckout {
         }
     }
 
-    /// Describe a failed fetch against this repository.
+    /// Wraps a failed fetch in a Git error naming the reference and the repository.
     fn fetch_error(&self, err: &GitError) -> GraftError {
         GraftError::git(format!(
             "Failed to fetch '{}' from repository '{}': {}",
@@ -182,13 +182,12 @@ impl SparseCheckout {
         ))
     }
 
-    /// Get diagnostic information about what was actually checked out.
-    /// This is useful for debugging when `source_exists()` returns false.
+    /// Reports the repository, the reference and the top-level entries checked out, for when
+    /// `source_exists` is false; an unreadable directory is reported in the text.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The directory cannot be read
+    /// Returns an error if writing to the report string fails.
     #[inline]
     pub fn get_checkout_diagnostics(&self) -> Result<String> {
         use std::fs;
@@ -205,13 +204,12 @@ impl SparseCheckout {
 
         writeln!(diagnostics, "  Temp directory: {}", repo_path.display())?;
 
-        // List what was actually checked out
         diagnostics.push_str("  Checked out files:\n");
         if let Ok(entries) = fs::read_dir(repo_path) {
             let mut found_items = Vec::new();
             for entry in entries.flatten() {
                 if let Ok(file_name) = entry.file_name().into_string() {
-                    // Skip .git directory
+                    // The temporary repository's metadata is not part of the checkout.
                     if file_name != ".git" {
                         found_items.push(file_name);
                     }
@@ -236,12 +234,11 @@ impl SparseCheckout {
         Ok(diagnostics)
     }
 
-    /// Create a new path-scoped checkout operation.
+    /// Prepares a checkout in a fresh temporary directory; nothing is fetched until `execute`.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The temporary directory cannot be created
+    /// Returns an error if the temporary directory cannot be created.
     #[inline]
     pub fn new(repository: Repository, reference: String, source_path: String) -> Result<Self> {
         let temp_dir =
@@ -288,14 +285,14 @@ impl SparseCheckout {
         Ok(refspec)
     }
 
-    /// Check if the source path exists after checkout.
+    /// True once `execute` has written the source path into the temporary directory.
     #[must_use]
     #[inline]
     pub fn source_exists(&self) -> bool {
         self.temp_dir.path().join(&self.source_path).exists()
     }
 
-    /// Get the path to the temporary directory.
+    /// Returns the root of the checkout, which disappears when this value is dropped.
     #[must_use]
     #[inline]
     pub fn temp_path(&self) -> &Path {
@@ -307,9 +304,7 @@ impl SparseCheckout {
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - libgit2 was built without HTTPS support
-/// - libgit2 was built without SSH support
+/// Returns an error if libgit2 was built without HTTPS or SSH support.
 #[inline]
 pub fn check_git_support() -> Result<()> {
     let version = Version::get();

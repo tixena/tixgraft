@@ -1,14 +1,14 @@
+//! Tests that pass parsed YAML configs to `validate_against_schema`.
+//!
+//! They cover `context` values of each type at both levels, and rejection of unknown properties.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use tixgraft::config::schema::validate_against_schema;
 
-/// Helper: parse a YAML string into a `serde_json::Value` for schema validation.
 fn yaml_to_json(yaml: &str) -> serde_json::Value {
-    let yaml_value: serde_yaml::Value = serde_yaml::from_str(yaml).unwrap();
-    serde_json::to_value(yaml_value).unwrap()
+    serde_saphyr::from_str(yaml).unwrap()
 }
-
-// ── Root-level context ──────────────────────────────────────────────
 
 #[test]
 fn root_context_with_string_values() {
@@ -62,8 +62,6 @@ pulls:
     validate_against_schema(&config).unwrap();
 }
 
-// ── Pull-level context ──────────────────────────────────────────────
-
 #[test]
 fn pull_context_with_string_values() {
     let config = yaml_to_json(
@@ -114,8 +112,6 @@ pulls:
     validate_against_schema(&config).unwrap();
 }
 
-// ── Both root and pull context ──────────────────────────────────────
-
 #[test]
 fn root_and_pull_context_together() {
     let config = yaml_to_json(
@@ -158,8 +154,6 @@ pulls:
     validate_against_schema(&config).unwrap();
 }
 
-// ── Configs without context still pass ───────────────────────────────
-
 #[test]
 fn config_without_context_still_valid() {
     let config = yaml_to_json(
@@ -180,8 +174,6 @@ pulls:
     );
     validate_against_schema(&config).unwrap();
 }
-
-// ── Invalid property still rejected ─────────────────────────────────
 
 #[test]
 fn unknown_root_property_rejected() {
@@ -214,8 +206,6 @@ pulls:
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("badProperty"));
 }
-
-// ── Context with nested objects ─────────────────────────────────────
 
 #[test]
 fn root_context_with_nested_objects() {

@@ -1,10 +1,15 @@
+//! Clap definition of the command line, and the YAML shape of a pull and its replacements.
+//!
+//! The doc comment on each clap field is that flag's `--help` text.
+
 use std::collections::HashMap;
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Command-line arguments for tixgraft.
+/// Every flag tixgraft accepts: the run settings, the conversion modes, the context values and
+/// the flattened pull and skill groups.
 #[derive(Parser, Debug, Clone)]
 #[command(name = "tixgraft")]
 #[command(
@@ -79,19 +84,19 @@ pub struct Args {
 }
 
 impl Args {
-    /// Parse context arguments into a `HashMap`.
+    /// Merges `--context` and `--context-json` into one map; a repeated key becomes an array.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The context arguments are invalid
+    /// Returns an error if an argument has no `=` or a `--context-json` value is not valid JSON.
     #[inline]
     pub fn parse_context(&self) -> anyhow::Result<HashMap<String, Value>> {
         parse_context_args(&self.context, &self.context_json)
     }
 }
 
-/// Arguments for individual pull operations.
+/// The repeatable `--pull-*` flags: each value belongs to the `--pull-source` at its position,
+/// except replacements, which reach every pull.
 #[derive(Parser, Debug, Clone, Default)]
 #[non_exhaustive]
 #[expect(
@@ -141,7 +146,8 @@ pub struct PullArgs {
     pub replacements: Vec<String>,
 }
 
-/// Skill management arguments.
+/// The flags that install, remove or check the bundled skill, with `--global` and `--yes`
+/// modifying them.
 #[derive(Parser, Debug, Clone, Default)]
 #[non_exhaustive]
 #[expect(
@@ -174,7 +180,7 @@ pub struct SkillArgs {
     pub yes: bool,
 }
 
-/// Individual pull configuration.
+/// One pull in the YAML configuration: what to fetch, where to put it and what to run on it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 #[expect(
@@ -182,41 +188,55 @@ pub struct SkillArgs {
     reason = "field order matches YAML config schema for readability"
 )]
 pub struct PullConfig {
+    /// Path to copy, inside the repository or local folder.
     pub source: String,
+    /// Local path to copy to.
     pub target: String,
+    /// `file` or `directory`, which is the default.
     #[serde(default = "default_pull_type", rename = "type")]
     pub pull_type: String,
+    /// Repository for this pull, overriding the global one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
+    /// Git reference for this pull, overriding the global one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag: Option<String>,
+    /// Removes a directory target before copying; a file pull ignores it.
     #[serde(default)]
     pub reset: bool,
+    /// Refuses a target holding modified or untracked files in its Git repository; on by default.
     #[serde(default = "default_true", rename = "requireCleanTarget")]
     pub require_clean_target: bool,
+    /// When false, a failure of this pull is logged and the run continues; on by default.
     #[serde(default = "default_true", rename = "mustSucceed")]
     pub must_succeed: bool,
+    /// Shell commands run after copying, in the target or, for a file pull, in its parent.
     #[serde(default)]
     pub commands: Vec<String>,
+    /// Text replacements applied to the copied files.
     #[serde(default)]
     pub replacements: Vec<ReplacementConfig>,
-    /// Context values for this pull.
+    /// Context values for this pull, overriding the global ones.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub context: HashMap<String, Value>,
 }
 
-/// Text replacement configuration.
+/// One text replacement: the text to search for and where its new value comes from.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct ReplacementConfig {
+    /// Literal text to search for.
     pub source: String,
+    /// Replacement text; exclusive with `value_from_env`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<String>,
+    /// Environment variable holding the replacement text; exclusive with `target`.
     #[serde(rename = "valueFromEnv", skip_serializing_if = "Option::is_none")]
     pub value_from_env: Option<String>,
 }
 
 impl ReplacementConfig {
+    /// Builds a replacement; validation later requires exactly one of the two value sources.
     #[must_use]
     #[inline]
     pub const fn new(
@@ -232,19 +252,17 @@ impl ReplacementConfig {
     }
 }
 
-/// Returns the default pull type value for serde deserialization.
+/// Serde default of a pull's `type` field: a directory.
 fn default_pull_type() -> String {
     "directory".to_owned()
 }
 
-/// Returns `true` for serde deserialization default.
+/// Serde default of the pull flags that stay on unless the YAML turns them off.
 const fn default_true() -> bool {
     true
 }
 
-/// Parse context arguments from CLI into a `HashMap`.
-/// Handles both --context and --context-json flags.
-/// Multiple values with the same key create an array.
+/// Groups both flags' `KEY=VALUE` pairs by key: one value stays as it is, several become an array.
 #[expect(
     clippy::iter_over_hash_type,
     reason = "iteration order does not matter for context key-value collection"
@@ -255,13 +273,11 @@ fn parse_context_args(
 ) -> anyhow::Result<HashMap<String, Value>> {
     let mut result: HashMap<String, Vec<Value>> = HashMap::new();
 
-    // Parse --context arguments
     for arg in context_args {
         let (key, value) = parse_key_value(arg)?;
         result.entry(key).or_default().push(Value::String(value));
     }
 
-    // Parse --context-json arguments
     for arg in context_json_args {
         let (key, json_str) = parse_key_value(arg)?;
         let value: Value = serde_json::from_str(&json_str).map_err(|err| {
@@ -272,7 +288,6 @@ fn parse_context_args(
         result.entry(key).or_default().push(value);
     }
 
-    // Convert Vec<Value> to Value (single value or array)
     let mut final_result = HashMap::new();
     for (key, values) in result {
         if values.len() == 1 {
@@ -291,7 +306,7 @@ fn parse_context_args(
     Ok(final_result)
 }
 
-/// Parse a KEY=VALUE string into its key and value components.
+/// Splits at the first `=`, so the value may itself contain `=`.
 #[expect(
     clippy::indexing_slicing,
     reason = "parts length is checked to be exactly 2 before indexing"

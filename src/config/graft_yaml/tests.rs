@@ -1,3 +1,7 @@
+//! Tests for the private `.graft.yaml` validation rules.
+//!
+//! They cover empty names and descriptions, and default values of the wrong type.
+
 #![expect(
     clippy::unwrap_used,
     reason = "unwrap is acceptable in test code for brevity"
@@ -13,7 +17,7 @@ context:
     description: "Empty name"
     dataType: string
 "#;
-    let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
+    let config: GraftConfig = serde_saphyr::from_str(yaml).unwrap();
     config.validate().unwrap_err();
 }
 
@@ -26,14 +30,14 @@ context:
     dataType: number
     defaultValue: "not-a-number"
 "#;
-    let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
+    let config: GraftConfig = serde_saphyr::from_str(yaml).unwrap();
     config.validate().unwrap_err();
 }
 
 #[test]
 fn context_empty_description() {
     let yaml = "context:\n  - name: myProp\n    description: \"\"\n    dataType: string\n";
-    let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
+    let config: GraftConfig = serde_saphyr::from_str(yaml).unwrap();
     config.validate().unwrap_err();
 }
 

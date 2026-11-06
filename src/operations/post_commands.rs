@@ -1,7 +1,6 @@
-//! Post-command execution for .graft.yaml files.
+//! Runs the post-commands a `.graft.yaml` declares, once its replacements are applied.
 //!
-//! Handles execution of commands after graft processing, including
-//! simple commands and conditional choice-based execution.
+//! A post-command runs directly with no shell, or is chosen by matching a test command's output.
 
 use crate::config::graft_yaml::{ChoiceOption, PostCommand, TestCommand};
 use crate::error::GraftError;
@@ -10,29 +9,26 @@ use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// Result of executing a post-command.
+/// The outcome of one post-command, failure included, for the caller to report.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ExecutionResult {
-    /// The type of command that was executed.
+    /// `command`, `test`, or `choice` when no option matched.
     pub command_type: String,
-    /// Error output, if any.
+    /// The command's stderr when it wrote any, or the reason it could not run.
     pub error: Option<String>,
-    /// Standard output from the command.
+    /// The command's stdout, lossily decoded, or a note when no choice option matched.
     pub output: String,
-    /// Whether the command succeeded.
+    /// Whether the exit status was success; a choice that matched no option counts as success.
     pub success: bool,
 }
 
-/// Execute all post-commands in order.
-///
-/// Commands execute in the directory containing the .graft.yaml file.
-/// Continues executing all commands even if some fail, collecting all results.
+/// Runs every post-command in order from the `.graft.yaml` directory, one result each; a failing
+/// command does not stop the rest.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The post-commands cannot be executed
+/// Always returns `Ok`: a command that fails is recorded in its own result.
 #[inline]
 #[expect(clippy::module_name_repetitions, reason = "PostCommands")]
 pub fn execute_post_commands(
@@ -45,7 +41,7 @@ pub fn execute_post_commands(
         let result = match execute_post_command(command, graft_directory) {
             Ok(result) => result,
             Err(err) => {
-                // Convert execution errors into failed ExecutionResult
+                // A launch failure becomes a failed result, so the remaining commands still run.
                 ExecutionResult {
                     command_type: "command".to_owned(),
                     error: Some(format!("{err:#}")),
@@ -60,12 +56,11 @@ pub fn execute_post_commands(
     Ok(results)
 }
 
-/// Execute a single post-command.
+/// Runs one post-command, directly or through the option its choice selects.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The post-command cannot be executed
+/// Returns an error if a command cannot start, a directory is missing or a regex is invalid.
 #[inline]
 #[expect(
     clippy::ref_patterns,
@@ -85,26 +80,21 @@ pub fn execute_post_command(
     }
 }
 
-/// Resolve the working directory for command execution.
-///
-/// If cwd is None, uses `graft_directory`.
-/// If cwd is Some, resolves it relative to `graft_directory`.
+/// Joins a relative `cwd` onto `graft_directory`; an absolute `cwd` is returned unchecked and no
+/// `cwd` means `graft_directory` itself.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The working directory does not exist
+/// Returns an error if a relative `cwd` resolves to a missing directory.
 #[inline]
 pub fn resolve_working_directory(cwd: Option<&str>, graft_directory: &Path) -> Result<PathBuf> {
     if let Some(cwd_str) = cwd {
         let cwd_path = Path::new(cwd_str);
 
-        // If absolute, use as-is
         if cwd_path.is_absolute() {
             return Ok(cwd_path.to_path_buf());
         }
 
-        // Otherwise, resolve relative to graft_directory
         let resolved = graft_directory.join(cwd_path);
 
         if !resolved.exists() {
@@ -121,22 +111,12 @@ pub fn resolve_working_directory(cwd: Option<&str>, graft_directory: &Path) -> R
     }
 }
 
-/// Execute a conditional choice.
-///
-/// Tests each option's command and matches the output against a regex pattern.
-/// The first matching option's `onMatch` command is executed.
-///
-/// # Pattern Matching
-///
-/// The `expectedOutput` field is treated as a regular expression pattern.
-/// Simple strings like "version" will match anywhere in the output.
-/// More complex patterns like "^v\\d+\\.\\d+\\.\\d+$" can be used for precise matching.
+/// Runs each option's test command in order, then the `onMatch` of the first whose stdout matches
+/// its `expectedOutput` regex anywhere. No match is a success that runs nothing.
 fn execute_choice(options: &[ChoiceOption], graft_directory: &Path) -> Result<ExecutionResult> {
-    // Try each option in order
     for option in options {
         let test_result = execute_test_command(&option.test, graft_directory)?;
 
-        // Check if output matches expected pattern (regex)
         let pattern = Regex::new(&option.expected_output).with_context(|| {
             format!(
                 "Invalid regex pattern in expectedOutput: '{}'",
@@ -145,12 +125,10 @@ fn execute_choice(options: &[ChoiceOption], graft_directory: &Path) -> Result<Ex
         })?;
 
         if pattern.is_match(&test_result.output) {
-            // Match found, execute the onMatch command
             return execute_post_command(&option.on_match, graft_directory);
         }
     }
 
-    // No matches found, return a no-op result
     Ok(ExecutionResult {
         command_type: "choice".to_owned(),
         error: None,
@@ -159,7 +137,7 @@ fn execute_choice(options: &[ChoiceOption], graft_directory: &Path) -> Result<Ex
     })
 }
 
-/// Execute a simple command.
+/// Runs `command` directly, with no shell, in its resolved directory and captures both streams.
 fn execute_simple_command(
     command: &str,
     args: &[String],
@@ -197,7 +175,7 @@ fn execute_simple_command(
     })
 }
 
-/// Execute a test command (for choice conditions).
+/// Runs a choice option's test command with no shell; `execute_choice` reads only its stdout.
 fn execute_test_command(test: &TestCommand, graft_directory: &Path) -> Result<ExecutionResult> {
     let working_dir = resolve_working_directory(test.cwd.as_deref(), graft_directory)?;
 

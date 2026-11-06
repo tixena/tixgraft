@@ -1,4 +1,6 @@
-//! File system utilities.
+//! File system helpers, most of them built on the `System` abstraction.
+//!
+//! They cover binary detection, copying, directory handling and size formatting.
 
 use anyhow::{Context as _, Result};
 use futures_util::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -8,7 +10,7 @@ use pollster::FutureExt as _;
 use std::path::Path;
 use tracing::debug;
 
-/// Known text file extensions for binary detection.
+/// Lowercase extensions treated as text without reading the file.
 const TEXT_EXTENSIONS: &[&str] = &[
     "bash",
     "c",
@@ -76,8 +78,7 @@ const TEXT_EXTENSIONS: &[&str] = &[
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The parent directories cannot be created
+/// Returns an error if the parent directories cannot be created.
 #[inline]
 pub fn create_parent_directories(system: &dyn System, file_path: &Path) -> Result<()> {
     if let Some(parent) = file_path.parent()
@@ -93,33 +94,26 @@ pub fn create_parent_directories(system: &dyn System, file_path: &Path) -> Resul
     Ok(())
 }
 
-/// Check if a file is binary by examining its extension and content.
-///
-/// # Returns
-///
-/// Returns true if the file is binary, false otherwise.
+/// True when the first 8192 bytes hold a null byte or invalid UTF-8, which includes a multibyte
+/// character cut at the limit; a non-file, an empty file and a known text extension are never
+/// binary.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The file cannot be opened
-/// - The file cannot be read
+/// Returns an error if the file cannot be opened or read.
 #[inline]
 pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
-    // If it's a directory, it's not a binary file
     if !system.is_file(file_path).block_on()? {
         return Ok(false);
     }
 
-    // Check if it has a known text file extension
     if let Some(extension) = file_path.extension().and_then(|ext| ext.to_str()) {
         let ext = extension.to_lowercase();
         if TEXT_EXTENSIONS.contains(&ext.as_str()) {
-            return Ok(false); // Known text file extension
+            return Ok(false);
         }
     }
 
-    // Fallback: check file content
     let mut file = system
         .open(file_path)
         .block_on()
@@ -132,23 +126,21 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
         .with_context(|| format!("Failed to read from file: {}", file_path.display()))?;
 
     if bytes_read == 0 {
-        return Ok(false); // Empty file is text
+        return Ok(false);
     }
 
-    // Check for null bytes - text files don't have them
     let read_slice = buffer.get(..bytes_read).unwrap_or(&buffer);
     for &byte in read_slice {
         if byte == 0 {
-            return Ok(true); // Has null byte = binary
+            return Ok(true);
         }
     }
 
-    // Check if it's valid UTF-8
     if str::from_utf8(read_slice).is_ok() {
-        return Ok(false); // Valid UTF-8 = text
+        return Ok(false);
     }
 
-    // Not valid UTF-8 and no null bytes = assume binary
+    // Text in another encoding cannot be told from binary, so it counts as binary.
     Ok(true)
 }
 
@@ -156,8 +148,7 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The file size cannot be retrieved
+/// Returns an error if the file size cannot be retrieved.
 #[inline]
 pub fn get_file_size(system: &dyn System, file_path: &Path) -> Result<u64> {
     let metadata = system
@@ -167,16 +158,11 @@ pub fn get_file_size(system: &dyn System, file_path: &Path) -> Result<u64> {
     Ok(metadata.len)
 }
 
-/// Check if directory is empty.
-///
-/// # Returns
-///
-/// Returns true if the directory is empty, false otherwise.
+/// False when `dir_path` is not a directory, as well as when it has entries.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The directory cannot be read
+/// Returns an error if the directory cannot be read.
 #[inline]
 pub fn is_directory_empty(system: &dyn System, dir_path: &Path) -> Result<bool> {
     if !system.is_dir(dir_path).block_on()? {
@@ -191,12 +177,11 @@ pub fn is_directory_empty(system: &dyn System, dir_path: &Path) -> Result<bool> 
     Ok(entries.is_empty())
 }
 
-/// Safely remove directory and all its contents.
+/// Removes a directory and its contents; a missing path or a non-directory is left alone.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The directory cannot be removed
+/// Returns an error if the directory cannot be removed.
 #[inline]
 pub fn remove_dir_safe(system: &dyn System, dir_path: &Path) -> Result<()> {
     if system.exists(dir_path).block_on()? && system.is_dir(dir_path).block_on()? {
@@ -208,15 +193,12 @@ pub fn remove_dir_safe(system: &dyn System, dir_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Copy file with progress callback.
+/// Copies in 64 KB chunks, calling `progress_callback` with the bytes copied and the source size
+/// after each, and returns the bytes copied.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The source file cannot be opened
-/// - The target file cannot be created
-/// - The source file cannot be read
-/// - The target file cannot be written or closed
+/// Returns an error if the source cannot be read or the target cannot be written or closed.
 #[inline]
 #[expect(clippy::as_conversions, reason = "This is usize to u64 conversion")]
 pub fn copy_file_with_progress<F>(
@@ -240,7 +222,7 @@ where
         .block_on()
         .with_context(|| format!("Failed to create target file: {}", target.display()))?;
 
-    let mut buffer = vec![0; 64 * 1024]; // 64KB buffer
+    let mut buffer = vec![0; 64 * 1024];
     let mut total_copied: u64 = 0;
 
     loop {
@@ -271,11 +253,7 @@ where
     Ok(total_copied)
 }
 
-/// Get human-readable file size.
-///
-/// # Returns
-///
-/// Returns a human-readable file size string.
+/// Formats with 1024-based units up to TB: whole bytes below 1 KB, one decimal place above.
 #[must_use]
 #[inline]
 #[expect(clippy::as_conversions, reason = "This is for number formatting")]
@@ -309,12 +287,11 @@ pub fn format_file_size(bytes: u64) -> String {
     }
 }
 
-/// Check if two paths point to the same file/directory.
+/// Compares canonical forms, so symbolic links and relative paths are resolved first.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The paths cannot be canonicalized
+/// Returns an error if either path cannot be canonicalized.
 #[inline]
 pub fn paths_are_same(system: &dyn System, path1: &Path, path2: &Path) -> Result<bool> {
     let canonical1 = system
@@ -329,12 +306,11 @@ pub fn paths_are_same(system: &dyn System, path1: &Path, path2: &Path) -> Result
     Ok(canonical1 == canonical2)
 }
 
-/// Create a temporary directory with a specific prefix.
+/// Creates a directory whose name starts with `prefix`, removed when the returned handle drops.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The temporary directory cannot be created
+/// Returns an error if the temporary directory cannot be created.
 #[inline]
 pub fn create_temp_dir(prefix: &str) -> Result<tempfile::TempDir> {
     tempfile::Builder::new()
@@ -347,9 +323,7 @@ pub fn create_temp_dir(prefix: &str) -> Result<tempfile::TempDir> {
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The directory does not exist
-/// - The directory is not a directory
+/// Returns an error if the path exists but is not a directory, or the directory cannot be created.
 #[inline]
 pub fn ensure_dir_exists(system: &dyn System, dir_path: &Path) -> Result<()> {
     if !system.exists(dir_path).block_on()? {

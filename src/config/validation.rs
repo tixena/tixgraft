@@ -1,4 +1,6 @@
-//! Configuration validation logic.
+//! Checks on a loaded configuration.
+//!
+//! They cover repository formats, pull fields, path safety, replacements and child paths.
 
 use pollster::FutureExt as _;
 use std::path::{Path, PathBuf};
@@ -10,57 +12,43 @@ use anyhow::{Result, anyhow};
 use os_shim::System;
 use regex::Regex;
 
-/// Validate a complete configuration.
-///
-/// Children paths are resolved relative to CWD. For configs loaded from
-/// a child directory, use [`validate_config_with_base_dir`] instead.
+/// Validates a configuration, resolving child paths against the current directory; one loaded from
+/// another directory needs [`validate_config_with_base_dir`].
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The configuration does not contain at least one pull operation or child config
-/// - The repository URL is invalid
-/// - The pull configuration is invalid
-/// - A child config path is invalid
+/// Returns an error if there is no pull or child, or a repository, pull or child path is invalid.
 #[inline]
 pub fn validate_config(system: &dyn System, config: &Config) -> Result<()> {
     validate_config_with_base_dir(system, config, None)
 }
 
-/// Validate a complete configuration, resolving children paths relative to
-/// `base_dir` (or CWD when `None`).
+/// Validates a configuration, resolving child paths against `base_dir`, or the current directory
+/// when `None`.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The configuration does not contain at least one pull operation or child config
-/// - The repository URL is invalid
-/// - The pull configuration is invalid
-/// - A child config path is invalid
+/// Returns an error if there is no pull or child, or a repository, pull or child path is invalid.
 #[inline]
 pub fn validate_config_with_base_dir(
     system: &dyn System,
     config: &Config,
     base_dir: Option<&Path>,
 ) -> Result<()> {
-    // Validate global repository if present
     if let Some(repo) = config.repository.as_ref() {
         validate_repository_url(repo)?;
     }
 
-    // Must have at least pulls or children
     if config.pulls.is_empty() && config.children.is_empty() {
         return Err(anyhow!(
             "Configuration must contain at least one pull operation or one child config"
         ));
     }
 
-    // Validate each pull configuration
     for (index, pull) in config.pulls.iter().enumerate() {
         validate_pull_config(system, pull, index)?;
     }
 
-    // Validate children paths
     for (index, child_path) in config.children.iter().enumerate() {
         validate_child_path(system, child_path, index, base_dir)?;
     }
@@ -68,27 +56,23 @@ pub fn validate_config_with_base_dir(
     Ok(())
 }
 
-/// Validate a single pull configuration.
+/// Checks the fields of the pull at `index`, which labels its errors counting from one.
 fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) -> Result<()> {
     let display_index = index.saturating_add(1);
     let context = format!("Pull operation #{display_index}");
 
-    // Validate repository URL if present
     if let Some(repo) = pull.repository.as_ref() {
         validate_repository_url(repo).map_err(|err| anyhow!("{context}: {err}"))?;
     }
 
-    // Validate source path
     if pull.source.trim().is_empty() {
         return Err(anyhow!("{context}: Source path cannot be empty"));
     }
 
-    // Validate target path
     if pull.target.trim().is_empty() {
         return Err(anyhow!("{context}: Target path cannot be empty"));
     }
 
-    // Validate pull type
     if !matches!(pull.pull_type.as_str(), "file" | "directory") {
         return Err(anyhow!(
             "{}: Invalid pull type '{}'. Must be 'file' or 'directory'",
@@ -97,10 +81,8 @@ fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) ->
         ));
     }
 
-    // Validate path safety (prevent path traversal)
     validate_path_safety(&pull.target).map_err(|err| anyhow!("{context}: {err}"))?;
 
-    // Validate commands
     for (cmd_index, command) in pull.commands.iter().enumerate() {
         if command.trim().is_empty() {
             let display_cmd_index = cmd_index.saturating_add(1);
@@ -110,7 +92,6 @@ fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) ->
         }
     }
 
-    // Validate replacements
     for (repl_index, replacement) in pull.replacements.iter().enumerate() {
         validate_replacement(system, replacement, index, repl_index)?;
     }
@@ -118,15 +99,8 @@ fn validate_pull_config(system: &dyn System, pull: &PullConfig, index: usize) ->
     Ok(())
 }
 
-/// Validate a child config path.
-///
-/// Children must be descendants of the parent config directory:
-/// - No `..` in path (prevents escaping parent tree)
-/// - No absolute paths (starting with `/`)
-/// - File must exist
-///
-/// When `base_dir` is `Some`, the existence check resolves the path
-/// relative to that directory instead of CWD.
+/// Keeps a child inside the parent's tree: no `..`, not absolute, and the file must exist, resolved
+/// against `base_dir` or the current directory.
 fn validate_child_path(
     system: &dyn System,
     path: &str,
@@ -152,7 +126,6 @@ fn validate_child_path(
         ));
     }
 
-    // Check file exists, resolving relative to base_dir when provided
     let resolved = base_dir.map_or_else(|| PathBuf::from(path), |dir| dir.join(path));
     if !system.exists(&resolved).block_on()? {
         return Err(anyhow!("{context}: Child config file not found: '{path}'"));
@@ -161,25 +134,23 @@ fn validate_child_path(
     Ok(())
 }
 
-/// Validate a repository URL format.
+/// Accepts a `.git` HTTP or SSH URL, a short `account/repo`, or any local source, whose path
+/// `Repository::new` checks later.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The repository URL is invalid
+/// Returns an error listing the supported formats if `url` matches none of them.
 #[inline]
 pub fn validate_repository_url(url: &str) -> Result<()> {
-    // Detailed local-path validation happens in Repository::new(); accept any
-    // local source here so bare paths aren't rejected before the router runs.
     if is_local_source(url) {
         return Ok(());
     }
 
-    // Patterns for valid Git repository URLs
     let patterns = [
-        r"^https?://.*\.git$", // HTTPS: https://github.com/user/repo.git
-        r"^git@.*\.git$",      // SSH: git@github.com:user/repo.git
-        r"^[\w-]+/[\w-]+$",    // Short: user/repo
+        // Stricter than `normalize_repository_url`, which would complete a URL with no `.git`.
+        r"^https?://.*\.git$",
+        r"^git@.*\.git$",
+        r"^[\w-]+/[\w-]+$",
     ];
 
     for pattern in &patterns {
@@ -199,13 +170,11 @@ pub fn validate_repository_url(url: &str) -> Result<()> {
     ))
 }
 
-/// Validate path safety (prevent directory traversal).
+/// Rejects any path containing `..` and any absolute path.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The path contains unsafe directory traversal
-/// - The path is an absolute path
+/// Returns an error if the path contains `..` or is absolute.
 #[inline]
 pub fn validate_path_safety(path: &str) -> Result<()> {
     if path.contains("..") {
@@ -223,7 +192,8 @@ pub fn validate_path_safety(path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Validate a text replacement configuration.
+/// Requires a non-empty source and exactly one value source; a named environment variable must be
+/// set at validation time.
 fn validate_replacement(
     system: &dyn System,
     replacement: &ReplacementConfig,
@@ -234,31 +204,26 @@ fn validate_replacement(
     let display_repl = repl_index.saturating_add(1);
     let context = format!("Pull #{display_pull}, Replacement #{display_repl}");
 
-    // Source must not be empty
     if replacement.source.trim().is_empty() {
         return Err(anyhow!("{context}: Replacement source cannot be empty"));
     }
 
-    // Must have exactly one of target or value_from_env
     match (
         replacement.target.as_ref(),
         replacement.value_from_env.as_ref(),
     ) {
         (Some(target), None) => {
-            // String literal replacement - target can be empty
             if target.trim().is_empty() {
                 return Err(anyhow!("{context}: Replacement target cannot be empty"));
             }
         }
         (None, Some(env_var)) => {
-            // Environment variable replacement
             if env_var.trim().is_empty() {
                 return Err(anyhow!(
                     "{context}: Environment variable name cannot be empty"
                 ));
             }
 
-            // Check if environment variable exists
             if system.env_var(env_var).is_err() {
                 return Err(anyhow!(
                     "{context}: Environment variable '{env_var}' is not set"

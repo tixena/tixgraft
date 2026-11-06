@@ -1,6 +1,7 @@
-//! Operations module.
+//! The work behind each mode of the command line.
 //!
-//! Coordinates pull operations including file copying, text replacement, and command execution.
+//! Covers a pull with its copy, replacement and command steps, the conversions between a
+//! configuration and a command line, and skill management.
 
 #![expect(clippy::pub_use, reason = "deliberate module re-export for public API")]
 

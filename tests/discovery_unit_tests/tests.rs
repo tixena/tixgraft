@@ -1,3 +1,7 @@
+//! Tests for `discover_graft_files` and `cleanup_graft_files` over trees in `MemorySystem`.
+//!
+//! They cover depth, parent links and ancestors, other files and roots that are not directories.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::indexing_slicing,
@@ -42,17 +46,14 @@ fn discover_nested_grafts() {
     let grafts = discover_graft_files(&system, Path::new("/test")).unwrap();
     assert_eq!(grafts.len(), 3);
 
-    // Check depths
-    assert_eq!(grafts[0].depth, 0); // root
-    assert_eq!(grafts[1].depth, 1); // nested
-    assert_eq!(grafts[2].depth, 2); // doubly nested
+    assert_eq!(grafts[0].depth, 0);
+    assert_eq!(grafts[1].depth, 1);
+    assert_eq!(grafts[2].depth, 2);
 
-    // Check parent relationships
     assert!(grafts[0].parent.is_none());
     assert!(grafts[1].parent.is_some());
     assert!(grafts[2].parent.is_some());
 
-    // Check ancestors
     assert_eq!(grafts[0].ancestors().len(), 0);
     assert_eq!(grafts[1].ancestors().len(), 1);
     assert_eq!(grafts[2].ancestors().len(), 2);
@@ -70,7 +71,6 @@ fn cleanup_graft_files_tst() {
         .with_file("/test/nested/.graft.yaml", b"# Nested graft\n")
         .unwrap();
 
-    // Verify files exist
     assert!(
         system
             .exists(Path::new("/test/.graft.yaml"))
@@ -84,11 +84,9 @@ fn cleanup_graft_files_tst() {
             .unwrap()
     );
 
-    // Cleanup
     let deleted = cleanup_graft_files(&system, Path::new("/test")).unwrap();
     assert_eq!(deleted, 2);
 
-    // Verify files are gone
     assert!(
         !system
             .exists(Path::new("/test/.graft.yaml"))
@@ -129,9 +127,9 @@ fn discover_not_a_directory() {
     assert!(result.unwrap_err().to_string().contains("not a directory"));
 }
 
+/// Files other than `.graft.yaml` are not discovered.
 #[test]
 fn discover_graft_with_non_graft_files() {
-    // Ensure non-.graft.yaml files are ignored
     let system = MemorySystem::new()
         .with_dir("/test")
         .unwrap()

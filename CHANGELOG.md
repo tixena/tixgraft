@@ -7,14 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - 2024-09-25
+## [0.1.0]
 
 ### Added
 
 - Initial release of tixgraft CLI tool
-- Git sparse checkout functionality for efficient repository fetching
+- Path-scoped Git fetching: only the requested path is written to disk
 - YAML configuration support with JSON schema validation
-- Complete CLI interface with argument precedence over config files
+- Complete CLI interface whose arguments override the config file's global settings
 - Text replacement engine with static values and environment variables
 - Command execution with proper working directory context
 - Comprehensive error handling with specific exit codes:
@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - 3: Command Error
   - 4: Git Error
   - 5: Filesystem Error
+  - 6: Skill Error
 - Path validation and security features
 - Support for multiple repository URL formats:
   - Short format: `org/repo`
@@ -38,13 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Requirements
 
-- Git 2.25.0 or later for sparse checkout support
-- Rust 1.70+ for building from source
+- Rust 1.98 or later for building from source
+- A C compiler, `pkg-config` and the OpenSSL development headers for building from source
 
 ### Known Limitations
 
 - Text replacements use simple string matching (no regex support yet)
-- No support for authentication with private repositories
+- Private repositories authenticate only through an ssh-agent, a Git credential helper or credentials embedded in the URL
 - Commands are executed synchronously (no parallel execution)
 - Limited progress indication for large operations
 
@@ -55,5 +56,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repository URL validation
 - Environment variable validation before execution
 
-[Unreleased]: https://github.com/tixena/tixgraft/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/tixena/tixgraft/commits/master
 [0.1.0]: https://github.com/tixena/tixgraft/releases/tag/v0.1.0

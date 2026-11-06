@@ -1,3 +1,7 @@
+//! Tests that run the binary against repositories given as `file:` paths.
+//!
+//! They cover file and directory pulls, replacements, commands, `reset`, dry runs and context.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use assert_cmd::Command;
@@ -10,7 +14,6 @@ use tempfile::TempDir;
 fn local_file_source_with_file_prefix() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source directory structure
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::create_dir_all(temp_dir.path().join("source/templates")).unwrap();
     fs::write(
@@ -19,7 +22,6 @@ fn local_file_source_with_file_prefix() {
     )
     .unwrap();
 
-    // Create config file
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -33,7 +35,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft from temp_dir
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -44,7 +45,6 @@ pulls:
             "Completed pull operations successfully",
         ));
 
-    // Verify file was copied
     let output_file = temp_dir.path().join("target/output.txt");
     assert!(output_file.exists());
     let content = fs::read_to_string(output_file).unwrap();
@@ -55,7 +55,6 @@ pulls:
 fn local_directory_source_with_file_prefix() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source directory structure
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::create_dir_all(temp_dir.path().join("source/templates")).unwrap();
     fs::write(temp_dir.path().join("source/templates/file1.txt"), "File 1").unwrap();
@@ -67,7 +66,6 @@ fn local_directory_source_with_file_prefix() {
     )
     .unwrap();
 
-    // Create config file
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -81,7 +79,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -89,7 +86,6 @@ pulls:
         .assert()
         .success();
 
-    // Verify directory was copied
     let output_dir = temp_dir.path().join("target/output");
     assert!(output_dir.exists());
     assert!(output_dir.join("file1.txt").exists());
@@ -114,11 +110,9 @@ pulls:
 fn local_source_with_absolute_path() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source directory structure
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::write(temp_dir.path().join("source/file.txt"), "Content").unwrap();
 
-    // Create config file using absolute path with file: prefix
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -132,7 +126,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -140,7 +133,6 @@ pulls:
         .assert()
         .success();
 
-    // Verify file was copied
     let output_file = temp_dir.path().join("target/output.txt");
     assert!(output_file.exists());
     assert_eq!(fs::read_to_string(output_file).unwrap(), "Content");
@@ -150,11 +142,9 @@ pulls:
 fn local_source_with_relative_path() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source directory structure
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::write(temp_dir.path().join("source/file.txt"), "Relative content").unwrap();
 
-    // Create config file using relative path with file: prefix
     let config = r#"
 repository: "file:./source"
 pulls:
@@ -164,7 +154,6 @@ pulls:
 "#;
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft from temp_dir
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -172,7 +161,6 @@ pulls:
         .assert()
         .success();
 
-    // Verify file was copied
     let output_file = temp_dir.path().join("target/output.txt");
     assert!(output_file.exists());
     assert_eq!(fs::read_to_string(output_file).unwrap(), "Relative content");
@@ -182,7 +170,6 @@ pulls:
 fn local_source_with_replacements() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source file with placeholders
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::write(
         temp_dir.path().join("source/template.txt"),
@@ -190,7 +177,6 @@ fn local_source_with_replacements() {
     )
     .unwrap();
 
-    // Create config file
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -209,7 +195,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -217,7 +202,6 @@ pulls:
         .assert()
         .success();
 
-    // Verify replacements were applied
     let output_file = temp_dir.path().join("target/output.txt");
     assert!(output_file.exists());
     let content = fs::read_to_string(output_file).unwrap();
@@ -228,7 +212,6 @@ pulls:
 fn local_source_with_env_var_replacement() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source file with placeholders
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::write(
         temp_dir.path().join("source/template.txt"),
@@ -236,7 +219,6 @@ fn local_source_with_env_var_replacement() {
     )
     .unwrap();
 
-    // Create config file
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -253,31 +235,28 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft with environment variable set for the subprocess
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
-        .env("TEST_APP_NAME", "MyApp") // Set env var for subprocess only
+        .env("TEST_APP_NAME", "MyApp")
         .arg("--config")
         .arg("tixgraft.yaml")
         .assert()
         .success();
 
-    // Verify replacements were applied
     let output_file = temp_dir.path().join("target/output.txt");
     assert!(output_file.exists());
     let content = fs::read_to_string(output_file).unwrap();
     assert_eq!(content, "App: MyApp");
 }
 
+/// A file pull's commands run in the directory that holds the target file.
 #[test]
 fn local_source_with_commands() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source file
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::write(temp_dir.path().join("source/file.txt"), "Original").unwrap();
 
-    // Create config file with post-copy command
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -293,7 +272,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -301,10 +279,8 @@ pulls:
         .assert()
         .success();
 
-    // Verify file was copied
     assert!(temp_dir.path().join("target/file.txt").exists());
 
-    // Verify command was executed (commands run in target directory - parent of target file)
     let command_output = temp_dir.path().join("target/command_output.txt");
     assert!(command_output.exists());
     let content = fs::read_to_string(command_output).unwrap();
@@ -315,15 +291,12 @@ pulls:
 fn local_source_with_reset() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source file
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::write(temp_dir.path().join("source/new.txt"), "New content").unwrap();
 
-    // Create target with existing file
     fs::create_dir_all(temp_dir.path().join("target")).unwrap();
     fs::write(temp_dir.path().join("target/old.txt"), "Old content").unwrap();
 
-    // Create config file with reset: true for directory
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -338,7 +311,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -346,7 +318,6 @@ pulls:
         .assert()
         .success();
 
-    // Verify new file exists and old file was removed
     assert!(temp_dir.path().join("target/new.txt").exists());
     assert!(!temp_dir.path().join("target/old.txt").exists());
 }
@@ -355,7 +326,6 @@ pulls:
 fn local_source_nonexistent_path() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create config file with nonexistent local path
     let config = r#"
 repository: "file:///nonexistent/path/to/repo"
 pulls:
@@ -365,24 +335,20 @@ pulls:
 "#;
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft - should fail
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
         .arg("tixgraft.yaml")
         .assert()
         .failure();
-    // Should fail - accept any error since it's about a nonexistent path
 }
 
 #[test]
 fn local_source_missing_file() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source directory but not the file
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
 
-    // Create config file
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -396,7 +362,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft - should fail
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -410,14 +375,12 @@ pulls:
 fn mixed_local_sources() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create two local sources
     fs::create_dir_all(temp_dir.path().join("source1")).unwrap();
     fs::write(temp_dir.path().join("source1/file1.txt"), "From source 1").unwrap();
 
     fs::create_dir_all(temp_dir.path().join("source2")).unwrap();
     fs::write(temp_dir.path().join("source2/file2.txt"), "From source 2").unwrap();
 
-    // Create config file with multiple local sources
     let source1_abs = temp_dir.path().join("source1").canonicalize().unwrap();
     let source2_abs = temp_dir.path().join("source2").canonicalize().unwrap();
     let config = format!(
@@ -437,7 +400,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -445,7 +407,6 @@ pulls:
         .assert()
         .success();
 
-    // Verify both files were copied
     assert!(temp_dir.path().join("target/file1.txt").exists());
     assert!(temp_dir.path().join("target/file2.txt").exists());
     assert_eq!(
@@ -462,11 +423,9 @@ pulls:
 fn local_source_dry_run() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create source file
     fs::create_dir_all(temp_dir.path().join("source")).unwrap();
     fs::write(temp_dir.path().join("source/file.txt"), "Content").unwrap();
 
-    // Create config file
     let source_abs = temp_dir.path().join("source").canonicalize().unwrap();
     let config = format!(
         r#"
@@ -480,7 +439,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft with dry-run
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -490,7 +448,6 @@ pulls:
         .success()
         .stdout(predicate::str::contains("Dry run preview"));
 
-    // Verify file was NOT copied
     assert!(!temp_dir.path().join("target").exists());
 }
 
@@ -498,14 +455,12 @@ pulls:
 fn local_source_per_pull_override() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create two different source directories
     fs::create_dir_all(temp_dir.path().join("source1")).unwrap();
     fs::write(temp_dir.path().join("source1/file.txt"), "From source 1").unwrap();
 
     fs::create_dir_all(temp_dir.path().join("source2")).unwrap();
     fs::write(temp_dir.path().join("source2/file.txt"), "From source 2").unwrap();
 
-    // Create config file with global repository and per-pull override
     let source1_abs = temp_dir.path().join("source1").canonicalize().unwrap();
     let source2_abs = temp_dir.path().join("source2").canonicalize().unwrap();
     let config = format!(
@@ -525,7 +480,6 @@ pulls:
     );
     fs::write(temp_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     cmd.current_dir(temp_dir.path())
         .arg("--config")
@@ -533,7 +487,6 @@ pulls:
         .assert()
         .success();
 
-    // Verify files were copied from correct sources
     assert_eq!(
         fs::read_to_string(temp_dir.path().join("target/output1.txt")).unwrap(),
         "From source 1"

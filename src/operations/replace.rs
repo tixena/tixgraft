@@ -1,4 +1,6 @@
-//! Text replacement engine.
+//! Replaces text in the files of a pull's target, skipping binary files.
+//!
+//! A value is static or from the environment; `.graft.yaml` replacements may also use context.
 
 use crate::cli::ReplacementConfig;
 use crate::config::context::{ContextValues, value_to_string};
@@ -13,25 +15,24 @@ use regex::Regex;
 use std::path::{Path, PathBuf};
 use tracing::debug;
 
-/// Preview information for a replacement.
+/// What one replacement would change, without changing it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ReplacementPreview {
-    /// Files that would be affected by the replacement.
+    /// The text files that contain the pattern.
     pub affected_files: Vec<PathBuf>,
-    /// The value that would replace the pattern.
+    /// The resolved value, after any environment lookup.
     pub replacement_value: String,
-    /// The pattern being searched for.
+    /// The literal text searched for.
     pub search_pattern: String,
 }
 
-/// Apply text replacements to files in the target directory.
+/// Applies each replacement under `target_dir` and returns the files changed, counted once per
+/// replacement.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The target directory does not exist
-/// - The replacements cannot be applied
+/// Returns an error if the target is missing, a value is unresolved or a file cannot be updated.
 #[inline]
 pub fn apply_replacements(
     system: &dyn System,
@@ -52,7 +53,6 @@ pub fn apply_replacements(
 
     let mut total_replacements: usize = 0;
 
-    // Process each replacement
     for replacement in replacements {
         let replacement_value = get_replacement_value(system, replacement)?;
         let files_processed =
@@ -63,13 +63,12 @@ pub fn apply_replacements(
     Ok(total_replacements)
 }
 
-/// Apply graft replacements (supports context) to files in the target directory.
+/// Applies `.graft.yaml` replacements, whose values may come from `context`, and returns the files
+/// changed, counted once per replacement.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The target directory does not exist
-/// - The replacements cannot be applied
+/// Returns an error if the target is missing, a value is unresolved or a file cannot be updated.
 #[inline]
 pub fn apply_graft_replacements(
     system: &dyn System,
@@ -91,7 +90,6 @@ pub fn apply_graft_replacements(
 
     let mut total_replacements: usize = 0;
 
-    // Process each replacement
     for replacement in replacements {
         let replacement_value = get_graft_replacement_value(system, replacement, context)?;
         let files_processed =
@@ -102,13 +100,12 @@ pub fn apply_graft_replacements(
     Ok(total_replacements)
 }
 
-/// Apply regex-based replacements (advanced feature).
+/// Applies the regex to a file or to every text file under a directory and returns the files
+/// changed.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The regex pattern is invalid
-/// - The replacements cannot be applied
+/// Returns an error if the regex is invalid or a file cannot be updated.
 #[inline]
 pub fn apply_regex_replacement(
     system: &dyn System,
@@ -138,12 +135,12 @@ pub fn apply_regex_replacement(
     Ok(files_processed)
 }
 
-/// Apply a single replacement to all text files in the target directory.
+/// Replaces literal text in a file or in every text file under a directory and returns the files
+/// changed.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The replacements cannot be applied
+/// Returns an error if a file cannot be updated.
 #[inline]
 pub fn apply_single_replacement(
     system: &dyn System,
@@ -154,12 +151,10 @@ pub fn apply_single_replacement(
     let mut files_processed: usize = 0;
 
     if system.is_file(target_path).block_on()? {
-        // Single file case
         if apply_replacement_to_file(system, target_path, search_pattern, replacement_value)? {
             files_processed = files_processed.saturating_add(1);
         }
     } else if system.is_dir(target_path).block_on()? {
-        // Directory case - recursively walk all files using System trait
         files_processed = files_processed.saturating_add(walk_and_apply(
             system,
             target_path,
@@ -172,12 +167,11 @@ pub fn apply_single_replacement(
     Ok(files_processed)
 }
 
-/// Get the replacement value from either target or environment variable.
+/// Returns the static target or the value of the named environment variable.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The replacement does not specify exactly one of target, valueFromEnv
+/// Returns an error if the variable is unset or the replacement does not set exactly one source.
 #[inline]
 pub fn get_replacement_value(
     system: &dyn System,
@@ -201,12 +195,11 @@ pub fn get_replacement_value(
     }
 }
 
-/// Get the replacement value from a `GraftReplacement` (supports context, env, or static).
+/// Returns the static target, the named environment variable or the named context property.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The replacement does not specify exactly one of target, valueFromEnv, or valueFromContext
+/// Returns an error unless exactly one source is set and it resolves to a string.
 #[inline]
 pub fn get_graft_replacement_value(
     system: &dyn System,
@@ -268,12 +261,11 @@ pub fn get_graft_replacement_value(
     .into())
 }
 
-/// Preview what replacements would be applied (for dry run).
+/// Reports each replacement's value and the files holding its pattern, changing nothing.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The replacements cannot be previewed
+/// Returns an error if a value cannot be resolved or a file cannot be read.
 #[inline]
 pub fn preview_replacements(
     system: &dyn System,
@@ -297,19 +289,17 @@ pub fn preview_replacements(
     Ok(previews)
 }
 
-/// Apply replacement to a single file.
+/// Replaces literal text in one file and reports whether it changed; a binary file is skipped.
 fn apply_replacement_to_file(
     system: &dyn System,
     file_path: &Path,
     search_pattern: &str,
     replacement_value: &str,
 ) -> Result<bool> {
-    // Skip binary files
     if is_binary_file(system, file_path)? {
         return Ok(false);
     }
 
-    // Read file content
     let content = system
         .read_to_string(file_path)
         .block_on()
@@ -320,15 +310,12 @@ fn apply_replacement_to_file(
             )
         })?;
 
-    // Check if the search pattern exists
     if !content.contains(search_pattern) {
         return Ok(false);
     }
 
-    // Apply replacement
     let new_content = content.replace(search_pattern, replacement_value);
 
-    // Only write if content actually changed
     if new_content != content {
         system
             .write(file_path, new_content.as_bytes(), Condition::None)
@@ -346,19 +333,17 @@ fn apply_replacement_to_file(
     Ok(false)
 }
 
-/// Apply regex replacement to a single file.
+/// Applies the regex to one file and reports whether it changed; a binary file is skipped.
 fn apply_regex_to_file(
     system: &dyn System,
     file_path: &Path,
     regex: &Regex,
     replacement: &str,
 ) -> Result<bool> {
-    // Skip binary files
     if is_binary_file(system, file_path)? {
         return Ok(false);
     }
 
-    // Read file content
     let content = system
         .read_to_string(file_path)
         .block_on()
@@ -369,10 +354,8 @@ fn apply_regex_to_file(
             )
         })?;
 
-    // Apply regex replacement
     let new_content = regex.replace_all(&content, replacement);
 
-    // Only write if content actually changed
     if new_content != content {
         system
             .write(file_path, new_content.as_ref().as_bytes(), Condition::None)
@@ -390,9 +373,8 @@ fn apply_regex_to_file(
     Ok(false)
 }
 
-/// Check if a file contains a specific pattern.
+/// Looks for literal text in one file; a binary file never matches.
 fn file_contains_pattern(system: &dyn System, file_path: &Path, pattern: &str) -> Result<bool> {
-    // Skip binary files
     if is_binary_file(system, file_path)? {
         return Ok(false);
     }
@@ -410,7 +392,7 @@ fn file_contains_pattern(system: &dyn System, file_path: &Path, pattern: &str) -
     Ok(content.contains(pattern))
 }
 
-/// Find all files that contain a specific pattern.
+/// Lists the text files at or under `target_path` that contain the literal text.
 fn find_files_with_pattern(
     system: &dyn System,
     target_path: &Path,
@@ -431,7 +413,7 @@ fn find_files_with_pattern(
     Ok(matching_files)
 }
 
-/// Recursively find files containing pattern using System trait.
+/// Appends to `matching_files` each text file under `dir_path` that contains the literal text.
 fn find_files_recursive(
     system: &dyn System,
     dir_path: &Path,
@@ -458,7 +440,7 @@ fn find_files_recursive(
     Ok(())
 }
 
-/// Recursively walk directory and apply replacements using System trait.
+/// Replaces literal text in every text file under `dir_path` and returns how many changed.
 fn walk_and_apply(
     system: &dyn System,
     dir_path: &Path,
@@ -478,7 +460,6 @@ fn walk_and_apply(
                 files_processed = files_processed.saturating_add(1);
             }
         } else if system.is_dir(&entry_path).block_on()? {
-            // Recursively process subdirectories
             files_processed = files_processed.saturating_add(walk_and_apply(
                 system,
                 &entry_path,
@@ -493,7 +474,7 @@ fn walk_and_apply(
     Ok(files_processed)
 }
 
-/// Recursively walk directory and apply regex replacements using System trait.
+/// Applies the regex to every text file under `dir_path` and returns how many changed.
 fn walk_and_apply_regex(
     system: &dyn System,
     dir_path: &Path,

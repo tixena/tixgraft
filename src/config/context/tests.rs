@@ -1,3 +1,7 @@
+//! Tests for context value resolution and the private coercion rules.
+//!
+//! They cover required properties, defaults, the empty-string removal and each type's coercions.
+
 #![expect(
     clippy::unwrap_used,
     reason = "unwrap is acceptable in tests for concise assertions"
@@ -27,7 +31,6 @@ fn validate_required_properties() {
         },
     ];
 
-    // Missing required property
     let values = HashMap::new();
     let result = validate_and_merge_values(&definitions, values);
     assert!(result.is_err());
@@ -38,14 +41,13 @@ fn validate_required_properties() {
             .contains("Missing required context properties")
     );
 
-    // Provide required property
     let mut values = HashMap::new();
     values.insert("projectName".to_owned(), json!("my-app"));
     let result = validate_and_merge_values(&definitions, values);
     assert!(result.is_ok());
     let merged = result.unwrap();
     assert_eq!(merged.get("projectName"), Some(&json!("my-app")));
-    assert_eq!(merged.get("maxGbPerPod"), Some(&json!(10_i64))); // default applied
+    assert_eq!(merged.get("maxGbPerPod"), Some(&json!(10_i64)));
 }
 
 #[test]
@@ -57,7 +59,6 @@ fn type_coercion_string_to_number() {
         name: "port".to_owned(),
     }];
 
-    // String "8080" should coerce to number
     let mut values = HashMap::new();
     values.insert("port".to_owned(), json!("8080"));
     let result = validate_and_merge_values(&definitions, values);
@@ -75,7 +76,6 @@ fn type_coercion_string_to_boolean() {
         name: "enabled".to_owned(),
     }];
 
-    // String "true" should coerce to boolean
     let mut values = HashMap::new();
     values.insert("enabled".to_owned(), json!("true"));
     let result = validate_and_merge_values(&definitions, values);
@@ -93,7 +93,6 @@ fn empty_string_removes_property() {
         name: "optional".to_owned(),
     }];
 
-    // Empty string should remove property
     let mut values = HashMap::new();
     values.insert("optional".to_owned(), json!(""));
     let result = validate_and_merge_values(&definitions, values);
@@ -111,13 +110,11 @@ fn array_validation() {
         name: "items".to_owned(),
     }];
 
-    // Valid array
     let mut values = HashMap::new();
     values.insert("items".to_owned(), json!(["a", "b", "c"]));
     let result = validate_and_merge_values(&definitions, values);
     result.unwrap();
 
-    // Invalid (not an array)
     let mut values_2 = HashMap::new();
     values_2.insert("items".to_owned(), json!("not-an-array"));
     let result_2 = validate_and_merge_values(&definitions, values_2);
@@ -126,7 +123,6 @@ fn array_validation() {
 
 #[test]
 fn coerce_number_to_string() {
-    // Number should coerce to string
     let val = coerce_to_string(&json!(42_i64));
     assert_eq!(val, json!("42"));
 }
@@ -160,7 +156,6 @@ fn coerce_bool_to_number_fails() {
 
 #[test]
 fn coerce_number_to_boolean() {
-    // Non-zero integer to boolean
     let result = coerce_to_boolean("test", &json!(1_i64));
     assert_eq!(result.unwrap(), json!(true));
 
@@ -201,7 +196,6 @@ fn coerce_null_to_boolean_fails() {
 
 #[test]
 fn coerce_float_to_boolean_fails() {
-    // Float numbers can't coerce to boolean (no as_i64)
     coerce_to_boolean("test", &json!(2.5_f64)).unwrap_err();
 }
 
@@ -215,7 +209,7 @@ fn type_error_in_validation() {
     }];
 
     let mut values = HashMap::new();
-    values.insert("count".to_owned(), json!(true)); // bool can't be number
+    values.insert("count".to_owned(), json!(true));
     let result = validate_and_merge_values(&definitions, values);
     assert!(result.is_err());
     assert!(

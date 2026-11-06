@@ -1,3 +1,7 @@
+//! Tests for the filesystem helpers over `MemorySystem`.
+//!
+//! They cover binary detection, size formatting, directory creation and removal, and copying.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::{System as _, mock::MemorySystem};
@@ -68,7 +72,6 @@ fn is_directory_empty_tst() {
     assert!(is_directory_empty(&system, empty_dir).unwrap());
     assert!(!is_directory_empty(&system, non_empty_dir).unwrap());
 
-    // Non-directory returns false
     assert!(!is_directory_empty(&system, Path::new("/test/non_empty/file.txt")).unwrap());
 }
 
@@ -84,7 +87,6 @@ fn remove_dir_safe_tst() {
     remove_dir_safe(&system, Path::new("/test/mydir")).unwrap();
     assert!(!system.exists(Path::new("/test/mydir")).block_on().unwrap());
 
-    // Removing non-existent dir is a no-op
     remove_dir_safe(&system, Path::new("/test/nonexistent")).unwrap();
 }
 
@@ -97,7 +99,6 @@ fn get_file_size_tst() {
     let size = get_file_size(&system, Path::new("/test/file.txt")).unwrap();
     assert_eq!(size, 11);
 
-    // Non-existent file should error
     get_file_size(&system, Path::new("/test/missing.txt")).unwrap_err();
 }
 
@@ -105,14 +106,11 @@ fn get_file_size_tst() {
 fn ensure_dir_exists_tst() {
     let system = MemorySystem::new();
 
-    // Creates new directory
     ensure_dir_exists(&system, Path::new("/test/newdir")).unwrap();
     assert!(system.exists(Path::new("/test/newdir")).block_on().unwrap());
 
-    // Already exists as dir — no error
     ensure_dir_exists(&system, Path::new("/test/newdir")).unwrap();
 
-    // Exists as file — error
     let system2 = MemorySystem::new()
         .with_file("/test/file.txt", b"data")
         .unwrap();
@@ -144,13 +142,13 @@ fn copy_file_with_progress_tst() {
     );
 }
 
+/// A known text extension counts as text even when the content looks binary.
 #[test]
 fn is_binary_file_known_text_extension() {
     let system = MemorySystem::new()
         .with_file("/test/code.rs", b"\x80\x81\x82")
         .unwrap();
 
-    // .rs is a known text extension, so it should return false even with binary-like content
     assert!(!is_binary_file(&system, Path::new("/test/code.rs")).unwrap());
 }
 
@@ -158,7 +156,6 @@ fn is_binary_file_known_text_extension() {
 fn is_binary_file_directory() {
     let system = MemorySystem::new().with_dir("/test/mydir").unwrap();
 
-    // Directory should return false
     assert!(!is_binary_file(&system, Path::new("/test/mydir")).unwrap());
 }
 
@@ -168,7 +165,6 @@ fn is_binary_file_empty_file() {
         .with_file("/test/empty.bin", b"")
         .unwrap();
 
-    // Empty file should be treated as text
     assert!(!is_binary_file(&system, Path::new("/test/empty.bin")).unwrap());
 }
 
@@ -182,7 +178,6 @@ fn format_file_size_large_values() {
 fn create_parent_directories_already_exists() {
     let system = MemorySystem::new().with_dir("/test/existing").unwrap();
 
-    // Should be a no-op when parent already exists
     create_parent_directories(&system, Path::new("/test/existing/file.txt")).unwrap();
     assert!(
         system

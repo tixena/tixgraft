@@ -1,3 +1,7 @@
+//! Tests for loading `.graft.yaml` files and for the post-command and replacement types.
+//!
+//! They cover valid and invalid YAML, replacement exclusivity and the post-command variants.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::indexing_slicing,
@@ -79,7 +83,7 @@ postCommands:
   - command: npm
     args: ["install"]
 "#;
-    let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
+    let config: GraftConfig = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(config.post_commands.len(), 1);
     match &config.post_commands[0] {
         PostCommand::Command {
@@ -115,7 +119,7 @@ postCommands:
           command: npm
           args: ["install"]
 "#;
-    let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
+    let config: GraftConfig = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(config.post_commands.len(), 1);
     match &config.post_commands[0] {
         PostCommand::Choice { options } => {
@@ -217,7 +221,7 @@ fn post_command_new_tst() {
 )]
 fn post_command_explicit_command_type() {
     let yaml = "postCommands:\n  - type: command\n    command: npm\n    args: [\"install\"]\n    cwd: \"/app\"\n";
-    let config: GraftConfig = serde_yaml::from_str(yaml).unwrap();
+    let config: GraftConfig = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(config.post_commands.len(), 1);
     match &config.post_commands[0] {
         PostCommand::Command { command, args, cwd } => {
@@ -232,7 +236,7 @@ fn post_command_explicit_command_type() {
 #[test]
 fn post_command_unknown_type() {
     let yaml = "postCommands:\n  - type: invalid\n    command: foo\n";
-    let result: Result<GraftConfig, _> = serde_yaml::from_str(yaml);
+    let result: Result<GraftConfig, _> = serde_saphyr::from_str(yaml);
     result.unwrap_err();
 }
 
@@ -264,4 +268,13 @@ fn choice_option_new_tst() {
     let option = ChoiceOption::new(test_cmd, "expected".to_owned(), on_match);
     assert_eq!(option.expected_output, "expected");
     assert_eq!(option.test.command, "test");
+}
+
+#[test]
+fn parse_error_names_the_line_without_printing_it() {
+    let err = GraftConfig::load_from_string("# token hunter2\nreplacements: nope\n").unwrap_err();
+    let message = err.to_string();
+
+    assert!(message.contains("line 2"), "{message}");
+    assert!(!message.contains("hunter2"), "{message}");
 }

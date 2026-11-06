@@ -1,4 +1,6 @@
-//! Git repository handling and URL parsing.
+//! Classifies a source string as Git or local.
+//!
+//! A Git source gets a full URL to fetch from, and a local source a checked absolute path.
 
 use crate::error::GraftError;
 use anyhow::Result;
@@ -6,43 +8,42 @@ use os_shim::System;
 use pollster::FutureExt as _;
 use std::path::{Path, PathBuf};
 
-/// Represents a repository source - either Git or local filesystem.
+/// Where a pull reads from: a remote Git repository or a local directory.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum RepositorySource {
-    /// Git repository with URL.
+    /// A repository fetched over Git.
     Git {
-        /// Normalized URL for Git operations.
+        /// Full URL to fetch from, with a short `org/repo` expanded to GitHub.
         normalized_url: String,
-        /// Original URL as provided by user.
+        /// URL exactly as the user wrote it.
         original_url: String,
     },
-    /// Local filesystem path.
+    /// A directory on the local filesystem, checked to exist when built.
     Local {
-        /// Original path string as provided by user.
+        /// Source exactly as the user wrote it, including any `file:` prefix.
         original_path: String,
-        /// Resolved absolute path.
+        /// Absolute path with `file:` and `~` resolved.
         resolved_path: PathBuf,
     },
 }
 
-/// Represents a repository with URL normalization.
+/// A classified source together with the text it came from.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Repository {
-    /// Repository source.
+    /// Classification of `url`.
     pub source: RepositorySource,
-    /// Original URL as provided by user.
+    /// Source exactly as the user wrote it.
     pub url: String,
 }
 
 impl Repository {
-    /// Get the normalized URL for Git operations (panics if called on Local source).
+    /// Returns the normalized URL to fetch from.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The repository is a local source
+    /// Returns an error if the repository is a local source.
     #[inline]
     #[expect(
         clippy::pattern_type_mismatch,
@@ -61,7 +62,7 @@ impl Repository {
         }
     }
 
-    /// Check if this is a Git repository.
+    /// True for a source fetched over Git, including a short `org/repo`.
     #[must_use]
     #[inline]
     pub const fn is_git(&self) -> bool {
@@ -74,7 +75,7 @@ impl Repository {
         )
     }
 
-    /// Check if this is a local filesystem source.
+    /// True for a source read directly from disk, with no fetch or checkout.
     #[must_use]
     #[inline]
     pub const fn is_local(&self) -> bool {
@@ -87,7 +88,7 @@ impl Repository {
         )
     }
 
-    /// Get the local path (returns None if this is a Git source).
+    /// Returns the resolved absolute path, or `None` for a Git source.
     #[must_use]
     #[inline]
     #[expect(
@@ -107,12 +108,11 @@ impl Repository {
         }
     }
 
-    /// Create a new repository from a URL or local path.
+    /// Classifies `url` as Git or local; a local path must already exist as a directory.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The repository source cannot be detected
+    /// Returns an error if a Git form is malformed, or a local path is missing or not a directory.
     #[inline]
     pub fn new(system: &dyn System, url: &str) -> Result<Self> {
         let source = detect_source_type(system, url)?;
@@ -123,7 +123,7 @@ impl Repository {
         })
     }
 
-    /// Get the original URL as provided.
+    /// Returns the source as the user wrote it, which error messages quote.
     #[must_use]
     #[inline]
     pub fn original_url(&self) -> &str {
@@ -131,10 +131,7 @@ impl Repository {
     }
 }
 
-/// A source is local when it starts with `file:`, `~`, `/`, `./`, or `../`;
-/// everything else (short `org/repo`, HTTP(S), SSH) is Git. Single source of
-/// truth for local detection — the Git-availability check and config validation
-/// defer to it so they can't drift apart.
+/// A source is local when it starts with `file:`, `~`, `/`, `./` or `../`; everything else is Git.
 pub(crate) fn is_local_source(url: &str) -> bool {
     url.starts_with("file:")
         || url.starts_with('~')
@@ -143,10 +140,9 @@ pub(crate) fn is_local_source(url: &str) -> bool {
         || url.starts_with("../")
 }
 
-/// Detect whether the source is a Git repository or local filesystem path.
+/// Builds the variant `url` selects, stripping any `file:` or `file://` scheme from a local source.
 fn detect_source_type(system: &dyn System, url: &str) -> Result<RepositorySource> {
     if is_local_source(url) {
-        // Strip the file: scheme when present; bare paths are used as-is.
         let path_str = url
             .strip_prefix("file://")
             .or_else(|| url.strip_prefix("file:"))
@@ -154,7 +150,6 @@ fn detect_source_type(system: &dyn System, url: &str) -> Result<RepositorySource
         return create_local_source(system, url, path_str);
     }
 
-    // Everything else is treated as a Git repository
     let normalized_url = normalize_repository_url(url)?;
     Ok(RepositorySource::Git {
         original_url: url.to_owned(),
@@ -162,13 +157,12 @@ fn detect_source_type(system: &dyn System, url: &str) -> Result<RepositorySource
     })
 }
 
-/// Create a local repository source, resolving the path.
+/// Expands `~`, makes the path absolute and requires an existing directory.
 fn create_local_source(
     system: &dyn System,
     original: &str,
     path_str: &str,
 ) -> Result<RepositorySource> {
-    // Expand ~ to home directory
     let expanded_path = if path_str.starts_with('~') {
         let home = system
             .env_var("HOME")
@@ -185,7 +179,6 @@ fn create_local_source(
 
     let path = PathBuf::from(&expanded_path);
 
-    // Resolve to absolute path
     let resolved_path = if path.is_absolute() {
         path
     } else {
@@ -195,7 +188,6 @@ fn create_local_source(
             .join(&path)
     };
 
-    // Verify the path exists
     if !system.exists(&resolved_path).block_on()? {
         return Err(GraftError::from_source(format!(
             "Local repository path does not exist: '{}'",
@@ -204,7 +196,6 @@ fn create_local_source(
         .into());
     }
 
-    // Verify it's a directory
     if !system.is_dir(&resolved_path).block_on()? {
         return Err(GraftError::from_source(format!(
             "Local repository path is not a directory: '{}'",
@@ -219,11 +210,9 @@ fn create_local_source(
     })
 }
 
-/// Normalize a repository URL to a format suitable for Git operations.
+/// Appends `.git` to an HTTP URL, keeps an SSH URL and expands a short `org/repo` to GitHub.
 fn normalize_repository_url(url: &str) -> Result<String> {
-    // Handle different URL formats
     if url.starts_with("https://") || url.starts_with("http://") {
-        // Already a full HTTP/HTTPS URL
         if Path::new(url)
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("git"))
@@ -233,10 +222,8 @@ fn normalize_repository_url(url: &str) -> Result<String> {
             Ok(format!("{url}.git"))
         }
     } else if url.starts_with("git@") {
-        // SSH URL - use as-is
         Ok(url.to_owned())
     } else if url.contains('/') && !url.contains(':') {
-        // Short format: my_organization/repo -> https://github.com/my_organization/repo.git
         if url.matches('/').count() == 1 {
             Ok(format!("https://github.com/{url}.git"))
         } else {
@@ -258,27 +245,22 @@ fn normalize_repository_url(url: &str) -> Result<String> {
     }
 }
 
-/// Validate that a repository URL is accessible.
+/// Requires a non-empty URL and reference on a Git source, with no network call; a local source
+/// passes, since `Repository::new` already checked its path.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The repository URL is empty
-/// - The Git reference (tag/branch) is empty
-/// - The repository is local
+/// Returns an error if a Git source has an empty URL or an empty reference.
 #[inline]
 #[expect(
     clippy::pattern_type_mismatch,
     reason = "matching on &RepositorySource; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
 )]
 pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
-    // For local repositories, we've already validated the path exists in detect_source_type
     if repo.is_local() {
-        // Local sources don't need tag validation (ignored)
         return Ok(());
     }
 
-    // For Git repositories, validate URL and tag
     match &repo.source {
         RepositorySource::Git {
             normalized_url,
@@ -298,14 +280,11 @@ pub fn validate_repository_access(repo: &Repository, tag: &str) -> Result<()> {
         RepositorySource::Local {
             original_path: _,
             resolved_path: _,
-        } => {
-            // Already handled above
-        }
+        } => {}
     }
 
     Ok(())
 }
 
-/// Tests for private functions only. Public API tests are in `tests/repository_unit_tests.rs`.
 #[cfg(test)]
 mod tests;

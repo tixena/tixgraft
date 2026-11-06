@@ -1,3 +1,7 @@
+//! Tests that run the binary's skill flags in a temporary project directory.
+//!
+//! They cover install, uninstall, the status check with `--yes` and the flags that conflict.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use assert_cmd::Command;
@@ -26,7 +30,6 @@ fn skill_install_creates_files() {
 fn skill_uninstall_removes_directory() {
     let temp = TempDir::new().unwrap();
 
-    // Install first
     Command::cargo_bin("tixgraft")
         .unwrap()
         .arg("--skill-install")
@@ -37,7 +40,6 @@ fn skill_uninstall_removes_directory() {
     let skill_dir = temp.path().join(".claude/skills/tixgraft");
     assert!(skill_dir.exists());
 
-    // Uninstall
     Command::cargo_bin("tixgraft")
         .unwrap()
         .arg("--skill-uninstall")
@@ -53,7 +55,6 @@ fn skill_uninstall_removes_directory() {
 fn skill_uninstall_idempotent() {
     let temp = TempDir::new().unwrap();
 
-    // Uninstall when nothing is installed
     Command::cargo_bin("tixgraft")
         .unwrap()
         .arg("--skill-uninstall")
@@ -83,7 +84,6 @@ fn skill_test_not_installed_auto_installs() {
 fn skill_test_up_to_date() {
     let temp = TempDir::new().unwrap();
 
-    // Install first
     Command::cargo_bin("tixgraft")
         .unwrap()
         .arg("--skill-install")
@@ -91,7 +91,6 @@ fn skill_test_up_to_date() {
         .assert()
         .success();
 
-    // Test should report up to date
     Command::cargo_bin("tixgraft")
         .unwrap()
         .args(["--skill-test", "--yes"])
@@ -105,7 +104,6 @@ fn skill_test_up_to_date() {
 fn skill_test_outdated_auto_upgrades() {
     let temp = TempDir::new().unwrap();
 
-    // Install first
     Command::cargo_bin("tixgraft")
         .unwrap()
         .arg("--skill-install")
@@ -113,11 +111,9 @@ fn skill_test_outdated_auto_upgrades() {
         .assert()
         .success();
 
-    // Modify the installed file
     let skill_path = temp.path().join(".claude/skills/tixgraft/SKILL.md");
     fs::write(&skill_path, "modified content").unwrap();
 
-    // Test with --yes should auto-upgrade
     Command::cargo_bin("tixgraft")
         .unwrap()
         .args(["--skill-test", "--yes"])
@@ -126,7 +122,6 @@ fn skill_test_outdated_auto_upgrades() {
         .success()
         .stderr(predicate::str::contains("Skill installed to"));
 
-    // Verify content was restored
     let content = fs::read_to_string(&skill_path).unwrap();
     assert!(content.contains("tixgraft"));
     assert!(!content.contains("modified content"));

@@ -1,3 +1,7 @@
+//! Tests for the private URL normalization and local-source detection.
+//!
+//! They cover each accepted URL form, malformed input and each local prefix.
+
 #![expect(clippy::unwrap_used, reason = "These are unit tests")]
 
 use super::*;

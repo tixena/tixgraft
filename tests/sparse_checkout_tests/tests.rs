@@ -1,3 +1,7 @@
+//! Tests that run the binary against a temporary git repository with nested directories.
+//!
+//! They cover one nested path, several nested paths and a path that does not exist.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use assert_cmd::Command;
@@ -6,19 +10,17 @@ use std::fs;
 use std::process::Command as StdCommand;
 use tempfile::TempDir;
 
-/// Helper to create a test Git repository with nested directory structure.
+/// Creates a repository on `master` with three nested directories of one YAML file each.
 fn create_test_git_repo() -> TempDir {
     let temp_dir = TempDir::new().unwrap();
     let repo_path = temp_dir.path();
 
-    // Initialize git repository
     StdCommand::new("git")
         .args(["init"])
         .current_dir(repo_path)
         .output()
         .unwrap();
 
-    // Configure git
     StdCommand::new("git")
         .args(["config", "user.email", "test@test.com"])
         .current_dir(repo_path)
@@ -31,7 +33,6 @@ fn create_test_git_repo() -> TempDir {
         .output()
         .unwrap();
 
-    // Create nested directory structure similar to the user's issue
     fs::create_dir_all(repo_path.join("kubernetes/kustomize/infrastructure/percona-mongodb"))
         .unwrap();
     fs::write(
@@ -55,7 +56,6 @@ fn create_test_git_repo() -> TempDir {
     )
     .unwrap();
 
-    // Add and commit files
     StdCommand::new("git")
         .args(["add", "."])
         .current_dir(repo_path)
@@ -68,7 +68,6 @@ fn create_test_git_repo() -> TempDir {
         .output()
         .unwrap();
 
-    // Create master branch explicitly
     StdCommand::new("git")
         .args(["branch", "-M", "master"])
         .current_dir(repo_path)
@@ -83,7 +82,6 @@ fn sparse_checkout_nested_path() {
     let repo_dir = create_test_git_repo();
     let work_dir = TempDir::new().unwrap();
 
-    // Create config file pointing to the test repository
     let repo_abs = repo_dir.path().canonicalize().unwrap();
     let config = format!(
         r#"
@@ -99,7 +97,6 @@ pulls:
 
     fs::write(work_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     let assert_result = cmd
         .current_dir(work_dir.path())
@@ -108,15 +105,8 @@ pulls:
         .arg("--verbose")
         .assert();
 
-    // Print output for debugging
-    // let output = assert_result.get_output();
-    // println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
-    // println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
-
-    // Check if it succeeded
     assert_result.success();
 
-    // Verify the file was copied
     let output_file = work_dir
         .path()
         .join("output/percona-mongodb/deployment.yaml");
@@ -134,7 +124,6 @@ fn sparse_checkout_multiple_nested_paths() {
     let repo_dir = create_test_git_repo();
     let work_dir = TempDir::new().unwrap();
 
-    // Create config file with multiple pulls (like the user's config)
     let repo_abs = repo_dir.path().canonicalize().unwrap();
     let config = format!(
         r#"
@@ -156,7 +145,6 @@ pulls:
 
     fs::write(work_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     let assert_result = cmd
         .current_dir(work_dir.path())
@@ -165,15 +153,8 @@ pulls:
         .arg("--verbose")
         .assert();
 
-    // Print output for debugging
-    // let output = assert_result.get_output();
-    // println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
-    // println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
-
-    // Check if it succeeded
     assert_result.success();
 
-    // Verify all files were copied
     assert!(
         work_dir
             .path()
@@ -199,7 +180,6 @@ fn sparse_checkout_nonexistent_path() {
     let repo_dir = create_test_git_repo();
     let work_dir = TempDir::new().unwrap();
 
-    // Create config file with nonexistent path
     let repo_abs = repo_dir.path().canonicalize().unwrap();
     let config = format!(
         r#"
@@ -215,7 +195,6 @@ pulls:
 
     fs::write(work_dir.path().join("tixgraft.yaml"), config).unwrap();
 
-    // Run tixgraft - should fail
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     let assert_result = cmd
         .current_dir(work_dir.path())
@@ -224,12 +203,6 @@ pulls:
         .arg("--verbose")
         .assert();
 
-    // Print output for debugging
-    // let output = assert_result.get_output();
-    // println!("STDOUT:\n{}", String::from_utf8_lossy(&output.stdout));
-    // println!("STDERR:\n{}", String::from_utf8_lossy(&output.stderr));
-
-    // Should fail with source not found error
     assert_result
         .failure()
         .stdout(predicate::str::contains("not found"));

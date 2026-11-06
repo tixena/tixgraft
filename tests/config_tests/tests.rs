@@ -1,3 +1,7 @@
+//! Tests that load YAML configs from `MemorySystem` through `Config::load_from_file`.
+//!
+//! They cover valid configs, replacements, an invalid pull type, an unset variable and traversal.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::indexing_slicing,

@@ -1,6 +1,6 @@
-//! Error handling module.
+//! Error handling for tixgraft.
 //!
-//! Defines custom error types with appropriate exit codes.
+//! Re-exports `GraftError` from `types`, whose variants decide the process exit code.
 
 #![expect(clippy::pub_use, reason = "deliberate module re-export for public API")]
 

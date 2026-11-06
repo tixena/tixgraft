@@ -1,3 +1,7 @@
+//! Tests for rendering a configuration as a command line.
+//!
+//! They cover which flags a configuration emits, shell escaping and replacement formatting.
+
 #![expect(clippy::unwrap_used, reason = "These are unit tests")]
 #![expect(
     clippy::indexing_slicing,
@@ -191,7 +195,6 @@ fn multiline_command() {
     let result = generate_command_line(&config, OutputFormat::Shell);
     assert!(result.is_ok());
     let output = result.unwrap();
-    // Should escape the newline properly
     assert!(output.contains("--pull-commands"));
 }
 
@@ -208,10 +211,9 @@ fn replacement_with_special_chars() {
     let formatted = format_replacement(&replacement);
     assert_eq!(formatted, r#"{{VAR}}=value with "quotes" and $vars"#);
 
-    // Now test that shell_escape properly escapes it
     let escaped = shell_escape(&formatted);
-    assert!(escaped.contains(r#"\""#)); // Quotes should be escaped
-    assert!(escaped.contains(r"\$")); // Dollar signs should be escaped
+    assert!(escaped.contains(r#"\""#));
+    assert!(escaped.contains(r"\$"));
 }
 
 #[test]
@@ -227,7 +229,6 @@ fn replacement_with_newlines() {
     let formatted = format_replacement(&replacement);
     assert_eq!(formatted, "{{VAR}}=line1\nline2");
 
-    // Shell escape should handle newlines
     let escaped = shell_escape(&formatted);
     assert!(escaped.starts_with('"'));
     assert!(escaped.ends_with('"'));
@@ -245,7 +246,6 @@ fn empty_pulls_array() {
     };
 
     let args = build_command_args(&config);
-    // Should still work, just no pull args
     assert_eq!(args[0], "tixgraft");
     assert!(args.contains(&"--repository".to_owned()));
     assert!(args.contains(&"my_organization/repo".to_owned()));
@@ -279,7 +279,6 @@ fn path_with_spaces() {
     let result = generate_command_line(&config, OutputFormat::Shell);
     assert!(result.is_ok());
     let output = result.unwrap();
-    // Paths with spaces should be quoted
     assert!(output.contains(r#""src with spaces""#));
     assert!(output.contains(r#""dst with spaces""#));
 }
@@ -310,7 +309,6 @@ fn file_type_pull() {
     };
 
     let args = build_command_args(&config);
-    // File type should be included since it's not the default
     assert!(args.contains(&"--pull-type".to_owned()));
     assert!(args.contains(&"file".to_owned()));
 }
@@ -328,8 +326,8 @@ fn per_pull_overrides() {
                 source: "src1".to_owned(),
                 target: "dst1".to_owned(),
                 pull_type: "directory".to_owned(),
-                repository: None, // Uses global
-                tag: None,        // Uses global
+                repository: None,
+                tag: None,
                 reset: false,
                 require_clean_target: true,
                 must_succeed: true,
@@ -341,8 +339,8 @@ fn per_pull_overrides() {
                 source: "src2".to_owned(),
                 target: "dst2".to_owned(),
                 pull_type: "directory".to_owned(),
-                repository: Some("per-pull/repo".to_owned()), // Override
-                tag: Some("v2".to_owned()),                   // Override
+                repository: Some("per-pull/repo".to_owned()),
+                tag: Some("v2".to_owned()),
                 reset: false,
                 require_clean_target: true,
                 must_succeed: true,
@@ -356,7 +354,6 @@ fn per_pull_overrides() {
     };
 
     let args = build_command_args(&config);
-    // Should have per-pull overrides for the second pull
     assert!(args.contains(&"--pull-repository".to_owned()));
     assert!(args.contains(&"per-pull/repo".to_owned()));
     assert!(args.contains(&"--pull-tag".to_owned()));
@@ -389,7 +386,6 @@ fn must_succeed_true_not_emitted() {
     };
 
     let args = build_command_args(&config);
-    // Default must_succeed=true should NOT emit the flag
     assert!(!args.contains(&"--pull-must-succeed".to_owned()));
 }
 
@@ -419,7 +415,6 @@ fn must_succeed_false_emitted() {
     };
 
     let args = build_command_args(&config);
-    // must_succeed=false should emit the flag
     assert!(args.contains(&"--pull-must-succeed".to_owned()));
     assert!(args.contains(&"false".to_owned()));
 }

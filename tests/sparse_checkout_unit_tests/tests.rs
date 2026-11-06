@@ -1,3 +1,5 @@
+//! Tests that the linked libgit2 passes `check_git_support` and carries HTTPS and SSH.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use tixgraft::git::sparse_checkout::check_git_support;

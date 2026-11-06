@@ -1,3 +1,7 @@
+//! Tests that run the binary with flags and config files and check its output and exit code.
+//!
+//! They cover `--version`, `--help`, dry runs, invalid configs and mismatched pull arguments.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use assert_cmd::Command;
@@ -32,13 +36,12 @@ fn missing_config_error() {
         .arg("nonexistent.yaml")
         .assert()
         .failure()
-        .code(1_i32) // Configuration error
+        .code(1_i32)
         .stdout(predicate::str::contains("Configuration file not found"));
 }
 
 #[test]
 fn dry_run_with_example_config() {
-    // Create a temporary config file
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("test.yaml");
 
@@ -66,7 +69,6 @@ fn invalid_yaml_config() {
     let temp_dir = TempDir::new().unwrap();
     let config_path = temp_dir.path().join("invalid.yaml");
 
-    // Invalid YAML content
     let invalid_yaml = r#"
 repository: "example/test"
 pulls:
@@ -82,7 +84,7 @@ pulls:
         .arg(config_path.to_str().unwrap())
         .assert()
         .failure()
-        .code(1_i32) // Configuration error
+        .code(1_i32)
         .stdout(predicate::str::contains("Failed to parse YAML"));
 }
 
@@ -104,7 +106,7 @@ tag: "main"
         .arg(config_path.to_str().unwrap())
         .assert()
         .failure()
-        .code(1_i32); // Configuration error - missing required field detected during parsing
+        .code(1_i32);
 }
 
 #[test]
@@ -133,9 +135,8 @@ fn cli_args_mismatch_sources_targets() {
         .arg("src/dir2")
         .arg("--pull-target")
         .arg("./target1")
-        // Missing second target
         .assert()
         .failure()
-        .code(1_i32) // Configuration error
+        .code(1_i32)
         .stdout(predicate::str::contains("Mismatch"));
 }

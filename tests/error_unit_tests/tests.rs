@@ -1,3 +1,7 @@
+//! Tests for the `GraftError` constructors.
+//!
+//! They cover the variant and message each one builds, each exit code and accepted message types.
+
 use tixgraft::error::GraftError;
 
 #[test]
@@ -39,10 +43,7 @@ fn exit_codes() {
 
 #[test]
 fn accepts_string_and_str() {
-    // &str
     drop(GraftError::command("static str"));
-    // String
     drop(GraftError::command(String::from("owned string")));
-    // format!
     drop(GraftError::command(format!("formatted {}", 42_i32)));
 }

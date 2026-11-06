@@ -1,4 +1,4 @@
-//! Tests for System temp directory abstraction.
+//! Tests for the temporary directories `MemorySystem` creates.
 
 #[cfg(test)]
 mod tests;

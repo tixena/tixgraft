@@ -1,3 +1,7 @@
+//! Tests for the path helpers, called directly on literal paths.
+//!
+//! They cover normalization, safety and escape checks, joins, separators and allow patterns.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::shadow_unrelated,
@@ -21,17 +25,13 @@ fn normalize_path() {
 
 #[test]
 fn validate_path_safety_tst() {
-    // Safe paths
     validate_path_safety("./some/path").unwrap();
     validate_path_safety("some/path").unwrap();
     validate_path_safety("path").unwrap();
 
-    // Unsafe paths - this should fail but our normalize_path handles it
-    // So let's test a different unsafe pattern
     assert!(validate_path_safety("/etc/passwd").is_err());
     assert!(validate_path_safety("../../../etc").is_err());
 
-    // This should be OK as it doesn't escape
     validate_path_safety("./relative/path").unwrap();
 }
 
@@ -79,25 +79,20 @@ fn common_path_prefix_tst() {
     let prefix = common_path_prefix(Path::new("a/b/c/d"), Path::new("a/b/x/y"));
     assert_eq!(prefix, PathBuf::from("a/b"));
 
-    // No common prefix
     let prefix = common_path_prefix(Path::new("a/b"), Path::new("x/y"));
     assert_eq!(prefix, PathBuf::from(""));
 
-    // Identical paths
     let prefix = common_path_prefix(Path::new("a/b/c"), Path::new("a/b/c"));
     assert_eq!(prefix, PathBuf::from("a/b/c"));
 }
 
 #[test]
 fn join_path_safe_tst() {
-    // Normal join
     let result = join_path_safe("base", "sub/path").unwrap();
     assert_eq!(result, "base/sub/path");
 
-    // Rejects traversal
     join_path_safe("base", "../escape").unwrap_err();
 
-    // Rejects absolute component
     join_path_safe("base", "/etc/passwd").unwrap_err();
 }
 
@@ -117,23 +112,19 @@ fn to_windows_tst() {
 
 #[test]
 fn is_path_allowed_tst() {
-    // Direct match
     assert!(is_path_allowed(Path::new("src/main.rs"), &["src"]));
 
-    // No match
     assert!(!is_path_allowed(Path::new("src/main.rs"), &["tests"]));
 
-    // Glob pattern
     assert!(is_path_allowed(Path::new("src/main.rs"), &["*.rs"]));
     assert!(!is_path_allowed(Path::new("src/main.rs"), &["*.txt"]));
 
-    // Empty patterns
     assert!(!is_path_allowed(Path::new("anything"), &[]));
 }
 
+/// Paths that do not resolve fall back to the lexical comparison.
 #[test]
 fn escapes_from_base_tst() {
-    // Normalized path check (non-existent paths, fallback branch)
     assert!(escapes_from_base(
         Path::new("/outside/path"),
         Path::new("/base/dir")
@@ -146,6 +137,5 @@ fn escapes_from_base_tst() {
 
 #[test]
 fn validate_path_safety_dotdot_not_escaping() {
-    // a/../a doesn't escape — it normalizes to "a"
     validate_path_safety("a/../a").unwrap();
 }

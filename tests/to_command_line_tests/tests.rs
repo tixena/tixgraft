@@ -1,3 +1,7 @@
+//! Tests that run the binary with `--to-command-line` over temporary config files.
+//!
+//! They cover shell and JSON output, overrides, multiple pulls, escaping and `mustSucceed`.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use assert_cmd::Command;
@@ -62,7 +66,6 @@ pulls:
         .assert()
         .success();
 
-    // Parse JSON output
     let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
     let json: Vec<String> = serde_json::from_str(&stdout).unwrap();
 
@@ -94,7 +97,7 @@ pulls:
 
     let mut cmd = Command::cargo_bin("tixgraft").unwrap();
     let output = cmd
-        .env("MY_ENV", "test_value") // Pass env var to subprocess
+        .env("MY_ENV", "test_value")
         .arg("--config")
         .arg(config_file.path())
         .arg("--to-command-line")
@@ -103,7 +106,6 @@ pulls:
 
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("--pull-replacement"));
-    // The values might be quoted due to special characters
     assert!(stdout.contains("VAR1"));
     assert!(stdout.contains("value1"));
     assert!(stdout.contains("VAR2"));
@@ -198,7 +200,6 @@ pulls:
 
     let stdout = String::from_utf8(output.stdout).unwrap();
 
-    // Verify both pulls are present
     assert!(stdout.contains("path1"));
     assert!(stdout.contains("target1"));
     assert!(stdout.contains("path2"));
@@ -268,10 +269,9 @@ pulls:
 
     let stdout = String::from_utf8(output.stdout).unwrap();
 
-    // Verify special characters are properly escaped
     assert!(stdout.contains("\"src with spaces\""));
     assert!(stdout.contains("\"dst with spaces\""));
-    assert!(stdout.contains("\\$")); // Dollar should be escaped
+    assert!(stdout.contains("\\$"));
 }
 
 #[test]
@@ -306,7 +306,7 @@ fn to_command_line_nonexistent_config() {
         .arg("--to-command-line")
         .assert()
         .failure()
-        .code(1_i32); // Configuration error
+        .code(1_i32);
 }
 
 #[test]
@@ -335,7 +335,6 @@ pulls:
 
     let stdout = String::from_utf8(output.stdout).unwrap();
 
-    // Verify backslash continuations are present for multiline output
     assert!(stdout.contains(" \\\n"));
 }
 
@@ -387,6 +386,5 @@ pulls:
         .unwrap();
 
     let stdout = String::from_utf8(output.stdout).unwrap();
-    // Default mustSucceed (true) should NOT emit the flag
     assert!(!stdout.contains("--pull-must-succeed"));
 }

@@ -1,38 +1,40 @@
-//! Custom error types with exit codes.
+//! The error type of tixgraft operations.
+//!
+//! Each variant maps to the process exit code the binary ends with.
 
 use thiserror::Error;
 
-/// Main error type for tixgraft operations.
+/// Error of a tixgraft operation; `message` in every variant is the text shown to the user.
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum GraftError {
-    /// Command Error - one or more commands failed.
+    /// A command run after copying was empty or failed; exits with code 3.
     #[error("Command error: {message}")]
     Command { message: String },
 
-    /// Configuration Error - missing or invalid configuration.
+    /// The configuration is missing or invalid; exits with code 1.
     #[error("Configuration error: {message}")]
     Configuration { message: String },
 
-    /// Filesystem Error - file operation failed.
+    /// A file operation failed; exits with code 5.
     #[error("Filesystem error: {message}")]
     Filesystem { message: String },
 
-    /// Git Error - Git operation failed.
+    /// A Git operation failed; exits with code 4.
     #[error("Git error: {message}")]
     Git { message: String },
 
-    /// Skill Error - skill management operation failed.
+    /// A skill management operation failed; exits with code 6.
     #[error("Skill error: {message}")]
     Skill { message: String },
 
-    /// Source Error - source path not found in repository.
+    /// The source path or local repository is missing or of the wrong kind; exits with code 2.
     #[error("Source error: {message}")]
     Source { message: String },
 }
 
 impl GraftError {
-    /// Create a command error.
+    /// Wraps `message` in the `Command` variant.
     #[inline]
     pub fn command<S>(message: S) -> Self
     where
@@ -43,7 +45,7 @@ impl GraftError {
         }
     }
 
-    /// Create a configuration error.
+    /// Wraps `message` in the `Configuration` variant.
     #[inline]
     pub fn configuration<S>(message: S) -> Self
     where
@@ -54,7 +56,7 @@ impl GraftError {
         }
     }
 
-    /// Get the appropriate exit code for this error type.
+    /// Returns the process exit code of this variant, from 1 to 6.
     #[must_use]
     #[inline]
     pub const fn exit_code(&self) -> i32 {
@@ -68,7 +70,7 @@ impl GraftError {
         }
     }
 
-    /// Create a filesystem error.
+    /// Wraps `message` in the `Filesystem` variant.
     #[inline]
     pub fn filesystem<S>(message: S) -> Self
     where
@@ -79,7 +81,7 @@ impl GraftError {
         }
     }
 
-    /// Create a source error.
+    /// Wraps `message` in the `Source` variant.
     #[inline]
     pub fn from_source<S>(message: S) -> Self
     where
@@ -90,7 +92,7 @@ impl GraftError {
         }
     }
 
-    /// Create a git error.
+    /// Wraps `message` in the `Git` variant.
     #[inline]
     pub fn git<S>(message: S) -> Self
     where
@@ -101,7 +103,7 @@ impl GraftError {
         }
     }
 
-    /// Create a skill error.
+    /// Wraps `message` in the `Skill` variant.
     #[inline]
     pub fn skill<S>(message: S) -> Self
     where

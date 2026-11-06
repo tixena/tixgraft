@@ -1,3 +1,7 @@
+//! Tests that run `PostCommand` values as real processes in a temporary directory.
+//!
+//! They cover working directories, regex choice matching, nesting and continuing after a failure.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::indexing_slicing,
@@ -32,7 +36,6 @@ fn execute_command_with_cwd() {
     let sub_dir = temp_dir.path().join("subdir");
     fs::create_dir_all(&sub_dir).unwrap();
 
-    // Create a file in subdir to verify cwd
     fs::write(sub_dir.join("test.txt"), "content").unwrap();
 
     let command = PostCommand::new("ls".to_owned(), vec![], Some("subdir".to_owned()));
@@ -70,7 +73,7 @@ fn execute_choice_no_match() {
     let command = PostCommand::Choice {
         options: vec![ChoiceOption::new(
             TestCommand::new("echo".to_owned(), vec!["hello".to_owned()], None),
-            "version".to_owned(), // Won't match "hello"
+            "version".to_owned(),
             Box::new(PostCommand::new(
                 "echo".to_owned(),
                 vec!["should not run".to_owned()],
@@ -117,15 +120,12 @@ fn resolve_working_directory_tst() {
     let sub_dir = temp_dir.path().join("subdir");
     fs::create_dir_all(&sub_dir).unwrap();
 
-    // Test None (uses graft_directory)
     let result = resolve_working_directory(None, temp_dir.path()).unwrap();
     assert_eq!(result, temp_dir.path());
 
-    // Test relative path
     let result_2 = resolve_working_directory(Some("subdir"), temp_dir.path()).unwrap();
     assert_eq!(result_2, sub_dir);
 
-    // Test non-existent directory
     let result_3 = resolve_working_directory(Some("nonexistent"), temp_dir.path());
     result_3.unwrap_err();
 }
@@ -142,18 +142,14 @@ fn continue_on_command_failure() {
 
     let results = execute_post_commands(&commands, temp_dir.path()).unwrap();
 
-    // All commands should have been executed
     assert_eq!(results.len(), 3);
 
-    // First command should succeed
     assert!(results[0].success);
     assert!(results[0].output.contains("first"));
 
-    // Second command should fail but be recorded
     assert!(!results[1].success);
     assert!(results[1].error.is_some());
 
-    // Third command should still execute and succeed
     assert!(results[2].success);
     assert!(results[2].output.contains("third"));
 }
@@ -165,7 +161,6 @@ fn execute_choice_with_regex_pattern() {
     let command = PostCommand::Choice {
         options: vec![ChoiceOption::new(
             TestCommand::new("echo".to_owned(), vec!["v1.2.3".to_owned()], None),
-            // Regex pattern to match semantic version (with optional whitespace)
             r"v\d+\.\d+\.\d+".to_owned(),
             Box::new(PostCommand::new(
                 "echo".to_owned(),
@@ -187,7 +182,6 @@ fn execute_choice_regex_no_match() {
     let command = PostCommand::Choice {
         options: vec![ChoiceOption::new(
             TestCommand::new("echo".to_owned(), vec!["not a version".to_owned()], None),
-            // Regex pattern that won't match "not a version"
             r"v\d+\.\d+\.\d+".to_owned(),
             Box::new(PostCommand::new(
                 "echo".to_owned(),
@@ -209,7 +203,6 @@ fn invalid_regex_pattern_error() {
     let command = PostCommand::Choice {
         options: vec![ChoiceOption::new(
             TestCommand::new("echo".to_owned(), vec!["test".to_owned()], None),
-            // Invalid regex pattern (unclosed bracket)
             "[invalid".to_owned(),
             Box::new(PostCommand::new(
                 "echo".to_owned(),
@@ -232,7 +225,6 @@ fn invalid_regex_pattern_error() {
 fn complex_regex_patterns() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Test anchors, character classes, and quantifiers
     let command = PostCommand::Choice {
         options: vec![
             ChoiceOption::new(
@@ -241,7 +233,6 @@ fn complex_regex_patterns() {
                     vec!["ERROR: File not found".to_owned()],
                     None,
                 ),
-                // Pattern: starts with ERROR, colon, space, any characters
                 r"^ERROR:\s+.+".to_owned(),
                 Box::new(PostCommand::new(
                     "echo".to_owned(),
@@ -277,7 +268,6 @@ fn regex_case_sensitivity() {
     let command = PostCommand::Choice {
         options: vec![ChoiceOption::new(
             TestCommand::new("echo".to_owned(), vec!["Version 1.0".to_owned()], None),
-            // Case-sensitive pattern (lowercase 'version' should not match)
             "version".to_owned(),
             Box::new(PostCommand::new(
                 "echo".to_owned(),
@@ -289,7 +279,6 @@ fn regex_case_sensitivity() {
 
     let result = execute_post_command(&command, temp_dir.path()).unwrap();
     assert!(result.success);
-    // Should not match because of case sensitivity
     assert!(result.output.contains("No matching option"));
 }
 
@@ -300,7 +289,6 @@ fn regex_with_word_boundaries() {
     let command = PostCommand::Choice {
         options: vec![ChoiceOption::new(
             TestCommand::new("echo".to_owned(), vec!["node v20.0.0".to_owned()], None),
-            // Pattern with word boundary to match exact version format
             r"\bv\d+\.\d+\.\d+\b".to_owned(),
             Box::new(PostCommand::new(
                 "echo".to_owned(),
@@ -369,15 +357,12 @@ fn multiple_command_types_mixed_failures() {
     let results = execute_post_commands(&commands, temp_dir.path()).unwrap();
     assert_eq!(results.len(), 3);
 
-    // First should succeed
     assert!(results[0].success);
     assert!(results[0].output.contains("first success"));
 
-    // Second (choice) should succeed
     assert!(results[1].success);
     assert!(results[1].output.contains("choice success"));
 
-    // Third should fail but be recorded
     assert!(!results[2].success);
     assert!(results[2].error.is_some());
 }
@@ -397,7 +382,6 @@ fn error_message_formatting() {
     assert!(!results[0].success);
 
     let error = results[0].error.as_ref().unwrap();
-    // Error message should mention the command name
     assert!(
         error.contains("definitely_nonexistent_command_12345"),
         "Error should mention command name, got: {error}"

@@ -1,3 +1,7 @@
+//! Tests that take a `.graft.yaml` through validation, copying and replacement in `MemorySystem`.
+//!
+//! They cover defaults, type coercion, JSON arrays, YAML errors and merging context values.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::{System as _, mock::MemorySystem};
@@ -40,17 +44,13 @@ replacements:
         .with_dir("/target")
         .unwrap();
 
-    // Load graft config from string
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
-    // Create context values
     let mut context = HashMap::new();
     context.insert("projectName".to_owned(), json!("MyApp"));
 
-    // Validate context
     let validated = ValidatedContext::new(graft.context.clone(), context).unwrap();
 
-    // Copy file
     copy_files(
         &system,
         Path::new("/source/config.txt"),
@@ -60,7 +60,6 @@ replacements:
     )
     .unwrap();
 
-    // Apply replacements
     apply_graft_replacements(
         &system,
         "/target/config.txt",
@@ -69,7 +68,6 @@ replacements:
     )
     .unwrap();
 
-    // Verify result
     let result = system
         .read_to_string(Path::new("/target/config.txt"))
         .block_on()
@@ -92,7 +90,6 @@ replacements:
 
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
-    // Empty context - should fail validation
     let context = HashMap::new();
     let result = ValidatedContext::new(graft.context, context);
 
@@ -135,14 +132,12 @@ replacements:
 
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
-    // String values should coerce to number/boolean
     let mut context = HashMap::new();
     context.insert("port".to_owned(), json!("8080"));
     context.insert("enabled".to_owned(), json!("true"));
 
     let validated = ValidatedContext::new(graft.context.clone(), context).unwrap();
 
-    // Copy and replace
     copy_files(
         &system,
         Path::new("/source/file.txt"),
@@ -246,7 +241,6 @@ replacements:
 
     let graft = GraftConfig::load_from_string(graft_content).unwrap();
 
-    // Only provide required property
     let mut context = HashMap::new();
     context.insert("name".to_owned(), json!("MyApp"));
 
@@ -281,7 +275,6 @@ context:
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
 
-    // Error should include line number information
     assert!(
         error_msg.contains("line") && error_msg.contains("column"),
         "Error message should include line and column numbers, got: {error_msg}"
@@ -294,9 +287,6 @@ context:
 
 #[test]
 fn yaml_syntax_error_reports_exact_location() {
-    // Test various YAML syntax errors to ensure line numbers are reported
-
-    // Case 1: Missing closing bracket
     let yaml1 = r#"
 context:
   - name: test
@@ -307,7 +297,6 @@ context:
     let error1 = result1.unwrap_err().to_string();
     assert!(error1.contains("line") && error1.contains("column"));
 
-    // Case 2: Invalid indentation
     let yaml2 = "
 context:
 - name: test
@@ -320,9 +309,9 @@ context:
     assert!(error2.contains("line") && error2.contains("column"));
 }
 
+/// An unknown `dataType` is valid YAML and is still rejected.
 #[test]
 fn yaml_type_error_with_location() {
-    // YAML parses but validation fails - still should have helpful error
     let graft_content = r#"
 context:
   - name: test
@@ -331,7 +320,6 @@ context:
 "#;
 
     let result = GraftConfig::load_from_string(graft_content);
-    // This should fail validation, not parsing
     result.unwrap_err();
 }
 
@@ -471,7 +459,7 @@ fn value_to_string_tst() {
 #[test]
 fn validated_context_get_and_get_as_string() {
     let def_yaml = "- name: name\n  description: Name\n  dataType: string\n";
-    let definitions: Vec<ContextPropertyDefinition> = serde_yaml::from_str(def_yaml).unwrap();
+    let definitions: Vec<ContextPropertyDefinition> = serde_saphyr::from_str(def_yaml).unwrap();
 
     let mut values = HashMap::new();
     values.insert("name".to_owned(), json!("Alice"));

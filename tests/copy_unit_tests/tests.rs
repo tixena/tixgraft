@@ -1,3 +1,7 @@
+//! Tests for the copy operations and their size and file counts, over `MemorySystem`.
+//!
+//! They cover dotfiles, `reset`, relative sources, invalid pull types and wrong kinds of source.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::System as _;
@@ -19,12 +23,10 @@ fn copy_file_tst() {
     let source_path = Path::new("/test/source.txt");
     let target_path = Path::new("/test/target.txt");
 
-    // Copy file
     let result = copy_file(&system, source_path, target_path);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
 
-    // Verify target exists and has correct content
     assert!(system.exists(target_path).block_on().unwrap());
     let content = system.read_to_string(target_path).block_on().unwrap();
     assert_eq!(content.trim(), "test content");
@@ -45,12 +47,10 @@ fn copy_directory_tst() {
     let source_dir = Path::new("/test/source");
     let target_dir = Path::new("/test/target");
 
-    // Copy directory
     let result = copy_directory(&system, source_dir, target_dir);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 2);
 
-    // Verify target structure
     assert!(
         system
             .exists(&target_dir.join("file1.txt"))
@@ -179,7 +179,6 @@ fn copy_files_directory_with_reset() {
         .unwrap();
 
     copy_files(&system, Path::new("/source"), "/target", "directory", true).unwrap();
-    // Old file should be gone after reset
     assert!(
         !system
             .exists(Path::new("/target/old.txt"))
@@ -235,7 +234,7 @@ fn calculate_copy_size_directory() {
         .unwrap();
 
     let size = calculate_copy_size(&system, Path::new("/test/dir"), "directory").unwrap();
-    assert_eq!(size, 8); // 3 ("aaa") + 5 ("bbbbb")
+    assert_eq!(size, 8);
 }
 
 #[test]

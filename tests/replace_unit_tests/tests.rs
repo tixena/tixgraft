@@ -1,3 +1,7 @@
+//! Tests for applying replacements and for resolving a replacement's value.
+//!
+//! They cover literal, environment and context values, regexes, previews and binary files.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::indexing_slicing,
@@ -25,10 +29,8 @@ fn apply_simple_replacement() {
         .with_file("/test.txt", b"Hello {{NAME}}, welcome to {{PLACE}}!\n")
         .unwrap();
 
-    // Create replacement config
     let replacement = ReplacementConfig::new("{{NAME}}".to_owned(), Some("Alice".to_owned()), None);
 
-    // Apply replacement
     let result = apply_single_replacement(
         &system,
         Path::new("/test.txt"),
@@ -38,7 +40,6 @@ fn apply_simple_replacement() {
 
     result.unwrap();
 
-    // Verify replacement was applied
     let content = system
         .read_to_string(Path::new("/test.txt"))
         .block_on()
@@ -68,7 +69,6 @@ fn graft_replacement_with_context() {
     context.insert("projectName".to_owned(), json!("my-app"));
     context.insert("maxGb".to_owned(), json!(16_i32));
 
-    // Test string context value
     let replacement = GraftReplacement::new(
         "{{PROJECT}}".to_owned(),
         None,
@@ -80,7 +80,6 @@ fn graft_replacement_with_context() {
     assert!(value.is_ok());
     assert_eq!(value.unwrap(), "my-app");
 
-    // Test number context value
     let replacement_2 = GraftReplacement::new(
         "{{MAX_GB}}".to_owned(),
         None,
@@ -307,7 +306,6 @@ fn graft_replacement_multiple_sources_error() {
     let system = MemorySystem::new();
     let context = HashMap::new();
 
-    // Both target and valueFromContext
     let replacement = GraftReplacement::new(
         "{{X}}".to_owned(),
         Some("val".to_owned()),

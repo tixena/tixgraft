@@ -1,9 +1,4 @@
-//! Unit tests for context feature.
-//!
-//! Tests the context workflow including:
-//! - .graft.yaml discovery and parsing
-//! - Context validation (required/optional properties)
-//! - Text replacements from context
+//! Unit tests for `.graft.yaml` context properties and the replacements they feed.
 
 #[cfg(test)]
 mod tests;

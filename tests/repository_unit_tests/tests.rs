@@ -1,3 +1,7 @@
+//! Tests for how `Repository::new` classifies a source as Git or local.
+//!
+//! They cover each URL and path form, local paths that fail and the accessor methods.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::mock::MemorySystem;

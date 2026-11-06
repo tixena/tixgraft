@@ -1,6 +1,6 @@
-//! Git operations module.
+//! Repository handling and Git checkout.
 //!
-//! Handles Git repository operations including sparse checkout.
+//! Re-exports the source classification from `repository` and the checkout from `sparse_checkout`.
 
 #![expect(clippy::pub_use, reason = "deliberate module re-export for public API")]
 

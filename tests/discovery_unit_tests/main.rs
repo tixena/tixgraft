@@ -1,4 +1,4 @@
-//! Unit tests for graft file discovery.
+//! Unit tests for finding and deleting `.graft.yaml` files.
 
 #[cfg(test)]
 mod tests;

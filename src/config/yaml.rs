@@ -1,26 +1,26 @@
 //! YAML configuration loading and parsing.
+//!
+//! A loaded file passes the JSON schema and then the validation rules.
 
 use crate::config::schema::validate_against_schema;
 use crate::config::{Config, validation::validate_config_with_base_dir};
 use anyhow::{Context as _, Result, anyhow};
 use os_shim::System;
 use pollster::FutureExt as _;
+use serde::de::DeserializeOwned;
+use serde_saphyr::UserMessageFormatter;
 use std::path::Path;
 
-/// Load and parse YAML configuration from file.
+/// Reads and validates the file at `path`, resolving child paths against its directory, so nested
+/// configurations validate from any working directory.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The configuration file cannot be found
-/// - The configuration file cannot be read
-/// - The configuration file cannot be parsed
-/// - The configuration is invalid
+/// Returns an error if the file is missing, unreadable or unparsable, or fails validation.
 #[inline]
 pub fn load_config(system: &dyn System, path: &str) -> Result<Config> {
     let path_obj = Path::new(path);
 
-    // Check if file exists using System trait
     if !system.exists(path_obj).block_on()? {
         return Err(anyhow!(
             "Configuration file not found: {path}\n\
@@ -28,32 +28,36 @@ pub fn load_config(system: &dyn System, path: &str) -> Result<Config> {
         ));
     }
 
-    // Read file contents using System trait
     let content = system
         .read_to_string(path_obj)
         .block_on()
         .with_context(|| format!("Failed to read configuration file: {path}"))?;
 
-    // Parse YAML
-    let config: Config = serde_yaml::from_str(&content).with_context(|| {
+    let config: Config = parse_yaml(&content).with_context(|| {
         format!(
             "Failed to parse YAML configuration in file: {path}\n\
             Please check the syntax and structure of your configuration file"
         )
     })?;
 
-    // Validate against JSON schema
     let config_value = serde_json::to_value(&config)
         .context("Failed to convert configuration to JSON for validation")?;
 
     validate_against_schema(&config_value).context("Configuration validation failed")?;
 
-    // Validate configuration logic (path safety, env vars, etc.)
-    // Resolve children paths relative to the config file's directory so that
-    // nested configs (A→B→C) validate correctly regardless of CWD.
     let base_dir = Path::new(path).parent();
     validate_config_with_base_dir(system, &config, base_dir)
         .context("Configuration validation failed")?;
 
     Ok(config)
+}
+
+/// Parses YAML into `T`. The error names the line and column but prints no line of the file, which
+/// may hold a password.
+pub(crate) fn parse_yaml<T>(content: &str) -> Result<T>
+where
+    T: DeserializeOwned,
+{
+    serde_saphyr::from_str_with_options(content, serde_saphyr::options! { with_snippet: false })
+        .map_err(|err| anyhow!(err.render_with_formatter(&UserMessageFormatter)))
 }

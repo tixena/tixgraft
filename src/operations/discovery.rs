@@ -1,22 +1,6 @@
-//! Discovery of .graft.yaml files in target directories.
+//! Finds the `.graft.yaml` files under a directory and links each to the one above it.
 //!
-//! Handles recursive discovery of .graft.yaml files and builds a hierarchy
-//! to support context inheritance.
-//!
-//! ## Behavior
-//!
-//! ### Gitignore Support
-//! Discovery respects `.gitignore`, `.ignore`, and other ignore files in the directory tree.
-//! Files and directories that are ignored will not be searched for `.graft.yaml` files.
-//! This behavior is inherited from the `ignore` crate and matches tools like `ripgrep`.
-//!
-//! ### Symlinks
-//! Symbolic links are **not followed** during discovery. Only regular files and directories
-//! are traversed. This prevents infinite loops and ensures predictable behavior.
-//!
-//! ### Hidden Files
-//! Hidden files (those starting with `.`) are included in the search, allowing discovery
-//! of `.graft.yaml` files themselves.
+//! The walk honors `.gitignore` and `.ignore` files, includes hidden files and follows no symlinks.
 
 use anyhow::{Context as _, Result};
 use pollster::FutureExt as _;
@@ -27,25 +11,25 @@ use std::{
 
 use os_shim::System;
 
-/// A discovered .graft.yaml file with its location and hierarchy information.
+/// A `.graft.yaml` file found under the search root, with its location and nearest ancestor.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct DiscoveredGraft {
-    /// Depth in the directory hierarchy (0 = root).
+    /// Directory levels below the search root, which is depth 0.
     pub depth: usize,
 
-    /// Directory containing the .graft.yaml file (parent of the file).
+    /// The directory holding the file, where its replacements and post-commands run.
     pub directory: PathBuf,
 
-    /// Parent graft (if any) for context inheritance.
+    /// The graft in the nearest ancestor directory, if any.
     pub parent: Option<Box<Self>>,
 
-    /// Absolute path to the .graft.yaml file.
+    /// Absolute path to the file.
     pub path: PathBuf,
 }
 
 impl DiscoveredGraft {
-    /// Get all ancestors in order (closest parent first).
+    /// Returns every ancestor graft, closest first, excluding this one.
     #[must_use]
     #[inline]
     pub fn ancestors(&self) -> Vec<&Self> {
@@ -59,31 +43,11 @@ impl DiscoveredGraft {
     }
 }
 
-/// Discover all .graft.yaml files in a target directory recursively.
-///
-/// Returns grafts sorted by depth (root first) for proper processing order.
-///
-/// # Behavior
-///
-/// - **Gitignore**: Respects `.gitignore`, `.ignore`, and other ignore files
-/// - **Symlinks**: Does not follow symbolic links (prevents loops)
-/// - **Hidden files**: Includes hidden files (needed to find `.graft.yaml`)
-///
-/// # Arguments
-///
-/// * `target_dir` - Directory to search recursively
-///
-/// # Returns
-///
-/// Vector of discovered `.graft.yaml` files sorted by depth (0 = root).
-/// Each entry includes its path, parent directory, depth, and parent graft reference.
+/// Finds every `.graft.yaml` under `target_dir`, sorted by depth so a parent precedes its children.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - Target directory does not exist
-/// - Target path is not a directory
-/// - Directory cannot be canonicalized
+/// Returns an error if `target_dir` is missing, is not a directory or cannot be walked.
 #[inline]
 pub fn discover_graft_files(
     system: &dyn System,
@@ -114,7 +78,6 @@ pub fn discover_graft_files(
             )
         })?;
 
-    // Walk directory tree and find all .graft.yaml files using System abstraction
     let entries = system
         .walk_dir(&relative_target_dir, false, true)
         .block_on()
@@ -128,14 +91,12 @@ pub fn discover_graft_files(
     for entry in entries {
         let path = &entry.path;
 
-        // Check if this is a .graft.yaml file
         if entry.is_file && path.file_name() == Some(OsStr::new(".graft.yaml")) {
             let directory = path
                 .parent()
                 .ok_or_else(|| anyhow::anyhow!("Failed to get parent directory of .graft.yaml"))?
                 .to_path_buf();
 
-            // Calculate depth relative to target_dir
             let depth = directory
                 .strip_prefix(&relative_target_dir)
                 .ok()
@@ -145,13 +106,10 @@ pub fn discover_graft_files(
         }
     }
 
-    // Sort by depth (root first)
     discoveries.sort_by_key(|&(_, _, depth)| depth);
 
-    // Build hierarchy with parent relationships
     let mut grafts = Vec::new();
     for (path, directory, depth) in discoveries {
-        // Find parent graft (if any)
         let parent = find_parent_graft(&grafts, &directory);
 
         grafts.push(DiscoveredGraft {
@@ -165,11 +123,8 @@ pub fn discover_graft_files(
     Ok(grafts)
 }
 
-/// Find the parent graft for a given directory.
-///
-/// The parent is the graft whose directory is an ancestor of the given directory.
+/// Returns the deepest graft in an ancestor of `directory`; `grafts` must be sorted by depth.
 fn find_parent_graft(grafts: &[DiscoveredGraft], directory: &Path) -> Option<Box<DiscoveredGraft>> {
-    // Look for the closest ancestor directory that has a .graft.yaml
     for graft in grafts.iter().rev() {
         if directory.starts_with(&graft.directory) && directory != graft.directory {
             return Some(Box::new(graft.clone()));
@@ -178,15 +133,12 @@ fn find_parent_graft(grafts: &[DiscoveredGraft], directory: &Path) -> Option<Box
     None
 }
 
-/// Delete all .graft.yaml files from a target directory.
-///
-/// This should be called after all graft processing is complete.
+/// Deletes every `.graft.yaml` under `target_dir` and returns how many it removed. Call it once all
+/// graft processing is done.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The target directory does not exist
-/// - The .graft.yaml files cannot be deleted
+/// Returns an error if discovery fails or a file cannot be deleted.
 #[inline]
 pub fn cleanup_graft_files(system: &dyn System, target_dir: &Path) -> Result<usize> {
     let grafts = discover_graft_files(system, target_dir)?;

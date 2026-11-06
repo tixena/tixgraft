@@ -1,3 +1,7 @@
+//! Tests that run the binary with `--to-config`, some converting its output back and forth.
+//!
+//! They cover each pull field, overrides, the header comment and what a round trip preserves.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::indexing_slicing,
@@ -165,7 +169,6 @@ fn to_config_no_pulls_error() {
 
 #[test]
 fn roundtrip_cli_to_config_to_cli() {
-    // Step 1: Start with CLI arguments, convert to config
     let output1 = StdCommand::new("cargo")
         .args([
             "run",
@@ -188,12 +191,10 @@ fn roundtrip_cli_to_config_to_cli() {
     assert!(output1.status.success());
     let config_yaml = String::from_utf8(output1.stdout).unwrap();
 
-    // Step 2: Write config to temp file
     let mut temp_config = NamedTempFile::new().unwrap();
     temp_config.write_all(config_yaml.as_bytes()).unwrap();
     temp_config.flush().unwrap();
 
-    // Step 3: Convert config back to CLI
     let output2 = StdCommand::new("cargo")
         .args([
             "run",
@@ -211,7 +212,6 @@ fn roundtrip_cli_to_config_to_cli() {
     let cli_json = String::from_utf8(output2.stdout).unwrap();
     let cli_args: Vec<String> = serde_json::from_str(&cli_json).unwrap();
 
-    // Step 4: Verify roundtrip preserves key values
     assert!(cli_args.contains(&"--repository".to_owned()));
     assert!(cli_args.contains(&"my_organization/repo".to_owned()));
     assert!(cli_args.contains(&"--tag".to_owned()));
@@ -226,7 +226,6 @@ fn roundtrip_cli_to_config_to_cli() {
 
 #[test]
 fn roundtrip_config_to_cli_to_config() {
-    // Step 1: Start with a config file
     let original_config = "repository: my_organization/repo
 tag: v1.0.0
 pulls:
@@ -239,7 +238,6 @@ pulls:
     temp_config1.write_all(original_config.as_bytes()).unwrap();
     temp_config1.flush().unwrap();
 
-    // Step 2: Convert to CLI
     let output1 = StdCommand::new("cargo")
         .args([
             "run",
@@ -257,9 +255,8 @@ pulls:
     let cli_json = String::from_utf8(output1.stdout).unwrap();
     let cli_args: Vec<String> = serde_json::from_str(&cli_json).unwrap();
 
-    // Step 3: Convert CLI back to config
     let mut args = vec!["run", "--"];
-    args.extend(cli_args.iter().skip(1).map(String::as_str)); // Skip "tixgraft"
+    args.extend(cli_args.iter().skip(1).map(String::as_str));
     args.push("--to-config");
 
     let output2 = StdCommand::new("cargo").args(&args).output().unwrap();
@@ -267,18 +264,15 @@ pulls:
     assert!(output2.status.success());
     let roundtrip_config = String::from_utf8(output2.stdout).unwrap();
 
-    // Step 4: Parse both configs and compare structures
-    let original: serde_yaml::Value = serde_yaml::from_str(original_config).unwrap();
+    let original: serde_json::Value = serde_saphyr::from_str(original_config).unwrap();
 
-    // Filter out comments from roundtrip config
     let roundtrip_without_comments: String = roundtrip_config
         .lines()
         .filter(|line| !line.starts_with('#'))
         .collect::<Vec<&str>>()
         .join("\n");
-    let roundtrip: serde_yaml::Value = serde_yaml::from_str(&roundtrip_without_comments).unwrap();
+    let roundtrip: serde_json::Value = serde_saphyr::from_str(&roundtrip_without_comments).unwrap();
 
-    // Compare key fields
     assert_eq!(original["repository"], roundtrip["repository"]);
     assert_eq!(original["tag"], roundtrip["tag"]);
     assert_eq!(
@@ -297,7 +291,6 @@ pulls:
 
 #[test]
 fn roundtrip_with_replacements() {
-    // Step 1: Start with config with replacements
     let original_config = r#"repository: my_organization/repo
 pulls:
   - source: src
@@ -313,7 +306,6 @@ pulls:
     temp_config1.write_all(original_config.as_bytes()).unwrap();
     temp_config1.flush().unwrap();
 
-    // Step 2: Convert to CLI
     let output1 = StdCommand::new("cargo")
         .env("MY_ENV", "test_value")
         .args([
@@ -332,10 +324,8 @@ pulls:
     let cli_json = String::from_utf8(output1.stdout).unwrap();
     let cli_args: Vec<String> = serde_json::from_str(&cli_json).unwrap();
 
-    // Verify replacements are in CLI args
     assert!(cli_args.contains(&"--pull-replacement".to_owned()));
 
-    // Step 3: Convert back to config
     let mut args = vec!["run", "--"];
     args.extend(cli_args.iter().skip(1).map(String::as_str));
     args.push("--to-config");
@@ -349,7 +339,6 @@ pulls:
     assert!(output2.status.success());
     let roundtrip_config = String::from_utf8(output2.stdout).unwrap();
 
-    // Verify replacements are preserved
     assert!(roundtrip_config.contains("replacements:"));
     assert!(roundtrip_config.contains("VAR1"));
     assert!(roundtrip_config.contains("value1"));
@@ -410,7 +399,6 @@ fn to_config_with_must_succeed_false() {
 
 #[test]
 fn roundtrip_must_succeed_false() {
-    // Step 1: Start with config containing mustSucceed: false
     let original_config = "repository: my_organization/repo
 pulls:
   - source: src
@@ -422,7 +410,6 @@ pulls:
     temp_config1.write_all(original_config.as_bytes()).unwrap();
     temp_config1.flush().unwrap();
 
-    // Step 2: Convert to CLI
     let output1 = StdCommand::new("cargo")
         .args([
             "run",
@@ -440,11 +427,9 @@ pulls:
     let cli_json = String::from_utf8(output1.stdout).unwrap();
     let cli_args: Vec<String> = serde_json::from_str(&cli_json).unwrap();
 
-    // Verify mustSucceed=false is in CLI args
     assert!(cli_args.contains(&"--pull-must-succeed".to_owned()));
     assert!(cli_args.contains(&"false".to_owned()));
 
-    // Step 3: Convert CLI back to config
     let mut args = vec!["run", "--"];
     args.extend(cli_args.iter().skip(1).map(String::as_str));
     args.push("--to-config");
@@ -454,6 +439,5 @@ pulls:
     assert!(output2.status.success());
     let roundtrip_config = String::from_utf8(output2.stdout).unwrap();
 
-    // Step 4: Verify mustSucceed: false is preserved through roundtrip
     assert!(roundtrip_config.contains("mustSucceed: false"));
 }

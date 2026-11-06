@@ -1,7 +1,7 @@
-//! Context management for grafts.
+//! The context properties a graft declares and the values supplied for them.
 //!
-//! Provides data structures and validation for context properties that can be used
-//! in text replacements and other graft operations.
+//! Validates supplied values against the declarations, coerces them to the declared type and
+//! applies defaults.
 
 use crate::error::GraftError;
 use anyhow::{Context as _, Result};
@@ -9,40 +9,44 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-/// Data type for context properties.
+/// Type a context property declares, written in lowercase in `.graft.yaml`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
 pub enum ContextDataType {
+    /// A JSON array; nothing else is coerced into one.
     Array,
+    /// A boolean; also accepts an integer or a text form such as `yes` or `0`.
     Boolean,
+    /// A number; also accepts a string that parses as an integer or a float.
     Number,
+    /// A string; any other value is converted to its text form.
     String,
 }
 
-/// Definition of a context property in .graft.yaml.
+/// One property a `.graft.yaml` declares; with no default value, the property is required.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct ContextPropertyDefinition {
-    /// Data type of the property.
+    /// Type a supplied value is coerced to.
     pub data_type: ContextDataType,
 
     /// Default value (if present, property is optional).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_value: Option<Value>,
 
-    /// Human-readable description.
+    /// Required text, shown in the error when a required value is missing.
     pub description: String,
 
-    /// Property name.
+    /// Name the value is supplied and looked up under; must not be empty.
     pub name: String,
 }
 
-/// Context values provided by user (property name -> value).
+/// Context values keyed by property name.
 pub type ContextValues = HashMap<String, Value>;
 
-/// Validated context with definitions and values.
+/// A graft's context after validation: its declarations and the values resolved against them.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ValidatedContext {
@@ -54,19 +58,18 @@ pub struct ValidatedContext {
 }
 
 impl ValidatedContext {
-    /// Get a context value by name.
+    /// Returns a property's resolved value, or `None` if it was unset or never declared.
     #[must_use]
     #[inline]
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.values.get(name)
     }
 
-    /// Get a context value as a string.
+    /// Returns a property's value in the text form a replacement writes.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The context property is not found
+    /// Returns an error if the property has no value or the value cannot be serialized.
     #[inline]
     pub fn get_as_string(&self, name: &str) -> Result<String> {
         let value = self.get(name).ok_or_else(|| {
@@ -76,18 +79,16 @@ impl ValidatedContext {
         value_to_string(value)
     }
 
-    /// Create a new validated context.
+    /// Resolves supplied values against the definitions; a value no definition names is dropped.
     ///
     /// # Errors
     ///
-    /// Returns an error if:
-    /// - The context values are invalid
+    /// Returns an error listing every missing required property, or else every mistyped value.
     #[inline]
     pub fn new(
         definitions: Vec<ContextPropertyDefinition>,
         provided_values: ContextValues,
     ) -> Result<Self> {
-        // Validate and merge values
         let values = validate_and_merge_values(&definitions, provided_values)?;
 
         Ok(Self {
@@ -97,7 +98,7 @@ impl ValidatedContext {
     }
 }
 
-/// Validate context values against definitions and apply defaults.
+/// Resolves each definition to its coerced value or its default; an empty string leaves it unset.
 fn validate_and_merge_values(
     definitions: &[ContextPropertyDefinition],
     mut provided_values: ContextValues,
@@ -107,14 +108,11 @@ fn validate_and_merge_values(
     let mut type_errors = Vec::new();
 
     for def in definitions {
-        // Check if value is provided
         if let Some(value) = provided_values.remove(&def.name) {
-            // Empty string means remove from context
             if is_empty_string(&value) {
                 continue;
             }
 
-            // Validate and coerce type
             match validate_and_coerce_type(&def.name, &value, &def.data_type) {
                 Ok(coerced_value) => {
                     result.insert(def.name.clone(), coerced_value);
@@ -124,10 +122,8 @@ fn validate_and_merge_values(
                 }
             }
         } else if let Some(default_value) = def.default_value.as_ref() {
-            // Use default value
             result.insert(def.name.clone(), default_value.clone());
         } else {
-            // Required property is missing
             missing_required.push(format!(
                 "  - {} ({}): {}",
                 def.name,
@@ -137,7 +133,6 @@ fn validate_and_merge_values(
         }
     }
 
-    // Report validation errors
     if !missing_required.is_empty() {
         return Err(GraftError::configuration(format!(
             "Missing required context properties:\n{}",
@@ -157,12 +152,12 @@ fn validate_and_merge_values(
     Ok(result)
 }
 
-/// Check if a value is an empty string.
+/// Matches the value that unsets a property: a JSON string of length zero.
 const fn is_empty_string(value: &Value) -> bool {
     matches!(value, Value::String(str_val) if str_val.is_empty())
 }
 
-/// Validate and coerce a value to match the expected data type.
+/// Applies the rule of `expected_type`; `name` only labels the error.
 fn validate_and_coerce_type(
     name: &str,
     value: &Value,
@@ -176,7 +171,7 @@ fn validate_and_coerce_type(
     }
 }
 
-/// Coerce a value to string.
+/// Never fails: a string is kept, a number or boolean becomes its text, the rest their JSON text.
 #[expect(
     clippy::pattern_type_mismatch,
     reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
@@ -190,7 +185,7 @@ fn coerce_to_string(value: &Value) -> Value {
     }
 }
 
-/// Coerce a value to number.
+/// Accepts a number, or a string that parses as an integer first and a float second.
 #[expect(
     clippy::pattern_type_mismatch,
     reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
@@ -199,11 +194,9 @@ fn coerce_to_number(name: &str, value: &Value) -> Result<Value> {
     match value {
         Value::Number(_) => Ok(value.clone()),
         Value::String(str_val) => {
-            // Try to parse as integer first
             if let Ok(int_val) = str_val.parse::<i64>() {
                 return Ok(Value::Number(int_val.into()));
             }
-            // Try to parse as float
             if let Ok(float_val) = str_val.parse::<f64>() {
                 return Ok(serde_json::Number::from_f64(float_val)
                     .map(Value::Number)
@@ -227,7 +220,7 @@ fn coerce_to_number(name: &str, value: &Value) -> Result<Value> {
     }
 }
 
-/// Coerce a value to boolean.
+/// Takes a boolean, an integer (non-zero is true) or any case of `true`/`yes`/`1`/`false`/`no`/`0`.
 #[expect(
     clippy::pattern_type_mismatch,
     reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
@@ -259,7 +252,7 @@ fn coerce_to_boolean(name: &str, value: &Value) -> Result<Value> {
     }
 }
 
-/// Validate array type (no coercion, must be proper array).
+/// Passes an array through unchanged; nothing else is coerced into one.
 #[expect(
     clippy::pattern_type_mismatch,
     reason = "matching on &Value; dereferencing would require ref bindings which conflict with clippy::ref_patterns"
@@ -276,12 +269,11 @@ fn validate_array(name: &str, value: &Value) -> Result<Value> {
     }
 }
 
-/// Convert a JSON value to a string for replacement.
+/// Renders a value as replacement text: strings bare, arrays and objects as JSON, null as empty.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The value cannot be serialized to a string
+/// Returns an error if an array or object cannot be serialized to JSON.
 #[inline]
 #[expect(
     clippy::pattern_type_mismatch,
@@ -293,18 +285,13 @@ pub fn value_to_string(value: &Value) -> Result<String> {
         Value::Number(num) => Ok(num.to_string()),
         Value::Bool(flag) => Ok(flag.to_string()),
         Value::Array(_) | Value::Object(_) => {
-            // For complex types, serialize as JSON
             serde_json::to_string(value).context("Failed to serialize context value to JSON")
         }
         Value::Null => Ok(String::new()),
     }
 }
 
-/// Merge two context value maps (child overrides parent).
-///
-/// # Returns
-///
-/// Returns the merged context values.
+/// Overlays `child` on `parent`; an empty string in `child` removes the key.
 #[must_use]
 #[inline]
 #[expect(
@@ -314,7 +301,6 @@ pub fn value_to_string(value: &Value) -> Result<String> {
 pub fn merge_context_values(parent: ContextValues, child: ContextValues) -> ContextValues {
     let mut result = parent;
     for (key, value) in child {
-        // Empty string means remove from context
         if is_empty_string(&value) {
             result.remove(&key);
         } else {

@@ -1,7 +1,6 @@
-//! Integration tests for Git sparse checkout functionality.
+//! Integration tests for pulling nested paths from a git repository given as a `file://` URL.
 //!
-//! These tests verify that sparse checkout works correctly with nested directory
-//! structures and that the temporary directory lifetime is managed properly.
+//! A `file://` URL selects the local source path, so no sparse checkout runs.
 
 #[cfg(test)]
 mod tests;

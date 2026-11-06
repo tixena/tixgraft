@@ -1,3 +1,7 @@
+//! Tests for the private context-argument parser.
+//!
+//! They cover plain and JSON values, repeated keys and malformed input.
+
 #![expect(
     clippy::unwrap_used,
     reason = "unwrap is acceptable in test code for brevity"

@@ -1,3 +1,7 @@
+//! Tests for `validate_config`, `validate_repository_url` and `validate_path_safety`.
+//!
+//! They cover accepted URL forms, unsafe paths, child paths and each pull and replacement rule.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 
 use os_shim::mock::MemorySystem;
@@ -10,12 +14,10 @@ use tixgraft::config::validation::{
 
 #[test]
 fn validate_repository_url_tst() {
-    // Valid Git URLs
     validate_repository_url("my_organization/repo").unwrap();
     validate_repository_url("https://github.com/my_organization/repo.git").unwrap();
     validate_repository_url("git@github.com:my_organization/repo.git").unwrap();
 
-    // Valid local paths: file: scheme and bare filesystem paths
     validate_repository_url("file:///path/to/repo").unwrap();
     validate_repository_url("file:/path/to/repo").unwrap();
     validate_repository_url("file:~/src/repo").unwrap();
@@ -24,38 +26,22 @@ fn validate_repository_url_tst() {
     validate_repository_url("../local/repo").unwrap();
     validate_repository_url("/absolute/path/to/repo").unwrap();
 
-    // Invalid URLs
     assert!(validate_repository_url("invalid-url").is_err());
     assert!(validate_repository_url("").is_err());
 }
 
 #[test]
 fn validate_path_safety_tst() {
-    // Safe paths
     validate_path_safety("./some/path").unwrap();
     validate_path_safety("some/path").unwrap();
     validate_path_safety("./relative/path").unwrap();
 
-    // Unsafe paths
     assert!(validate_path_safety("../../unsafe").is_err());
     assert!(validate_path_safety("/absolute/path").is_err());
 }
 
 fn make_config(pulls: Vec<PullConfig>, children: Vec<String>) -> Config {
-    let yaml = serde_yaml::to_string(&serde_yaml::Value::Mapping({
-        let mut mapping = serde_yaml::Mapping::new();
-        mapping.insert(
-            serde_yaml::Value::String("repository".into()),
-            serde_yaml::Value::String("org/repo".into()),
-        );
-        mapping.insert(
-            serde_yaml::Value::String("tag".into()),
-            serde_yaml::Value::String("main".into()),
-        );
-        mapping
-    }))
-    .unwrap();
-    let mut config: Config = serde_yaml::from_str(&yaml).unwrap();
+    let mut config: Config = serde_saphyr::from_str("repository: org/repo\ntag: main\n").unwrap();
     config.pulls = pulls;
     config.children = children;
     config
@@ -63,7 +49,7 @@ fn make_config(pulls: Vec<PullConfig>, children: Vec<String>) -> Config {
 
 fn make_pull(source: &str, target: &str) -> PullConfig {
     let yaml = format!("source: {source}\ntarget: {target}\ntype: directory");
-    serde_yaml::from_str(&yaml).unwrap()
+    serde_saphyr::from_str(&yaml).unwrap()
 }
 
 #[test]
@@ -89,7 +75,6 @@ fn validate_config_valid_with_children() {
         .unwrap();
 
     let config = make_config(vec![], vec!["child/tixgraft.yaml".to_owned()]);
-    // Need base_dir since children paths resolve relative to it
     validate_config_with_base_dir(&system, &config, Some(Path::new("/"))).unwrap();
 }
 

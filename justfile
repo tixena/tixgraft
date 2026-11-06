@@ -1,4 +1,4 @@
-# TixGraft project justfile
+# Recipes to format, lint, test, build and release tixgraft.
 # Run `just --list` to see all available commands
 
 # Default recipe - show help

@@ -1,6 +1,6 @@
-//! Command-line interface module.
+//! Command-line interface of tixgraft.
 //!
-//! Handles argument parsing and CLI commands.
+//! Re-exports from `args` the clap argument types and the configuration types of a pull.
 
 #![expect(clippy::pub_use, reason = "deliberate module re-export for public API")]
 

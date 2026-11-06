@@ -97,10 +97,8 @@ jobs:
 
     steps:
       - name: Send Discord notification
-        # All GitHub context is passed via env (NOT interpolated into the script
-        # body) so attacker-controllable strings like commit messages cannot
-        # break the JSON or inject shell. The payload is assembled with jq,
-        # which escapes everything safely.
+        # GitHub context reaches the script through env, never its body, so attacker-controlled
+        # strings such as commit messages cannot inject shell; jq escapes them in the payload.
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
           EVENT_NAME: ${{ github.event_name }}
@@ -120,7 +118,6 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           AUDIT_RESULT: ${{ needs.security-audit.result }}
         run: |
-          # Skip if webhook is not configured, or on forks
           if [[ -z "$DISCORD_WEBHOOK" ]]; then
             echo "⏭️ Discord webhook not configured, skipping notification"
             exit 0
@@ -132,7 +129,6 @@ jobs:
 
           icon() { case "$1" in success) printf '✅';; failure) printf '❌';; *) printf '⏭️';; esac; }
 
-          # Overall status (job-level results from `needs`)
           if [[ "$TEST_RESULT" == "success" && "$AUDIT_RESULT" == "success" ]]; then
             JOB_STATUS="success"
             TITLE="🎉 TixGraft CI — Success"
@@ -149,14 +145,12 @@ jobs:
             CONTENT="@here"
           fi
 
-          # Branch emoji (master/main vs feature branch)
           if [[ "$BRANCH" == "master" || "$BRANCH" == "main" ]]; then
             BRANCH_DISP="✅ $BRANCH"
           else
             BRANCH_DISP="🔧 $BRANCH"
           fi
 
-          # Per-event details: commit message / author / PR link
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             COMMIT_MSG="$PR_TITLE"
             AUTHOR="${PR_AUTHOR:-$ACTOR}"
@@ -170,7 +164,6 @@ jobs:
           SHORT_SHA="${COMMIT_SHA:0:7}"
           COMMIT_MD="[\`${SHORT_SHA}\`](${SERVER_URL}/${REPO}/commit/${COMMIT_SHA})"
 
-          # Assemble the payload with jq (safe escaping of all dynamic strings)
           PAYLOAD=$(jq -n \
             --arg content "$CONTENT" \
             --arg title "$TITLE" --arg desc "$DESC" --argjson color "$COLOR" \

@@ -1,3 +1,7 @@
+//! Tests for the `children` and `processChildrenFirst` fields of `Config`.
+//!
+//! They cover parsing, serialization of an empty or filled list and each child path rule.
+
 #![expect(clippy::unwrap_used, reason = "This is a test module")]
 #![expect(
     clippy::indexing_slicing,
@@ -8,12 +12,9 @@ use os_shim::mock::MemorySystem;
 use tixgraft::config::Config;
 use tixgraft::config::validation::validate_config;
 
-/// Helper to parse a YAML string into a Config.
 fn parse_config(yaml: &str) -> Config {
-    serde_yaml::from_str(yaml).unwrap()
+    serde_saphyr::from_str(yaml).unwrap()
 }
-
-// ── Config parsing tests ────────────────────────────────────────────
 
 #[test]
 fn parse_children_only() {
@@ -97,7 +98,7 @@ pulls:
 "#,
     );
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_saphyr::to_string(&config).unwrap();
     assert!(!yaml.contains("children"));
     assert!(!yaml.contains("processChildrenFirst"));
 }
@@ -112,7 +113,7 @@ children:
 "#,
     );
 
-    let yaml = serde_yaml::to_string(&config).unwrap();
+    let yaml = serde_saphyr::to_string(&config).unwrap();
     assert!(yaml.contains("children"));
     assert!(yaml.contains("./sub/tixgraft.yaml"));
     assert!(yaml.contains("processChildrenFirst"));
@@ -157,8 +158,6 @@ children:
     assert_eq!(config.children[1], "./services/web/tixgraft.yaml");
     assert_eq!(config.children[2], "./infra/tixgraft.yaml");
 }
-
-// ── Validation tests ────────────────────────────────────────────────
 
 #[test]
 fn validate_pulls_only() {

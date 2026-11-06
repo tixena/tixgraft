@@ -1,36 +1,7 @@
-//! # `TixGraft`
+//! Binary entry point of tixgraft.
 //!
-//! `TixGraft` is a command-line tool for selectively extracting and reusing components from remote Git repositories.
-//! It supports sparse checkout, flexible text replacements, and efficient configuration workflows for mono-repos or codebase sharing.
-//!
-//! ## Features
-//! - Fetch only required files or directories from large repositories (sparse checkout).
-//! - Apply context-based or manual text replacements on-the-fly.
-//! - Generate and consume YAML configuration files for repeatable pulls.
-//! - Output equivalent CLI commands from config for transparency and scripting.
-//! - Handles complex nested paths and reference formats.
-//!
-//! ## Usage
-//!
-//! **Basic example:**  
-//! ```sh
-//! tixgraft --repository https://github.com/user/repo --pulls source:path/in/repo target:./localdir
-//! ```
-//!
-//! **With config:**  
-//! ```sh
-//! tixgraft --config tixgraft.yaml
-//! ```
-//!
-//! See `tixgraft --help` or documentation for more options and details.
-//!
-//! ## Issue Tracking & Contribution
-//! - All issues are tracked with `bd (beads)`; see AGENTS.md for workflow guidelines.
-//! - Please file bugs, features, or chores using `bd create ...` (never markdown checklists).
-//! - All tests use the System abstraction for isolation (see Testing Patterns in AGENTS.md).
-//!
-//! ---
-//! © 2024 `TixGraft` Authors. MIT or Apache-2.0 licensed. See README and LICENSE files for more info.
+//! Parses the arguments, sets the log level, runs the mode the flags select and exits with the
+//! code of the resulting error.
 
 use anyhow::Result;
 use clap::Parser as _;
@@ -42,13 +13,13 @@ use tixgraft::operations::to_command_line::OutputFormat;
 use tracing::error;
 use tracing_subscriber::{EnvFilter, fmt};
 
-/// Map a Result to an exit code: 0 for Ok, or the appropriate error code.
+/// Reads the exit code off a `GraftError`; any other error exits with 1.
 fn error_to_exit_code(err: &anyhow::Error) -> i32 {
     err.downcast_ref::<GraftError>()
         .map_or(1_i32, GraftError::exit_code)
 }
 
-/// Convert a Result into an exit code, logging on error.
+/// Returns 0 for `Ok`; logs an `Err` with its full cause chain and returns its exit code.
 fn result_to_exit_code(result: Result<()>) -> i32 {
     match result {
         Ok(()) => 0_i32,
@@ -59,7 +30,8 @@ fn result_to_exit_code(result: Result<()>) -> i32 {
     }
 }
 
-/// Initialize the tracing subscriber with the appropriate log level.
+/// Takes the log level from `RUST_LOG`, or else from the mode: `error` for the conversion and skill
+/// modes, `debug` with `--verbose`, otherwise `info`.
 fn init_tracing(args: &Args) {
     let is_skill_mode =
         args.skill.skill_install || args.skill.skill_uninstall || args.skill.skill_test;
@@ -78,7 +50,6 @@ fn main() -> Result<()> {
     let args = Args::parse();
     init_tracing(&args);
 
-    // Validate skill flag constraints
     let any_skill = args.skill.skill_install || args.skill.skill_uninstall || args.skill.skill_test;
     if args.skill.global && !any_skill {
         error!("--global (-g) requires one of --skill-install, --skill-uninstall, or --skill-test");
@@ -89,7 +60,6 @@ fn main() -> Result<()> {
         exit(1_i32);
     }
 
-    // Handle skill commands
     if args.skill.skill_install {
         exit(result_to_exit_code(tixgraft::run_skill_install(
             args.skill.global,
@@ -110,13 +80,11 @@ fn main() -> Result<()> {
         }
     }
 
-    // Handle to-config mode
     if args.to_config {
         let system = RealSystem::new();
         exit(result_to_exit_code(tixgraft::run_to_config(&args, &system)));
     }
 
-    // Handle to-command-line mode
     if args.to_command_line {
         let format = args
             .output_format
@@ -134,6 +102,5 @@ fn main() -> Result<()> {
         exit(result_to_exit_code(result));
     }
 
-    // Normal execution mode
     exit(result_to_exit_code(tixgraft::run(args)));
 }

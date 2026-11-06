@@ -1,10 +1,13 @@
-//! Path manipulation and validation utilities.
+//! Path manipulation and validation helpers.
+//!
+//! Most read the path text alone; those that canonicalize or probe for a file touch the disk.
 
 use crate::error::GraftError;
 use anyhow::{Result, anyhow};
 use std::path::{Component, Path, PathBuf};
 
-/// Normalize a path by resolving `.` and `..` components.
+/// Resolves `.` and `..` from the path text alone: a `..` pops the component before it, even
+/// another `..`, and stays only when there is none.
 #[must_use]
 #[inline]
 pub fn normalize(path: &Path) -> PathBuf {
@@ -12,13 +15,9 @@ pub fn normalize(path: &Path) -> PathBuf {
 
     for component in path.components() {
         match component {
-            Component::CurDir => {
-                // Skip '.' components
-            }
+            Component::CurDir => {}
             Component::ParentDir => {
-                // Handle '..' by popping the last component if possible
                 if components.is_empty() {
-                    // Keep leading '..' components
                     components.push(component);
                 } else {
                     components.pop();
@@ -33,24 +32,19 @@ pub fn normalize(path: &Path) -> PathBuf {
     components.iter().collect()
 }
 
-/// Validate that a path is safe (no directory traversal).
+/// Rejects an absolute path and one whose normalized form starts with `..`.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The path contains unsafe directory traversal
-/// - The path is an absolute path
+/// Returns an error if the path is absolute or its normalized form starts with `..`.
 #[inline]
 pub fn validate_path_safety(path: &str) -> Result<()> {
     let path_obj = Path::new(path);
 
-    // Check for dangerous patterns
     if path.contains("..") {
-        // Allow relative paths that don't escape the current directory
         let normalized = normalize(path_obj);
         let normalized_str = normalized.to_string_lossy();
 
-        // If the normalized path starts with ".." then it escapes
         if normalized_str.starts_with("..") {
             return Err(GraftError::configuration(format!(
                 "Path contains unsafe directory traversal: '{path}' -> '{normalized_str}'"
@@ -59,7 +53,6 @@ pub fn validate_path_safety(path: &str) -> Result<()> {
         }
     }
 
-    // Disallow absolute paths on Unix-like systems (security risk)
     if path_obj.is_absolute() && !path.starts_with("./") {
         return Err(GraftError::configuration(format!(
             "Absolute paths are not allowed for security reasons: '{path}'"
@@ -70,14 +63,11 @@ pub fn validate_path_safety(path: &str) -> Result<()> {
     Ok(())
 }
 
-/// Convert a path to be relative to a base directory.
+/// Canonicalizes both paths, so both must exist, and strips `base` from `path`.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The path does not exist
-/// - The base path does not exist
-/// - The path is not within the base directory
+/// Returns an error if either path does not exist or `path` is outside `base`.
 #[inline]
 pub fn make_relative_to(path: &Path, base: &Path) -> Result<PathBuf> {
     let canonical_path = path
@@ -99,7 +89,7 @@ pub fn make_relative_to(path: &Path, base: &Path) -> Result<PathBuf> {
         })
 }
 
-/// Check if a path would escape the given base directory.
+/// Compares canonical paths when both resolve, otherwise the lexically normalized ones.
 #[must_use]
 #[inline]
 pub fn escapes_from_base(path: &Path, base: &Path) -> bool {
@@ -109,14 +99,13 @@ pub fn escapes_from_base(path: &Path, base: &Path) -> bool {
         return !canonical_path.starts_with(&canonical_base);
     }
 
-    // If we can't canonicalize, check using normalized paths
     let normalized_path = normalize(path);
     let normalized_base = normalize(base);
 
     !normalized_path.starts_with(&normalized_base)
 }
 
-/// Get the common prefix of two paths.
+/// Compares whole components, so `/ab` and `/ac` share only `/`.
 #[must_use]
 #[inline]
 pub fn common_path_prefix(path1: &Path, path2: &Path) -> PathBuf {
@@ -143,12 +132,11 @@ pub fn normalize_separators(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-/// Join path components safely.
+/// Joins `component`, once it passes `validate_path_safety`, onto `base` with forward slashes.
 ///
 /// # Errors
 ///
-/// Returns an error if:
-/// - The path is not safe
+/// Returns an error if `component` fails the safety check.
 #[inline]
 pub fn join_path_safe(base: &str, component: &str) -> Result<String> {
     validate_path_safety(component)?;
@@ -175,7 +163,8 @@ pub fn has_extension(path: &Path, extension: &str) -> bool {
     get_file_extension(path).is_some_and(|ext| ext == extension.to_lowercase())
 }
 
-/// Get a unique filename by appending a number if the file exists.
+/// Appends `-1`, `-2` and so on to the stem until the path is free; past 10000 it returns
+/// `{stem}-final` unchecked.
 #[must_use]
 #[inline]
 pub fn get_unique_filename(path: PathBuf) -> PathBuf {
@@ -207,14 +196,13 @@ pub fn get_unique_filename(path: PathBuf) -> PathBuf {
         }
         counter = counter.saturating_add(1);
 
-        // Prevent infinite loops
         if counter > 10000 {
             return parent.join(format!("{stem}-final"));
         }
     }
 }
 
-/// Check if a path is within allowed patterns.
+/// True when the path contains a pattern as plain text, or matches one whose `*` is a wildcard.
 #[must_use]
 #[inline]
 pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
@@ -225,7 +213,6 @@ pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
             return true;
         }
 
-        // Support simple glob patterns
         if pattern.contains('*') {
             let regex_pattern = pattern.replace('*', ".*");
             if let Ok(regex) = regex::Regex::new(&regex_pattern)
@@ -239,21 +226,21 @@ pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
     false
 }
 
-/// Convert a Windows path to Unix-style path.
+/// Replaces every backslash with a forward slash.
 #[inline]
 #[must_use]
 pub fn to_unix(path: &str) -> String {
     path.replace('\\', "/")
 }
 
-/// Convert a Unix path to Windows-style path (for Windows compatibility).
+/// Replaces every forward slash with a backslash.
 #[inline]
 #[must_use]
 pub fn to_windows(path: &str) -> String {
     path.replace('/', "\\")
 }
 
-/// Get the depth of a path (number of directory levels).
+/// Counts the normal components, ignoring the root, `.` and `..`.
 #[inline]
 #[must_use]
 pub fn depth(path: &Path) -> usize {

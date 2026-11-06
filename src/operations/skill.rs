@@ -1,7 +1,6 @@
-//! Skill management operations.
+//! Installs, removes and checks the tixgraft skill in a project or the home directory.
 //!
-//! Handles installing, uninstalling, and testing the tixgraft Claude Code skill.
-//! The skill content is embedded in the binary at compile time from the `skills/tixgraft/` directory.
+//! The skill's files are embedded in the binary at compile time from `skills/tixgraft/`.
 
 use futures_util::AsyncReadExt as _;
 use pollster::FutureExt as _;
@@ -16,25 +15,25 @@ use crate::error::GraftError;
 use os_shim::System;
 use os_shim::bucket::Condition;
 
-/// Embedded skill directory included at compile time.
+/// The skill's files, embedded from the crate's `skills/tixgraft/`.
 static SKILL_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skills/tixgraft");
 
-/// Relative subdirectory path where the skill is installed.
+/// Where the skill goes beneath the home directory or the current directory.
 const SKILL_SUBDIR: &str = ".claude/skills/tixgraft";
 
-/// Result of checking the skill installation status.
+/// How an installed skill compares with the embedded one.
 #[derive(Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SkillStatus {
-    /// Skill is not installed at the target location.
+    /// The target directory does not exist.
     NotInstalled,
-    /// Skill is installed but content differs from the embedded version.
+    /// A file differs, is missing or is extra.
     Outdated,
-    /// Skill is installed and matches the embedded content exactly.
+    /// The installed files match the embedded files byte for byte.
     UpToDate,
 }
 
-/// Resolve the target directory for skill installation.
+/// Returns the skill directory beneath the home directory when `global`, else the current one.
 ///
 /// # Errors
 ///
@@ -53,10 +52,7 @@ pub fn resolve_skill_path(global: bool) -> Result<PathBuf, GraftError> {
     }
 }
 
-/// Install the embedded skill files to the target directory.
-///
-/// Creates all necessary directories and writes every embedded file.
-/// Overwrites any existing files.
+/// Writes every embedded file under `target_dir`, creating directories and overwriting files.
 ///
 /// # Errors
 ///
@@ -74,9 +70,7 @@ pub fn skill_install(system: &dyn System, target_dir: &Path) -> Result<(), Graft
     Ok(())
 }
 
-/// Uninstall the skill by removing the target directory.
-///
-/// Idempotent: returns Ok even if the directory does not exist.
+/// Removes `target_dir` entirely; a directory that does not exist is not an error.
 ///
 /// # Errors
 ///
@@ -100,11 +94,8 @@ pub fn skill_uninstall(system: &dyn System, target_dir: &Path) -> Result<(), Gra
     Ok(())
 }
 
-/// Check whether the installed skill matches the embedded content exactly.
-///
-/// Performs a bidirectional comparison:
-/// - Every embedded file must exist in the installed directory with identical bytes.
-/// - No extra files may exist in the installed directory beyond what's embedded.
+/// Compares `target_dir` with the embedded files both ways: each embedded file must be present
+/// with identical bytes and no other file may exist.
 ///
 /// # Errors
 ///
@@ -120,16 +111,13 @@ pub fn skill_check(system: &dyn System, target_dir: &Path) -> Result<SkillStatus
         return Ok(SkillStatus::NotInstalled);
     }
 
-    // Collect all relative paths from the embedded directory
     let mut embedded_paths: HashSet<PathBuf> = HashSet::new();
     collect_embedded_paths(&SKILL_DIR, &mut embedded_paths);
 
-    // Check that every embedded file exists and matches
     if !embedded_files_match(system, target_dir, &SKILL_DIR)? {
         return Ok(SkillStatus::Outdated);
     }
 
-    // Check for extra files in the installed directory
     // read_dir answers with absolute paths, whatever form `target_dir` takes.
     let installed_root = system
         .current_dir()
@@ -143,10 +131,7 @@ pub fn skill_check(system: &dyn System, target_dir: &Path) -> Result<SkillStatus
     Ok(SkillStatus::UpToDate)
 }
 
-/// Prompt the user with a yes/no question on stderr/stdin.
-///
-/// Returns `true` if the user answers "y" or "yes" (case-insensitive).
-/// Any other input (including empty / EOF) returns `false`.
+/// Asks on stderr and reads stdin; only `y` or `yes`, in any case, returns `true`.
 ///
 /// # Errors
 ///
@@ -162,11 +147,7 @@ pub fn prompt_yes_no(question: &str) -> Result<bool, GraftError> {
     Ok(trimmed.eq_ignore_ascii_case("y") || trimmed.eq_ignore_ascii_case("yes"))
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/// Recursively write all files from an embedded directory to the filesystem.
+/// Writes each embedded file under `base`, at its path relative to the embedded root.
 fn write_embedded_files(system: &dyn System, base: &Path, dir: &Dir<'_>) -> Result<(), GraftError> {
     for file in dir.files() {
         let target_path = base.join(file.path());
@@ -191,7 +172,7 @@ fn write_embedded_files(system: &dyn System, base: &Path, dir: &Dir<'_>) -> Resu
     Ok(())
 }
 
-/// Recursively collect all relative file paths from an embedded directory.
+/// Adds to `paths` every file in the embedded tree, relative to the embedded root.
 fn collect_embedded_paths(dir: &Dir<'_>, paths: &mut HashSet<PathBuf>) {
     for file in dir.files() {
         paths.insert(file.path().to_path_buf());
@@ -201,7 +182,7 @@ fn collect_embedded_paths(dir: &Dir<'_>, paths: &mut HashSet<PathBuf>) {
     }
 }
 
-/// Check whether all embedded files exist and match their installed counterparts.
+/// True when every embedded file exists under `base` with identical bytes.
 fn embedded_files_match(
     system: &dyn System,
     base: &Path,
@@ -250,7 +231,7 @@ fn embedded_files_match(
     Ok(true)
 }
 
-/// Recursively collect all relative file paths from an installed directory on disk.
+/// Returns every file under `current` as a path relative to `base`.
 fn collect_installed_paths(
     system: &dyn System,
     base: &Path,
