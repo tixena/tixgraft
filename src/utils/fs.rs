@@ -94,9 +94,9 @@ pub fn create_parent_directories(system: &dyn System, file_path: &Path) -> Resul
     Ok(())
 }
 
-/// True when the first 8192 bytes hold a null byte or invalid UTF-8, which includes a multibyte
-/// character cut at the limit; a non-file, an empty file and a known text extension are never
-/// binary.
+/// True when the first 8192 bytes hold a null byte or invalid UTF-8, not counting a multibyte
+/// character cut by the 8192-byte limit; a non-file, an empty file and a known text extension are
+/// never binary.
 ///
 /// # Errors
 ///
@@ -136,12 +136,12 @@ pub fn is_binary_file(system: &dyn System, file_path: &Path) -> Result<bool> {
         }
     }
 
-    if str::from_utf8(read_slice).is_ok() {
-        return Ok(false);
+    match str::from_utf8(read_slice) {
+        Ok(_) => Ok(false),
+        Err(error) if error.error_len().is_none() && bytes_read == buffer.len() => Ok(false),
+        // Text in another encoding cannot be told from binary, so it counts as binary.
+        Err(_) => Ok(true),
     }
-
-    // Text in another encoding cannot be told from binary, so it counts as binary.
-    Ok(true)
 }
 
 /// Get file size in bytes.

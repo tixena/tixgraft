@@ -168,6 +168,72 @@ fn is_binary_file_empty_file() {
     assert!(!is_binary_file(&system, Path::new("/test/empty.bin")).unwrap());
 }
 
+/// `ascii_len` ASCII bytes, then `character`, then more text.
+fn straddling_limit(ascii_len: usize, character: char) -> Vec<u8> {
+    let mut content = "a".repeat(ascii_len);
+    content.push(character);
+    content.push_str(" tail");
+    content.into_bytes()
+}
+
+#[test]
+fn is_binary_file_two_byte_character_straddling_limit() {
+    let system = MemorySystem::new()
+        .with_file("/test/two_byte", &straddling_limit(8_191, '\u{e9}'))
+        .unwrap();
+
+    assert!(!is_binary_file(&system, Path::new("/test/two_byte")).unwrap());
+}
+
+#[test]
+fn is_binary_file_three_byte_character_straddling_limit() {
+    let system = MemorySystem::new()
+        .with_file(
+            "/test/three_byte_first",
+            &straddling_limit(8_191, '\u{20ac}'),
+        )
+        .unwrap()
+        .with_file(
+            "/test/three_byte_second",
+            &straddling_limit(8_190, '\u{20ac}'),
+        )
+        .unwrap();
+
+    assert!(!is_binary_file(&system, Path::new("/test/three_byte_first")).unwrap());
+    assert!(!is_binary_file(&system, Path::new("/test/three_byte_second")).unwrap());
+}
+
+#[test]
+fn is_binary_file_four_byte_character_straddling_limit() {
+    let system = MemorySystem::new()
+        .with_file("/test/four_byte", &straddling_limit(8_189, '\u{1f3d7}'))
+        .unwrap();
+
+    assert!(!is_binary_file(&system, Path::new("/test/four_byte")).unwrap());
+}
+
+/// A full buffer holding a byte that can never start a character stays binary.
+#[test]
+fn is_binary_file_invalid_byte_in_full_buffer() {
+    let mut content = vec![b'a'; 8_191];
+    content.extend_from_slice(b"\xff tail");
+    let system = MemorySystem::new()
+        .with_file("/test/invalid", &content)
+        .unwrap();
+
+    assert!(is_binary_file(&system, Path::new("/test/invalid")).unwrap());
+}
+
+/// A file shorter than the limit that ends in a cut character stays binary.
+#[test]
+fn is_binary_file_short_file_ending_in_cut_character() {
+    let system = MemorySystem::new()
+        .with_file("/test/truncated", b"hello \xe2\x82")
+        .unwrap();
+
+    assert!(is_binary_file(&system, Path::new("/test/truncated")).unwrap());
+}
+
 #[test]
 fn format_file_size_large_values() {
     assert_eq!(format_file_size(0x4000_0000), "1.0 GB");

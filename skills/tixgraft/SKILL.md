@@ -229,7 +229,7 @@ pulls:
 
 Replacements find-and-replace text in all non-binary files under the target after copying, including files that were already there. A static value in a pull's `replacements` cannot be empty; in a `.graft.yaml` an empty `target` is accepted and removes the placeholder.
 
-Binary detection reads only the first 8192 bytes of a file without a known text extension such as `.txt`: a null byte or invalid UTF-8 there marks the file binary and skips it, including valid text with a multibyte character cut at byte 8192. A file that passes detection but is not valid UTF-8 throughout, including any file with a known text extension, fails the pull with exit code 1.
+Binary detection reads only the first 8192 bytes of a file without a known text extension such as `.txt`: a null byte or invalid UTF-8 there marks the file binary and skips it. A multibyte character cut by the 8192-byte limit does not count, so valid text with one there is still replaced. A file that passes detection but is not valid UTF-8 throughout, including any file with a known text extension, fails the pull with exit code 1.
 
 ### In YAML
 

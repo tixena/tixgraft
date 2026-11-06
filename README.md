@@ -612,7 +612,7 @@ TixGraft uses specific exit codes for different error types:
 - Pulling runs code: `commands` and the `postCommands` of every pulled `.graft.yaml` execute with your permissions. `--dry-run` lists only `commands`, so inspect sources you do not trust
 - Commands are executed in the target directory, or in the target's parent directory for a `file` pull
 - Repository URLs are validated before use
-- Binary files are skipped during text replacement. Detection reads only the first 8192 bytes of a file without a known text extension such as `.txt`: a null byte or invalid UTF-8 there marks the file binary, including valid text with a multibyte character cut at byte 8192. A file that passes detection but is not valid UTF-8 throughout, including any file with a known text extension, fails the pull with exit code 1
+- Binary files are skipped during text replacement. Detection reads only the first 8192 bytes of a file without a known text extension such as `.txt`: a null byte or invalid UTF-8 there marks the file binary. A multibyte character cut by the 8192-byte limit does not count, so valid text with one there is still replaced. A file that passes detection but is not valid UTF-8 throughout, including any file with a known text extension, fails the pull with exit code 1
 
 ## Contributing
 

@@ -347,6 +347,28 @@ fn apply_single_replacement_skips_binary() {
     assert_eq!(count, 0);
 }
 
+/// A placeholder in a file whose multibyte character straddles the binary-detection limit is
+/// replaced.
+#[test]
+fn apply_single_replacement_character_straddling_detection_limit() {
+    let mut content = "a".repeat(8_191);
+    content.push_str("\u{e9} {{NAME}}");
+    let system = MemorySystem::new()
+        .with_file("/test/generated", content.as_bytes())
+        .unwrap();
+
+    let count =
+        apply_single_replacement(&system, Path::new("/test/generated"), "{{NAME}}", "Alice")
+            .unwrap();
+
+    assert_eq!(count, 1);
+    let replaced = system
+        .read_to_string(Path::new("/test/generated"))
+        .block_on()
+        .unwrap();
+    assert!(replaced.ends_with("\u{e9} Alice"));
+}
+
 #[test]
 fn apply_replacements_in_subdirectories() {
     let system = MemorySystem::new()
