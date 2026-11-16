@@ -30,7 +30,7 @@ pub struct DiscoveredGraft {
 
 impl DiscoveredGraft {
     /// Returns every ancestor graft, closest first, excluding this one.
-    #[must_use]
+    #[must_use = "collecting the ancestors has no effect"]
     #[inline]
     pub fn ancestors(&self) -> Vec<&Self> {
         let mut ancestors = Vec::new();

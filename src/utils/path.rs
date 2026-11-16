@@ -8,7 +8,7 @@ use std::path::{Component, Path, PathBuf};
 
 /// Resolves `.` and `..` from the path text alone: a `..` pops the component before it, even
 /// another `..`, and stays only when there is none.
-#[must_use]
+#[must_use = "the normalized path is returned, the input is unchanged"]
 #[inline]
 pub fn normalize(path: &Path) -> PathBuf {
     let mut components = Vec::new();
@@ -90,7 +90,7 @@ pub fn make_relative_to(path: &Path, base: &Path) -> Result<PathBuf> {
 }
 
 /// Compares canonical paths when both resolve, otherwise the lexically normalized ones.
-#[must_use]
+#[must_use = "checking the path has no effect"]
 #[inline]
 pub fn escapes_from_base(path: &Path, base: &Path) -> bool {
     if let Ok(canonical_path) = path.canonicalize()
@@ -106,7 +106,7 @@ pub fn escapes_from_base(path: &Path, base: &Path) -> bool {
 }
 
 /// Compares whole components, so `/ab` and `/ac` share only `/`.
-#[must_use]
+#[must_use = "the prefix is returned, the inputs are unchanged"]
 #[inline]
 pub fn common_path_prefix(path1: &Path, path2: &Path) -> PathBuf {
     let components1: Vec<_> = path1.components().collect();
@@ -126,7 +126,7 @@ pub fn common_path_prefix(path1: &Path, path2: &Path) -> PathBuf {
 }
 
 /// Convert backslashes to forward slashes (for cross-platform compatibility).
-#[must_use]
+#[must_use = "the converted path is returned, the input is unchanged"]
 #[inline]
 pub fn normalize_separators(path: &str) -> String {
     path.replace('\\', "/")
@@ -148,7 +148,7 @@ pub fn join_path_safe(base: &str, component: &str) -> Result<String> {
 }
 
 /// Extract file extension in lowercase.
-#[must_use]
+#[must_use = "reading the extension has no effect"]
 #[inline]
 pub fn get_file_extension(path: &Path) -> Option<String> {
     path.extension()
@@ -157,7 +157,7 @@ pub fn get_file_extension(path: &Path) -> Option<String> {
 }
 
 /// Check if a path has a specific extension (case-insensitive).
-#[must_use]
+#[must_use = "checking the extension has no effect"]
 #[inline]
 pub fn has_extension(path: &Path, extension: &str) -> bool {
     get_file_extension(path).is_some_and(|ext| ext == extension.to_lowercase())
@@ -165,7 +165,7 @@ pub fn has_extension(path: &Path, extension: &str) -> bool {
 
 /// Appends `-1`, `-2` and so on to the stem until the path is free; past 10000 it returns
 /// `{stem}-final` unchecked.
-#[must_use]
+#[must_use = "the free path is returned, no file is created"]
 #[inline]
 pub fn get_unique_filename(path: PathBuf) -> PathBuf {
     if !path.exists() {
@@ -203,7 +203,7 @@ pub fn get_unique_filename(path: PathBuf) -> PathBuf {
 }
 
 /// True when the path contains a pattern as plain text, or matches one whose `*` is a wildcard.
-#[must_use]
+#[must_use = "checking the path has no effect"]
 #[inline]
 pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
     let path_str = path.to_string_lossy();
@@ -228,21 +228,21 @@ pub fn is_path_allowed(path: &Path, allowed_patterns: &[&str]) -> bool {
 
 /// Replaces every backslash with a forward slash.
 #[inline]
-#[must_use]
+#[must_use = "the converted path is returned, the input is unchanged"]
 pub fn to_unix(path: &str) -> String {
     path.replace('\\', "/")
 }
 
 /// Replaces every forward slash with a backslash.
 #[inline]
-#[must_use]
+#[must_use = "the converted path is returned, the input is unchanged"]
 pub fn to_windows(path: &str) -> String {
     path.replace('/', "\\")
 }
 
 /// Counts the normal components, ignoring the root, `.` and `..`.
 #[inline]
-#[must_use]
+#[must_use = "counting the components has no effect"]
 pub fn depth(path: &Path) -> usize {
     path.components()
         .filter(|component| matches!(component, Component::Normal(_)))

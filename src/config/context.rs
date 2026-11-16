@@ -59,7 +59,7 @@ pub struct ValidatedContext {
 
 impl ValidatedContext {
     /// Returns a property's resolved value, or `None` if it was unset or never declared.
-    #[must_use]
+    #[must_use = "looking up a value has no effect"]
     #[inline]
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.values.get(name)
@@ -292,7 +292,7 @@ pub fn value_to_string(value: &Value) -> Result<String> {
 }
 
 /// Overlays `child` on `parent`; an empty string in `child` removes the key.
-#[must_use]
+#[must_use = "the merged context is returned, the inputs are unchanged"]
 #[inline]
 #[expect(
     clippy::iter_over_hash_type,

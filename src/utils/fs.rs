@@ -254,7 +254,7 @@ where
 }
 
 /// Formats with 1024-based units up to TB: whole bytes below 1 KB, one decimal place above.
-#[must_use]
+#[must_use = "the formatted size is returned, nothing is printed"]
 #[inline]
 #[expect(clippy::as_conversions, reason = "This is for number formatting")]
 #[expect(clippy::cast_precision_loss, reason = "This is for number formatting")]

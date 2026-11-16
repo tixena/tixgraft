@@ -286,14 +286,14 @@ impl SparseCheckout {
     }
 
     /// True once `execute` has written the source path into the temporary directory.
-    #[must_use]
+    #[must_use = "checking for the source has no effect"]
     #[inline]
     pub fn source_exists(&self) -> bool {
         self.temp_dir.path().join(&self.source_path).exists()
     }
 
     /// Returns the root of the checkout, which disappears when this value is dropped.
-    #[must_use]
+    #[must_use = "reading the path has no effect"]
     #[inline]
     pub fn temp_path(&self) -> &Path {
         self.temp_dir.path()

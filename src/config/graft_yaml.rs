@@ -56,7 +56,7 @@ pub struct GraftReplacement {
 
 impl GraftReplacement {
     /// Builds a replacement; validation later requires exactly one of the three value sources.
-    #[must_use]
+    #[must_use = "the replacement does nothing until it is added to a graft"]
     #[inline]
     pub const fn new(
         source: String,
@@ -96,7 +96,7 @@ pub enum PostCommand {
 
 impl PostCommand {
     /// Builds the `Command` variant, the one a step with no `type` reads as.
-    #[must_use]
+    #[must_use = "the step does nothing until it is added to a graft"]
     #[inline]
     pub const fn new(command: String, args: Vec<String>, cwd: Option<String>) -> Self {
         Self::Command { command, args, cwd }
@@ -120,7 +120,7 @@ pub struct ChoiceOption {
 
 impl ChoiceOption {
     /// Builds an option from its test, the pattern its output must match and the step to run then.
-    #[must_use]
+    #[must_use = "the option does nothing until it is added to a choice"]
     #[inline]
     pub const fn new(
         test: TestCommand,
@@ -151,7 +151,7 @@ pub struct TestCommand {
 
 impl TestCommand {
     /// Builds a test from its program, arguments and working directory.
-    #[must_use]
+    #[must_use = "the test does nothing until it is added to an option"]
     #[inline]
     pub const fn new(command: String, args: Vec<String>, cwd: Option<String>) -> Self {
         Self { args, command, cwd }

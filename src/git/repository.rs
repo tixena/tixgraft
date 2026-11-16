@@ -63,7 +63,7 @@ impl Repository {
     }
 
     /// True for a source fetched over Git, including a short `org/repo`.
-    #[must_use]
+    #[must_use = "checking the source kind has no effect"]
     #[inline]
     pub const fn is_git(&self) -> bool {
         matches!(
@@ -76,7 +76,7 @@ impl Repository {
     }
 
     /// True for a source read directly from disk, with no fetch or checkout.
-    #[must_use]
+    #[must_use = "checking the source kind has no effect"]
     #[inline]
     pub const fn is_local(&self) -> bool {
         matches!(
@@ -89,7 +89,7 @@ impl Repository {
     }
 
     /// Returns the resolved absolute path, or `None` for a Git source.
-    #[must_use]
+    #[must_use = "reading the path has no effect"]
     #[inline]
     #[expect(
         clippy::pattern_type_mismatch,
@@ -124,7 +124,7 @@ impl Repository {
     }
 
     /// Returns the source as the user wrote it, which error messages quote.
-    #[must_use]
+    #[must_use = "reading the URL has no effect"]
     #[inline]
     pub fn original_url(&self) -> &str {
         &self.url

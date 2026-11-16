@@ -57,7 +57,7 @@ impl GraftError {
     }
 
     /// Returns the process exit code of this variant, from 1 to 6.
-    #[must_use]
+    #[must_use = "reading the exit code has no effect"]
     #[inline]
     pub const fn exit_code(&self) -> i32 {
         match *self {

@@ -237,7 +237,7 @@ pub struct ReplacementConfig {
 
 impl ReplacementConfig {
     /// Builds a replacement; validation later requires exactly one of the two value sources.
-    #[must_use]
+    #[must_use = "the replacement does nothing until it is added to a pull"]
     #[inline]
     pub const fn new(
         source: String,
