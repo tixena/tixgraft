@@ -118,12 +118,7 @@ pub fn skill_check(system: &dyn System, target_dir: &Path) -> Result<SkillStatus
         return Ok(SkillStatus::Outdated);
     }
 
-    // read_dir answers with absolute paths, whatever form `target_dir` takes.
-    let installed_root = system
-        .current_dir()
-        .map_err(|err| GraftError::skill(format!("Could not determine current directory: {err}")))?
-        .join(target_dir);
-    let installed_paths = collect_installed_paths(system, &installed_root, &installed_root)?;
+    let installed_paths = collect_installed_paths(system, target_dir, target_dir)?;
     if installed_paths != embedded_paths {
         return Ok(SkillStatus::Outdated);
     }
